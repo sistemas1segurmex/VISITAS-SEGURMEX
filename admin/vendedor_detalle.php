@@ -48,16 +48,16 @@ if (!$vendedorId) {
     <div class="tab-pane fade show active" id="panel-proximas">
       <div class="table-responsive">
         <table class="table table-sm align-middle">
-          <thead><tr><th>Fecha</th><th>Cliente</th><th>Estado</th><th>Verificación</th><th>Notas</th></tr></thead>
-          <tbody id="tabla-proximas"><tr><td colspan="5" class="text-muted">Cargando...</td></tr></tbody>
+          <thead><tr><th>Fecha</th><th>Cliente</th><th>Estado</th><th>Verificación</th><th>Fotos</th><th>Notas</th></tr></thead>
+          <tbody id="tabla-proximas"><tr><td colspan="6" class="text-muted">Cargando...</td></tr></tbody>
         </table>
       </div>
     </div>
     <div class="tab-pane fade" id="panel-todas">
       <div class="table-responsive">
         <table class="table table-sm align-middle">
-          <thead><tr><th>Fecha</th><th>Cliente</th><th>Estado</th><th>Verificación</th><th>Notas</th></tr></thead>
-          <tbody id="tabla-todas"><tr><td colspan="5" class="text-muted">Cargando...</td></tr></tbody>
+          <thead><tr><th>Fecha</th><th>Cliente</th><th>Estado</th><th>Verificación</th><th>Fotos</th><th>Notas</th></tr></thead>
+          <tbody id="tabla-todas"><tr><td colspan="6" class="text-muted">Cargando...</td></tr></tbody>
         </table>
       </div>
     </div>

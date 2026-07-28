@@ -75,14 +75,21 @@ function badgeVerificado(cita) {
     : '<span class="badge badge-noverificado">Fuera de zona</span>';
 }
 
+function enlacesFotos(cita) {
+  const links = [];
+  if (cita.foto_entrada_id) links.push(`<a href="../api/foto.php?checkin_id=${cita.foto_entrada_id}" target="_blank" title="Foto de entrada">📷 Entrada</a>`);
+  if (cita.foto_salida_id) links.push(`<a href="../api/foto.php?checkin_id=${cita.foto_salida_id}" target="_blank" title="Foto de salida">📷 Salida</a>`);
+  return links.length ? links.join(' · ') : '<span class="text-muted small">—</span>';
+}
+
 async function cargarCitasHoy() {
   const cuerpo = document.getElementById('tabla-citas');
   const fecha = document.getElementById('filtro-fecha').value;
   try {
     const res = await fetch('../api/citas.php?fecha=' + fecha);
     const data = await res.json();
-    if (!data.ok) { cuerpo.innerHTML = `<tr><td colspan="5" class="text-danger">${data.error}</td></tr>`; return; }
-    if (data.citas.length === 0) { cuerpo.innerHTML = '<tr><td colspan="5" class="text-muted">Sin citas para esta fecha.</td></tr>'; return; }
+    if (!data.ok) { cuerpo.innerHTML = `<tr><td colspan="6" class="text-danger">${data.error}</td></tr>`; return; }
+    if (data.citas.length === 0) { cuerpo.innerHTML = '<tr><td colspan="6" class="text-muted">Sin citas para esta fecha.</td></tr>'; return; }
     cuerpo.innerHTML = data.citas.map(c => `
       <tr>
         <td>${c.vendedor_nombre}</td>
@@ -90,10 +97,11 @@ async function cargarCitasHoy() {
         <td>${c.fecha_hora}</td>
         <td>${badgeEstado(c)}</td>
         <td>${badgeVerificado(c)}</td>
+        <td>${enlacesFotos(c)}</td>
       </tr>
     `).join('');
   } catch (e) {
-    cuerpo.innerHTML = '<tr><td colspan="5" class="text-danger">Error al cargar citas.</td></tr>';
+    cuerpo.innerHTML = '<tr><td colspan="6" class="text-danger">Error al cargar citas.</td></tr>';
   }
 }
 

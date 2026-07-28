@@ -48,9 +48,9 @@ $hoy = date('Y-m-d');
           <div class="table-responsive">
             <table class="table table-sm align-middle">
               <thead>
-                <tr><th>Vendedor</th><th>Cliente</th><th>Hora</th><th>Estado</th><th>Verificación</th></tr>
+                <tr><th>Vendedor</th><th>Cliente</th><th>Hora</th><th>Estado</th><th>Verificación</th><th>Fotos</th></tr>
               </thead>
-              <tbody id="tabla-citas"><tr><td colspan="5" class="text-muted">Cargando...</td></tr></tbody>
+              <tbody id="tabla-citas"><tr><td colspan="6" class="text-muted">Cargando...</td></tr></tbody>
             </table>
           </div>
         </div>

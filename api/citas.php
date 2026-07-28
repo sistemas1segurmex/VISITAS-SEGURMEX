@@ -14,7 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 u.nombre AS vendedor_nombre,
                 (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado,
                 (SELECT COUNT(*) FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada') AS tiene_entrada,
-                (SELECT COUNT(*) FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida') AS tiene_salida
+                (SELECT COUNT(*) FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida') AS tiene_salida,
+                (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_entrada_id,
+                (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_salida_id
          FROM citas c
          JOIN clientes cl ON cl.id = c.cliente_id
          JOIN usuarios u ON u.id = c.vendedor_id

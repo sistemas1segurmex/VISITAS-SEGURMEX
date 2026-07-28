@@ -34,6 +34,13 @@ async function cargarResumen() {
   `;
 }
 
+function enlacesFotos(c) {
+  const links = [];
+  if (c.foto_entrada_id) links.push(`<a href="../api/foto.php?checkin_id=${c.foto_entrada_id}" target="_blank" title="Foto de entrada">📷 Entrada</a>`);
+  if (c.foto_salida_id) links.push(`<a href="../api/foto.php?checkin_id=${c.foto_salida_id}" target="_blank" title="Foto de salida">📷 Salida</a>`);
+  return links.length ? links.join(' · ') : '<span class="text-muted small">—</span>';
+}
+
 function filaCita(c) {
   return `
     <tr>
@@ -41,6 +48,7 @@ function filaCita(c) {
       <td>${c.cliente_nombre}<br><span class="text-muted small">${c.direccion}</span></td>
       <td>${badgeEstado(c.estado)}</td>
       <td>${badgeVerificado(c.checkin_verificado)}</td>
+      <td>${enlacesFotos(c)}</td>
       <td class="text-muted small">${c.notas || ''}</td>
     </tr>
   `;
@@ -48,11 +56,11 @@ function filaCita(c) {
 
 async function cargarCitas(accion, tablaId) {
   const cuerpo = document.getElementById(tablaId);
-  cuerpo.innerHTML = '<tr><td colspan="5" class="text-muted">Cargando...</td></tr>';
+  cuerpo.innerHTML = '<tr><td colspan="6" class="text-muted">Cargando...</td></tr>';
   const res = await fetch(`../api/admin_vendedor.php?vendedor_id=${vendedorId}&accion=${accion}`);
   const data = await res.json();
-  if (!data.ok) { cuerpo.innerHTML = `<tr><td colspan="5" class="text-danger">${data.error}</td></tr>`; return; }
-  if (data.citas.length === 0) { cuerpo.innerHTML = '<tr><td colspan="5" class="text-muted">Sin citas.</td></tr>'; return; }
+  if (!data.ok) { cuerpo.innerHTML = `<tr><td colspan="6" class="text-danger">${data.error}</td></tr>`; return; }
+  if (data.citas.length === 0) { cuerpo.innerHTML = '<tr><td colspan="6" class="text-muted">Sin citas.</td></tr>'; return; }
   cuerpo.innerHTML = data.citas.map(filaCita).join('');
 }
 
