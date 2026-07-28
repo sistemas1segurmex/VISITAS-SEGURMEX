@@ -1,0 +1,12 @@
+# Normaliza los finales de línea a LF en el repositorio, sin importar si
+# alguien clona/descarga el proyecto desde Windows o Mac/Linux. Esto evita
+# que una descarga nueva marque TODO el proyecto como "modificado" solo por
+# diferencias de fin de línea (CRLF vs LF), como pasó el 28 de julio de 2026.
+* text=auto eol=lf
+
+# Binarios: nunca tocar sus bytes.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

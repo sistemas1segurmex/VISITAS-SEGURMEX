@@ -49,6 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         jsonResponse(['ok' => false, 'error' => 'Cliente y fecha/hora son obligatorios'], 400);
     }
 
+    $tsFecha = strtotime(str_replace('T', ' ', $fechaHora));
+    if ($tsFecha === false || $tsFecha < strtotime('today')) {
+        jsonResponse(['ok' => false, 'error' => 'No puedes agendar una cita en una fecha pasada'], 400);
+    }
+
     $chk = $db->prepare('SELECT id FROM clientes WHERE id = ? AND vendedor_id = ?');
     $chk->execute([$clienteId, $u['id']]);
     if (!$chk->fetch()) {

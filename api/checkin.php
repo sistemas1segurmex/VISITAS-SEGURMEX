@@ -10,13 +10,23 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     jsonResponse(['ok' => false, 'error' => 'Método no soportado'], 405);
 }
 
-$citaId = (int)($_POST['cita_id'] ?? 0);
-$tipo   = $_POST['tipo'] ?? 'entrada';
-$lat    = isset($_POST['lat']) ? (float)$_POST['lat'] : 0.0;
-$lng    = isset($_POST['lng']) ? (float)$_POST['lng'] : 0.0;
+// Minutos que deben pasar desde la hora programada de la cita antes de que
+// se pueda reportar "el cliente no llegó" (evita reportes prematuros).
+define('ESPERA_NO_SHOW_MINUTOS', 10);
+
+$citaId  = (int)($_POST['cita_id'] ?? 0);
+$tipo    = $_POST['tipo'] ?? 'entrada';
+$lat     = isset($_POST['lat']) ? (float)$_POST['lat'] : 0.0;
+$lng     = isset($_POST['lng']) ? (float)$_POST['lng'] : 0.0;
+$noShow  = ($_POST['no_show'] ?? '') === '1';
+$motivo  = trim($_POST['motivo'] ?? '');
 
 if (!$citaId || !$lat || !$lng || !in_array($tipo, ['entrada', 'salida'], true)) {
     jsonResponse(['ok' => false, 'error' => 'Datos incompletos (cita, GPS o tipo)'], 400);
+}
+
+if ($noShow && $motivo === '') {
+    jsonResponse(['ok' => false, 'error' => 'Cuéntanos brevemente qué pasó (motivo obligatorio).'], 400);
 }
 
 $stmt = $db->prepare(
@@ -28,6 +38,18 @@ $stmt->execute([$citaId, $u['id']]);
 $cita = $stmt->fetch();
 if (!$cita) {
     jsonResponse(['ok' => false, 'error' => 'Cita no encontrada'], 404);
+}
+
+if (in_array($cita['estado'], ['cancelada', 'no_realizada', 'completada'], true)) {
+    jsonResponse(['ok' => false, 'error' => 'Esta cita ya no admite check-in (estado: ' . $cita['estado'] . ').'], 400);
+}
+
+if ($noShow) {
+    $minutosPasados = (time() - strtotime($cita['fecha_hora'])) / 60;
+    if ($minutosPasados < ESPERA_NO_SHOW_MINUTOS) {
+        $faltan = ceil(ESPERA_NO_SHOW_MINUTOS - $minutosPasados);
+        jsonResponse(['ok' => false, 'error' => "Espera $faltan minuto(s) más desde la hora programada antes de reportar que el cliente no llegó."], 400);
+    }
 }
 
 $distancia  = null;
@@ -46,11 +68,15 @@ if (!empty($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
     }
     $ext    = image_type_to_extension($info[2], false) ?: 'jpg';
     $nombre = 'checkin_' . $citaId . '_' . $tipo . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-    $destino = __DIR__ . '/../uploads/checkins/' . $nombre;
+    $destinoDir = __DIR__ . '/../uploads/checkins';
+    if (!is_dir($destinoDir)) mkdir($destinoDir, 0775, true);
+    $destino = $destinoDir . '/' . $nombre;
     if (!move_uploaded_file($tmp, $destino)) {
         jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la foto'], 500);
     }
     $fotoPath = 'uploads/checkins/' . $nombre;
+} elseif (!$noShow) {
+    jsonResponse(['ok' => false, 'error' => 'Toma la foto de evidencia'], 400);
 }
 
 $stmt = $db->prepare(
@@ -58,8 +84,13 @@ $stmt = $db->prepare(
 );
 $stmt->execute([$citaId, $tipo, $lat, $lng, $distancia, $fotoPath, $verificado]);
 
-$nuevoEstado = $tipo === 'entrada' ? 'en_curso' : 'completada';
-$db->prepare('UPDATE citas SET estado = ? WHERE id = ?')->execute([$nuevoEstado, $citaId]);
+if ($noShow) {
+    $nuevoEstado = 'no_realizada';
+    $db->prepare('UPDATE citas SET estado = ?, motivo = ? WHERE id = ?')->execute([$nuevoEstado, $motivo, $citaId]);
+} else {
+    $nuevoEstado = $tipo === 'entrada' ? 'en_curso' : 'completada';
+    $db->prepare('UPDATE citas SET estado = ? WHERE id = ?')->execute([$nuevoEstado, $citaId]);
+}
 
 if ($tipo === 'entrada' && !$verificado && $distancia !== null) {
     $db->prepare('INSERT INTO alertas (vendedor_id, cita_id, tipo, mensaje) VALUES (?,?,?,?)')
@@ -76,4 +107,5 @@ jsonResponse([
     'verificado'       => (bool)$verificado,
     'distancia_metros' => $distancia !== null ? round($distancia) : null,
     'foto'             => $fotoPath,
+    'estado'           => $nuevoEstado,
 ]);
