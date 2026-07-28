@@ -53,7 +53,7 @@ $siguienteTipo = !$tieneEntrada ? 'entrada' : (!$tieneSalida ? 'salida' : null);
 
   <?php foreach ($checkins as $ch): ?>
     <div class="alert <?= $ch['verificado'] ? 'alert-success' : 'alert-warning' ?> py-2">
-      <strong><?= $ch['tipo'] === 'entrada' ? 'Entrada' : 'Salida' ?> registrada</strong> — <?= htmlspecialchars($ch['fecha_hora']) ?><br>
+      <strong><?= $ch['tipo'] === 'entrada' ? 'Entrada' : 'Salida' ?> registrada</strong> — <span class="fecha-utc" data-utc="<?= htmlspecialchars($ch['fecha_hora']) ?>"><?= htmlspecialchars($ch['fecha_hora']) ?></span><br>
       <?= $ch['distancia_metros'] !== null ? 'Distancia al cliente: ' . round($ch['distancia_metros']) . ' m' : 'Cliente sin coordenadas registradas' ?>
       — <?= $ch['verificado'] ? '✅ Verificado' : '⚠️ Fuera de zona' ?>
     </div>
@@ -88,12 +88,15 @@ $siguienteTipo = !$tieneEntrada ? 'entrada' : (!$tieneSalida ? 'salida' : null);
   <?php endif; ?>
 </div>
 
+<script src="../assets/js/fecha_utils.js"></script>
 <script>
 const citaId = <?= (int)$citaId ?>;
 const tipo = '<?= $siguienteTipo ?>';
 let lat = null, lng = null;
 let fotoBlob = null;
 let streamCamara = null;
+
+aplicarFechasUTC();
 
 const estadoGps = document.getElementById('estado-gps');
 const btn = document.getElementById('btn-registrar');

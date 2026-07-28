@@ -75,6 +75,7 @@ $hoy = date('Y-m-d');
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="../assets/js/estados_mx.js"></script>
+<script src="../assets/js/fecha_utils.js"></script>
 <script src="../assets/js/admin.js"></script>
 <script src="../assets/js/admin_mapa_estados.js"></script>
 <script>

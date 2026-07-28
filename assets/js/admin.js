@@ -32,7 +32,7 @@ async function actualizarUbicaciones() {
       if (u.en_linea == 1) enLineaCount++;
       const estadoTxt = u.en_linea == 1
         ? '<span class="text-success">🟢 En línea</span>'
-        : `<span class="text-muted">⚪ Desconectado — última señal: ${u.fecha_hora}</span>`;
+        : `<span class="text-muted">⚪ Desconectado — última señal: ${formatearFechaUTC(u.fecha_hora)}</span>`;
       const popup = `<strong>${u.nombre}</strong><br>${u.estado_operacion || ''}<br>${estadoTxt}`;
 
       let marker = marcadoresVendedores[u.vendedor_id];
@@ -114,7 +114,7 @@ async function cargarAlertas() {
     if (data.alertas.length === 0) { cont.innerHTML = '<p class="text-muted small mb-0">Sin alertas pendientes.</p>'; return; }
     cont.innerHTML = data.alertas.map(a => `
       <div class="alert alert-warning py-2 d-flex justify-content-between align-items-start">
-        <div><strong>${a.vendedor_nombre}</strong> — ${a.mensaje}<br><span class="text-muted small">${a.created_at}</span></div>
+        <div><strong>${a.vendedor_nombre}</strong> — ${a.mensaje}<br><span class="text-muted small">${formatearFechaUTC(a.created_at)}</span></div>
         <button class="btn btn-sm btn-outline-secondary" onclick="resolverAlerta(${a.id})">Marcar vista</button>
       </div>
     `).join('');

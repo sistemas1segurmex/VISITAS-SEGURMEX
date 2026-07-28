@@ -48,6 +48,11 @@ function getDB(): PDO {
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             ]);
+            // Forzamos UTC en la sesión para que NOW()/CURRENT_TIMESTAMP sean
+            // siempre consistentes sin importar la config del proyecto Supabase.
+            // La conversión a hora local para mostrarla al usuario se hace en
+            // el frontend (ver assets/js/fecha_utils.js).
+            $pdo->exec("SET timezone = 'UTC'");
             // Todas las tablas de este sistema viven en el esquema "visitas",
             // no en "public" (ahí está el ERP). Esto evita tener que prefijar
             // cada consulta con "visitas.".
