@@ -20,7 +20,7 @@ $fin    = $_GET['end'] ?? date('Y-m-t');
 $inicio = substr($inicio, 0, 10);
 $fin    = substr($fin, 0, 10);
 
-$sql = "SELECT c.id, c.fecha_hora, c.estado, cl.nombre AS cliente_nombre, cl.direccion,
+$sql = "SELECT c.id, c.fecha_hora, c.estado, c.notas, c.motivo, cl.nombre AS cliente_nombre, cl.direccion,
                (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado
         FROM citas c
         JOIN clientes cl ON cl.id = c.cliente_id
@@ -41,18 +41,26 @@ $colores = [
     'en_curso'      => '#2563eb',
     'completada'    => '#16a34a',
     'no_realizada'  => '#dc2626',
+    'cancelada'     => '#6b7280',
 ];
 
-$eventos = array_map(function ($c) use ($colores) {
+$ahora = new DateTime();
+$eventos = array_map(function ($c) use ($colores, $ahora) {
+    $retrasada = $c['estado'] === 'pendiente' && new DateTime($c['fecha_hora']) < $ahora;
+    $atenuada  = in_array($c['estado'], ['cancelada', 'no_realizada'], true);
     return [
-        'id'    => $c['id'],
-        'title' => $c['cliente_nombre'],
-        'start' => str_replace(' ', 'T', $c['fecha_hora']),
-        'color' => $colores[$c['estado']] ?? '#6b7280',
+        'id'        => $c['id'],
+        'title'     => $c['cliente_nombre'],
+        'start'     => str_replace(' ', 'T', $c['fecha_hora']),
+        'color'     => $colores[$c['estado']] ?? '#6b7280',
+        'classNames' => $atenuada ? ['v26-evento-atenuado'] : [],
         'extendedProps' => [
             'direccion'  => $c['direccion'],
             'estado'     => $c['estado'],
             'verificado' => $c['checkin_verificado'],
+            'notas'      => $c['notas'],
+            'motivo'     => $c['motivo'],
+            'retrasada'  => $retrasada,
         ],
     ];
 }, $citas);
