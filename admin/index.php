@@ -58,6 +58,10 @@ $hoy = date('Y-m-d');
     </div>
 
     <div class="col-lg-4">
+      <div class="card shadow-sm mb-3 d-none" id="panel-estado-wrap">
+        <div class="card-body" id="panel-estado"></div>
+      </div>
+
       <div class="card shadow-sm">
         <div class="card-body">
           <h6 class="mb-2">Alertas</h6>
@@ -70,9 +74,12 @@ $hoy = date('Y-m-d');
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="../assets/js/estados_mx.js"></script>
 <script src="../assets/js/admin.js"></script>
+<script src="../assets/js/admin_mapa_estados.js"></script>
 <script>
   initMapa();
+  initCapaEstados();
   refrescarTodo();
   document.getElementById('filtro-fecha').addEventListener('change', cargarCitasHoy);
   setInterval(refrescarTodo, 20000); // refresco automático cada 20s

@@ -78,7 +78,9 @@ $u = requireRole('admin');
           </div>
           <div class="mb-3">
             <label class="form-label">Estado/Región donde opera (opcional)</label>
-            <input type="text" name="estado_operacion" id="estado_operacion" class="form-control" placeholder="Ej. Jalisco">
+            <select name="estado_operacion" id="estado_operacion" class="form-select">
+              <option value="">Sin asignar</option>
+            </select>
           </div>
         </div>
         <div class="modal-footer">
@@ -91,6 +93,7 @@ $u = requireRole('admin');
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/js/estados_mx.js"></script>
 <script src="../assets/js/admin_usuarios.js"></script>
 </body>
 </html>

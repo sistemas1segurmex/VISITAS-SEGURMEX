@@ -2,6 +2,9 @@
 
 let usuarioEditandoId = null;
 
+document.getElementById('estado_operacion').innerHTML =
+  '<option value="">Sin asignar</option>' + ESTADOS_MX.map(e => `<option value="${e}">${e}</option>`).join('');
+
 function abrirModalCrear() {
   usuarioEditandoId = null;
   document.getElementById('modalUsuarioTitulo').textContent = 'Nuevo vendedor';
