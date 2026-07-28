@@ -1,0 +1,10 @@
+# Credenciales — nunca subir
+.env
+
+# Fotos de evidencia subidas por los vendedores (datos reales, no código)
+uploads/checkins/*
+!uploads/checkins/.gitkeep
+
+# Basura de sistema
+.DS_Store
+Thumbs.db

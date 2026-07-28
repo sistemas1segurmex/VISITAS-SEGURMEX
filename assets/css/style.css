@@ -1,0 +1,18 @@
+:root {
+  --brand: #F5A623;
+  --brand-dark: #d98f10;
+}
+body { background: #F5F6F8; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.login-bg { background: linear-gradient(135deg, #111827, #1f2937); }
+.btn-brand { background: var(--brand); border-color: var(--brand); color: #111827; font-weight: 600; }
+.btn-brand:hover { background: var(--brand-dark); border-color: var(--brand-dark); color: #111827; }
+.navbar-brand-custom { color: var(--brand) !important; font-weight: 700; }
+.badge-verificado { background: #16a34a !important; }
+.badge-noverificado { background: #dc2626 !important; }
+.badge-pendiente { background: #6b7280 !important; }
+.badge-en_curso { background: #2563eb !important; }
+.badge-completada { background: #16a34a !important; }
+.badge-no_realizada { background: #dc2626 !important; }
+#mapa { height: 480px; border-radius: 8px; }
+.card-cita { border-left: 4px solid var(--brand); }
+.leaflet-marker-icon.marker-vendedor { filter: hue-rotate(200deg); }
