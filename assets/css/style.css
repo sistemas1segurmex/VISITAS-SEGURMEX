@@ -15,4 +15,4 @@ body { background: #F5F6F8; font-family: system-ui, -apple-system, "Segoe UI", s
 .badge-no_realizada { background: #dc2626 !important; }
 #mapa { height: 480px; border-radius: 8px; }
 .card-cita { border-left: 4px solid var(--brand); }
-.leaflet-marker-icon.marker-vendedor { filter: hue-rotate(200deg); }
+.leaflet-marker-icon.marker-apagado { filter: grayscale(1) brightness(1.3); opacity: 0.55; }

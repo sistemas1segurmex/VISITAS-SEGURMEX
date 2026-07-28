@@ -13,18 +13,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nombre    = trim($_POST['nombre'] ?? '');
-    $direccion = trim($_POST['direccion'] ?? '');
-    $lat       = $_POST['lat'] ?? null;
-    $lng       = $_POST['lng'] ?? null;
-    $telefono  = trim($_POST['telefono'] ?? '');
+    $nombre        = trim($_POST['nombre'] ?? '');
+    $calle         = trim($_POST['calle'] ?? $_POST['direccion'] ?? '');
+    $codigoPostal  = trim($_POST['codigo_postal'] ?? '');
+    $colonia       = trim($_POST['colonia'] ?? '');
+    $municipio     = trim($_POST['municipio'] ?? '');
+    $estado        = trim($_POST['estado'] ?? '');
+    $lat           = $_POST['lat'] ?? null;
+    $lng           = $_POST['lng'] ?? null;
+    $telefono      = trim($_POST['telefono'] ?? '');
 
-    if ($nombre === '' || $direccion === '') {
+    if ($nombre === '' || $calle === '') {
         jsonResponse(['ok' => false, 'error' => 'Nombre y dirección son obligatorios'], 400);
     }
 
-    $stmt = $db->prepare('INSERT INTO clientes (vendedor_id, nombre, direccion, lat, lng, telefono) VALUES (?,?,?,?,?,?)');
-    $stmt->execute([$u['id'], $nombre, $direccion, $lat !== '' ? $lat : null, $lng !== '' ? $lng : null, $telefono]);
+    // Dirección completa y legible, compuesta a partir de las partes
+    // capturadas (para no tener que tocar las pantallas que ya muestran
+    // "direccion" tal cual, como el check-in o el panel del dueño).
+    $partes = array_filter([$calle, $colonia, $municipio, $estado, $codigoPostal]);
+    $direccion = implode(', ', $partes);
+
+    $stmt = $db->prepare(
+        'INSERT INTO clientes (vendedor_id, nombre, direccion, lat, lng, telefono, codigo_postal, estado, municipio, colonia)
+         VALUES (?,?,?,?,?,?,?,?,?,?)'
+    );
+    $stmt->execute([
+        $u['id'], $nombre, $direccion,
+        $lat !== '' ? $lat : null, $lng !== '' ? $lng : null,
+        $telefono,
+        $codigoPostal ?: null, $estado ?: null, $municipio ?: null, $colonia ?: null,
+    ]);
     jsonResponse(['ok' => true, 'id' => $db->lastInsertId()]);
 }
 

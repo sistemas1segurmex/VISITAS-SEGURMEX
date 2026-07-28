@@ -7,6 +7,12 @@ function initMapa() {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
 }
 
+function aplicarEstiloEstado(marker, enLinea) {
+  const el = marker.getElement ? marker.getElement() : null;
+  if (!el) return;
+  el.classList.toggle('marker-apagado', !enLinea);
+}
+
 async function actualizarUbicaciones() {
   try {
     const res = await fetch('../api/tracking.php');
@@ -14,17 +20,32 @@ async function actualizarUbicaciones() {
     if (!data.ok) return;
 
     const vistos = new Set();
+    const sinUbicacion = [];
+    let enLineaCount = 0;
+
     data.ubicaciones.forEach(u => {
-      vistos.add(u.vendedor_id);
-      const popup = `<strong>${u.nombre}</strong><br>${u.estado_operacion || ''}<br><span class="text-muted">Última señal: ${u.fecha_hora}</span>`;
-      if (marcadoresVendedores[u.vendedor_id]) {
-        marcadoresVendedores[u.vendedor_id].setLatLng([u.lat, u.lng]).setPopupContent(popup);
-      } else {
-        marcadoresVendedores[u.vendedor_id] = L.marker([u.lat, u.lng]).addTo(mapa).bindPopup(popup);
+      if (u.lat === null || u.lng === null) {
+        sinUbicacion.push(u.nombre);
+        return;
       }
+      vistos.add(u.vendedor_id);
+      if (u.en_linea == 1) enLineaCount++;
+      const estadoTxt = u.en_linea == 1
+        ? '<span class="text-success">🟢 En línea</span>'
+        : `<span class="text-muted">⚪ Desconectado — última señal: ${u.fecha_hora}</span>`;
+      const popup = `<strong>${u.nombre}</strong><br>${u.estado_operacion || ''}<br>${estadoTxt}`;
+
+      let marker = marcadoresVendedores[u.vendedor_id];
+      if (marker) {
+        marker.setLatLng([u.lat, u.lng]).setPopupContent(popup);
+      } else {
+        marker = L.marker([u.lat, u.lng]).addTo(mapa).bindPopup(popup);
+        marcadoresVendedores[u.vendedor_id] = marker;
+      }
+      aplicarEstiloEstado(marker, u.en_linea == 1);
     });
 
-    // Quita del mapa a quien ya no está en la lista (por si algo cambia).
+    // Quita del mapa a quien ya no está en la lista (ej. se desactivó su cuenta).
     Object.keys(marcadoresVendedores).forEach(id => {
       if (!vistos.has(Number(id))) {
         mapa.removeLayer(marcadoresVendedores[id]);
@@ -32,8 +53,12 @@ async function actualizarUbicaciones() {
       }
     });
 
-    document.getElementById('resumen-vendedores').textContent =
-      data.ubicaciones.length + ' vendedor(es) reportando ubicación hoy';
+    const totalConUbicacion = data.ubicaciones.length - sinUbicacion.length;
+    let resumen = `${enLineaCount} en línea de ${totalConUbicacion} con ubicación registrada`;
+    if (sinUbicacion.length > 0) {
+      resumen += ` · sin ubicación aún: ${sinUbicacion.join(', ')}`;
+    }
+    document.getElementById('resumen-vendedores').textContent = resumen;
   } catch (e) { /* silencioso: se reintenta en el próximo ciclo */ }
 }
 

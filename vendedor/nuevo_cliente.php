@@ -28,9 +28,35 @@ $u = requireRole('vendedor');
           <label class="form-label">Nombre del cliente / negocio</label>
           <input type="text" name="nombre" class="form-control" required>
         </div>
+
+        <div class="row g-2 mb-2">
+          <div class="col-4">
+            <label class="form-label">Código Postal</label>
+            <input type="text" id="codigo_postal" name="codigo_postal" class="form-control" maxlength="5" inputmode="numeric" placeholder="Ej. 72000">
+          </div>
+          <div class="col-8">
+            <label class="form-label">Colonia</label>
+            <select id="colonia" name="colonia" class="form-select" disabled>
+              <option value="">Escribe el CP primero</option>
+            </select>
+          </div>
+        </div>
+        <div id="msg-cp" class="mb-2"></div>
+
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label">Estado</label>
+            <input type="text" id="estado" name="estado" class="form-control" readonly placeholder="—">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Municipio</label>
+            <input type="text" id="municipio" name="municipio" class="form-control" readonly placeholder="—">
+          </div>
+        </div>
+
         <div class="mb-3">
-          <label class="form-label">Dirección</label>
-          <input type="text" name="direccion" class="form-control" required>
+          <label class="form-label">Calle y número</label>
+          <input type="text" name="calle" class="form-control" placeholder="Ej. Av. Reforma 123" required>
         </div>
         <div class="mb-3">
           <label class="form-label">Teléfono (opcional)</label>
@@ -74,6 +100,48 @@ document.getElementById('btn-mi-ubicacion').addEventListener('click', () => {
     () => alert('No se pudo obtener tu ubicación. Revisa los permisos del navegador.')
   );
 });
+
+// --- Autocompletar por código postal (catálogo SEPOMEX) ---
+const inputCP   = document.getElementById('codigo_postal');
+const selColonia = document.getElementById('colonia');
+const inputEstado = document.getElementById('estado');
+const inputMunicipio = document.getElementById('municipio');
+const msgCp = document.getElementById('msg-cp');
+
+inputCP.addEventListener('input', () => {
+  inputCP.value = inputCP.value.replace(/\D/g, '').slice(0, 5);
+  msgCp.innerHTML = '';
+  if (inputCP.value.length !== 5) {
+    selColonia.disabled = true;
+    selColonia.innerHTML = '<option value="">Escribe el CP primero</option>';
+    inputEstado.value = '';
+    inputMunicipio.value = '';
+    return;
+  }
+  buscarCP(inputCP.value);
+});
+
+async function buscarCP(cp) {
+  selColonia.disabled = true;
+  selColonia.innerHTML = '<option value="">Buscando...</option>';
+  try {
+    const res = await fetch(`../api/cp.php?cp=${cp}`);
+    const data = await res.json();
+    if (!data.ok) {
+      msgCp.innerHTML = '<div class="alert alert-warning py-2 mb-0">CP no encontrado, verifica o captura la dirección manualmente.</div>';
+      selColonia.innerHTML = '<option value="">—</option>';
+      inputEstado.value = '';
+      inputMunicipio.value = '';
+      return;
+    }
+    inputEstado.value = data.estado;
+    inputMunicipio.value = data.municipio;
+    selColonia.innerHTML = data.colonias.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('');
+    selColonia.disabled = false;
+  } catch (e) {
+    msgCp.innerHTML = '<div class="alert alert-danger py-2 mb-0">No se pudo consultar el catálogo de códigos postales.</div>';
+  }
+}
 
 document.getElementById('form-cliente').addEventListener('submit', async (e) => {
   e.preventDefault();
