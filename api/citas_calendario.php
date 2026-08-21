@@ -44,9 +44,13 @@ $colores = [
     'cancelada'     => '#6b7280',
 ];
 
-$ahora = new DateTime();
-$eventos = array_map(function ($c) use ($colores, $ahora) {
-    $retrasada = $c['estado'] === 'pendiente' && new DateTime($c['fecha_hora']) < $ahora;
+// citas.fecha_hora es hora local de CDMX tal cual la capturo el vendedor (no
+// pasa por UTC) -- comparar contra "ahora" en la misma zona, no la que traiga
+// el servidor por default (mismo criterio que api/citas.php).
+$tzMx  = new DateTimeZone('America/Mexico_City');
+$ahora = new DateTime('now', $tzMx);
+$eventos = array_map(function ($c) use ($colores, $ahora, $tzMx) {
+    $retrasada = $c['estado'] === 'pendiente' && new DateTime($c['fecha_hora'], $tzMx) < $ahora;
     $atenuada  = in_array($c['estado'], ['cancelada', 'no_realizada'], true);
     return [
         'id'        => $c['id'],
