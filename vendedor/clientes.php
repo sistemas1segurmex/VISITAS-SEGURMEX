@@ -32,6 +32,7 @@ $u = requireRole('vendedor');
       <a href="index.php"><i class="bi bi-house-fill"></i>Inicio</a>
       <a href="calendario.php"><i class="bi bi-calendar3"></i>Calendario</a>
       <a href="clientes.php" class="active"><i class="bi bi-people-fill"></i>Clientes</a>
+      <a href="cotizaciones.php"><i class="bi bi-file-earmark-text-fill"></i>Cotizar</a>
       <a href="reporte.php"><i class="bi bi-bar-chart-fill"></i>Reporte</a>
     </div>
   </div>
@@ -58,7 +59,9 @@ $u = requireRole('vendedor');
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/js/vendedor.js"></script>
 <script>
+iniciarTrackingPeriodico();
 let todosLosClientes = [];
 
 function renderClientes(lista) {
@@ -81,6 +84,7 @@ function renderClientes(lista) {
           ${c.lat ? '<span class="v26-pill v26-pill--verificado">GPS ok</span>' : '<span class="v26-pill v26-pill--pendiente">Sin ubicación</span>'}
         </div>
       </div>
+      <a href="nueva_cotizacion.php?cliente_id=${c.id}" class="accion v26-tip secundaria" data-tip="Cotizar" aria-label="Cotizar"><i class="bi bi-file-earmark-plus"></i></a>
       <a href="historial_cliente.php?id=${c.id}" class="accion v26-tip secundaria" data-tip="Ver historial de visitas" aria-label="Ver historial"><i class="bi bi-clock-history"></i></a>
     </div>
   `).join('');

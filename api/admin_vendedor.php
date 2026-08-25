@@ -91,4 +91,30 @@ if ($accion === 'clientes') {
     jsonResponse(['ok' => true, 'clientes' => $stmt->fetchAll()]);
 }
 
+if ($accion === 'prospeccion') {
+    $vista = $_GET['vista'] ?? 'mes';
+
+    if ($vista === 'semana') {
+        $semana = $_GET['semana'] ?? '';
+        if (!preg_match('/^(\d{4})-W(\d{2})$/', $semana, $m)) {
+            jsonResponse(['ok' => false, 'error' => 'Semana inválida'], 400);
+        }
+        jsonResponse(['ok' => true, 'vista' => 'semana'] + resumenProspeccionSemana($db, $vendedorId, (int)$m[1], (int)$m[2]));
+    }
+
+    $mes = $_GET['mes'] ?? (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y-m');
+    if (!preg_match('/^\d{4}-\d{2}$/', $mes)) {
+        jsonResponse(['ok' => false, 'error' => 'Mes inválido'], 400);
+    }
+    jsonResponse(['ok' => true, 'vista' => 'mes'] + resumenProspeccionMes($db, $vendedorId, $mes));
+}
+
+if ($accion === 'prospeccion_dia') {
+    $fecha = $_GET['fecha'] ?? (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+        jsonResponse(['ok' => false, 'error' => 'Fecha inválida'], 400);
+    }
+    jsonResponse(['ok' => true] + resumenDiaVendedor($db, $vendedorId, $fecha));
+}
+
 jsonResponse(['ok' => false, 'error' => 'Acción no reconocida'], 400);

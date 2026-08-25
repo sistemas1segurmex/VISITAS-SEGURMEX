@@ -68,6 +68,10 @@ $siguienteTipo = (!$estadoResuelto && !$esFuturo) ? (!$tieneEntrada ? 'entrada' 
       <?php endif; ?>
     </div>
 
+    <a href="nueva_cotizacion.php?cliente_id=<?= (int)$cita['cliente_id'] ?>&cita_id=<?= (int)$cita['id'] ?>" class="v26-btn v26-btn-ghost v26-btn-block mb-3">
+      <i class="bi bi-file-earmark-plus"></i> Cotizar a este cliente
+    </a>
+
     <?php foreach ($checkins as $ch): ?>
       <div class="v26-card mb-2" style="padding:12px 14px;">
         <strong style="font-size:.85rem;"><?= $ch['tipo'] === 'entrada' ? 'Entrada' : 'Salida' ?> registrada</strong>
@@ -135,7 +139,9 @@ $siguienteTipo = (!$estadoResuelto && !$esFuturo) ? (!$tieneEntrada ? 'entrada' 
 
 <script src="../assets/js/fecha_utils.js"></script>
 <script src="../assets/js/v26-modal.js"></script>
+<script src="../assets/js/vendedor.js"></script>
 <script>
+iniciarTrackingPeriodico();
 const citaId = <?= (int)$citaId ?>;
 const tipo = <?= json_encode($siguienteTipo) ?>;
 const fechaCitaStr = <?= json_encode($cita['fecha_hora']) ?>;

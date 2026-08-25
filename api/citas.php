@@ -31,9 +31,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
 
     $citas = $stmt->fetchAll();
-    $ahora = new DateTime();
+    // citas.fecha_hora es hora local de CDMX tal cual la capturo el vendedor
+    // (no pasa por UTC, ver assets/js/fecha_utils.js) -- "ahora" debe
+    // compararse en la MISMA zona, no en la que traiga el servidor por
+    // default (mismo criterio que generarAlertasSinActividad() en helpers.php),
+    // o una cita futura sale marcada "retrasada" si el servidor no esta en
+    // hora de CDMX.
+    $tzMx  = new DateTimeZone('America/Mexico_City');
+    $ahora = new DateTime('now', $tzMx);
     foreach ($citas as &$c) {
-        $hora = new DateTime($c['fecha_hora']);
+        $hora = new DateTime($c['fecha_hora'], $tzMx);
         $c['retrasada'] = ($c['estado'] === 'pendiente' && $hora < $ahora);
     }
     jsonResponse(['ok' => true, 'citas' => $citas]);

@@ -186,6 +186,14 @@
 .v26-pill--verificado  { background: rgba(22,163,74,.12);   color: var(--v26-green); }
 .v26-pill--noverificado{ background: rgba(225,29,72,.12);   color: var(--v26-red); }
 .v26-pill--cancelada   { background: rgba(107,114,128,.12); color: var(--v26-gray); }
+/* Estados de cotización (Cotizador del ERP) -- mismo criterio de color que
+   colorEstadoCotizacion() en erp/cotizacion/_helpers.php. */
+.v26-pill--enviada        { background: rgba(37,99,235,.12);  color: #1E40AF; }
+.v26-pill--en_negociacion { background: rgba(124,58,237,.12); color: #5B21B6; }
+.v26-pill--aceptada       { background: rgba(5,150,105,.12);  color: #065F46; }
+.v26-pill--rechazada      { background: rgba(220,38,38,.12);  color: #991B1B; }
+.v26-pill--facturada      { background: rgba(5,150,105,.12);  color: #065F46; }
+.v26-pill--entregada      { background: rgba(5,150,105,.12);  color: #065F46; }
 .v26-pill--retrasada   { background: rgba(225,29,72,.14);   color: var(--v26-red); animation: v26-pill-glow 1.6s ease-in-out infinite; }
 .v26-pill--retrasada::before { animation: v26-pill-dot 1.6s ease-in-out infinite; }
 @keyframes v26-pill-glow {

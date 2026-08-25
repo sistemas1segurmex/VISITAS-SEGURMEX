@@ -7,6 +7,8 @@ $u  = requireRole('admin');
 $db = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    generarAlertasSinActividad($db);
+
     $stmt = $db->query(
         "SELECT a.*, u.nombre AS vendedor_nombre
          FROM alertas a JOIN usuarios u ON u.id = a.vendedor_id

@@ -57,7 +57,9 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaPrellenada)) $fechaPrellenada = '
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/js/vendedor.js"></script>
 <script>
+iniciarTrackingPeriodico();
 // No se pueden agendar citas en fechas pasadas.
 const hoyISO = new Date().toISOString().slice(0, 10);
 const inputFecha = document.getElementById('input-fecha-hora');
