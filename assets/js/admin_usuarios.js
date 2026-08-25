@@ -86,9 +86,9 @@ async function cargarUsuarios() {
     <tr>
       <td>${u.nombre}</td>
       <td>${u.email}</td>
-      <td><span class="badge ${u.rol === 'admin' ? 'bg-dark' : 'bg-secondary'}">${u.rol}</span></td>
+      <td><span class="v26-pill v26-pill--${u.rol}">${u.rol}</span></td>
       <td>${u.estado_operacion || '—'}</td>
-      <td>${u.activo == 1 ? '<span class="badge badge-verificado">Activo</span>' : '<span class="badge badge-noverificado">Inactivo</span>'}</td>
+      <td>${u.activo == 1 ? '<span class="v26-pill v26-pill--verificado">Activo</span>' : '<span class="v26-pill v26-pill--noverificado">Inactivo</span>'}</td>
       <td class="text-end">
         ${u.rol === 'vendedor' ? `<a href="vendedor_detalle.php?id=${u.id}" class="btn btn-sm btn-brand">Ver detalle</a>` : ''}
         <button class="btn btn-sm btn-outline-secondary" onclick='abrirModalEditar(${JSON.stringify(u).replace(/'/g, "&#39;")})'>Editar</button>

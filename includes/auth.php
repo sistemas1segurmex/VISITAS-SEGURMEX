@@ -4,22 +4,26 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 /**
- * Single sign-on con el ERP (21-ago-2026): el ERP y VISITAS corren en el
+ * Single sign-on con el ERP (21-ago-2026, ajustado despues para que solo
+ * Direccion/CEO y Sistemas entren por aqui): el ERP y VISITAS corren en el
  * mismo servidor/dominio y comparten la MISMA cookie de sesion de PHP (el
  * ERP fija cookie path "/" en includes/auth.php; VISITAS usa el default,
  * que tambien es "/"), asi que $_SESSION['erp_user'] (armado por el login
- * del ERP) ya esta disponible aqui sin nada especial. Si esa cuenta es
- * foranea (o Sistemas) se "traduce" a una cuenta de este sistema por
- * email, sin volver a pedir contrasena. Si no existe todavia una fila en
- * visitas.usuarios con ese correo, se crea sola la primera vez.
+ * del ERP) ya esta disponible aqui sin nada especial. Si esa cuenta es de
+ * Direccion/CEO o Sistemas se "traduce" a una cuenta admin de este sistema
+ * por email, sin volver a pedir contrasena -- para que Direccion vea el
+ * panel de administrador de VISITAS directo desde el link del ERP. Los
+ * vendedores en campo NO pasan por aqui: ellos entran directo a la URL de
+ * VISITAS con su login propio de siempre (login.php).
  * No pisa una sesion ya iniciada directamente aqui (login.php propio).
  */
 function bridgeDesdeERP(): void {
     if (!empty($_SESSION['usuario_id'])) return; // ya hay sesion propia de VISITAS
     $erp = $_SESSION['erp_user'] ?? null;
     if (!$erp || empty($erp['email'])) return;
-    $esAdminErp = strtolower($erp['rol'] ?? '') === 'sistemas';
-    if (empty($erp['es_foraneo']) && !$esAdminErp) return; // ni foraneo ni Sistemas: no aplica el puente
+    $rolErp = strtolower($erp['rol'] ?? '');
+    $esDireccionOSistemas = in_array($rolErp, ['ceo', 'direccion', 'dirección', 'sistemas'], true);
+    if (!$esDireccionOSistemas) return; // solo Direccion/CEO y Sistemas usan este puente
 
     $db = getDB();
     $stmt = $db->prepare('SELECT id, nombre, rol, activo FROM usuarios WHERE email = ? LIMIT 1');
@@ -27,15 +31,14 @@ function bridgeDesdeERP(): void {
     $u = $stmt->fetch();
 
     if (!$u) {
-        // Primera vez que este usuario del ERP entra a VISITAS: se crea su
-        // cuenta aqui. password_hash aleatorio e inservible -- esta cuenta
-        // solo puede entrar por este puente, nunca con el login propio de
-        // VISITAS usando ese correo (nadie conoce esa contrasena).
+        // Primera vez que Direccion/Sistemas entra a VISITAS: se crea su
+        // cuenta aqui como admin. password_hash aleatorio e inservible --
+        // esta cuenta solo puede entrar por este puente, nunca con el login
+        // propio de VISITAS usando ese correo (nadie conoce esa contrasena).
         $nombre = trim(($erp['nombre'] ?? '') . ' ' . ($erp['apellidos'] ?? '')) ?: ($erp['usuario'] ?? $erp['email']);
-        $rol    = $esAdminErp ? 'admin' : 'vendedor';
         $hash   = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
-        $ins = $db->prepare('INSERT INTO usuarios (nombre, email, password_hash, rol, activo) VALUES (?,?,?,?,1) RETURNING id, nombre, rol, activo');
-        $ins->execute([$nombre, $erp['email'], $hash, $rol]);
+        $ins = $db->prepare("INSERT INTO usuarios (nombre, email, password_hash, rol, activo) VALUES (?,?,?,'admin',1) RETURNING id, nombre, rol, activo");
+        $ins->execute([$nombre, $erp['email'], $hash]);
         $u = $ins->fetch();
     }
     if (!$u['activo']) return; // desactivado en VISITAS: no lo dejamos pasar aunque el ERP lo permita

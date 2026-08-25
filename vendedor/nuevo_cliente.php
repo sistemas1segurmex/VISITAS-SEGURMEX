@@ -126,7 +126,9 @@ $u = requireRole('vendedor');
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="../assets/js/v26-modal.js"></script>
+<script src="../assets/js/vendedor.js"></script>
 <script>
+iniciarTrackingPeriodico();
 const mapa = L.map('mapa-cliente').setView([23.6345, -102.5528], 5); // centro de México por defecto
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
 let marcador = null;

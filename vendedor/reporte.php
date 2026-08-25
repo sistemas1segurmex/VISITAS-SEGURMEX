@@ -25,6 +25,9 @@ $u = requireRole('vendedor');
   .v26-chart-card .sub { font-size: .74rem; color: var(--v26-ink-soft); margin-bottom: 12px; }
   .v26-chart-wrap { position: relative; height: 220px; }
   .v26-chart-wrap.chico { height: 170px; }
+  .v26-card-titulo { font-size: .82rem; font-weight: 800; margin-bottom: 10px; }
+  .v26-pill-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .v26-pill-row .v26-pill { font-size: .74rem; }
 </style>
 </head>
 <body class="v26">
@@ -44,6 +47,7 @@ $u = requireRole('vendedor');
       <a href="index.php"><i class="bi bi-house-fill"></i>Inicio</a>
       <a href="calendario.php"><i class="bi bi-calendar3"></i>Calendario</a>
       <a href="clientes.php"><i class="bi bi-people-fill"></i>Clientes</a>
+      <a href="cotizaciones.php"><i class="bi bi-file-earmark-text-fill"></i>Cotizar</a>
       <a href="reporte.php" class="active"><i class="bi bi-bar-chart-fill"></i>Reporte</a>
     </div>
   </div>
@@ -57,10 +61,14 @@ $u = requireRole('vendedor');
       <div class="v26-skel"></div>
       <div class="v26-skel"></div>
     </div>
+
+    <div id="contenido-cotizaciones" style="margin-top:14px;"></div>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="../assets/js/vendedor.js"></script>
 <script>
+iniciarTrackingPeriodico();
 const coloresEstado = {
   completada: '#16a34a',
   no_realizada: '#e11d48',
@@ -78,6 +86,67 @@ let chartVerificados = null;
 
 // Convierte "YYYY-MM-DD" al número de día ("1", "2"...) para el eje X.
 function soloDia(fechaIso) { return String(parseInt(fechaIso.slice(8, 10), 10)); }
+function money(n) { return '$' + Number(n || 0).toLocaleString('es-MX', {minimumFractionDigits: 0, maximumFractionDigits: 0}); }
+
+const etiquetasCotizacion = {
+  pendiente: 'Pendiente', enviada: 'Enviada', en_negociacion: 'En negociación',
+  aceptada: 'Aceptada', rechazada: 'Rechazada', facturada: 'Facturada',
+  entregada: 'Entregada', cancelada: 'Cancelada',
+};
+
+async function cargarReporteCotizaciones(mes) {
+  const cont = document.getElementById('contenido-cotizaciones');
+  try {
+    const res = await fetch('../api/reporte_cotizaciones.php?mes=' + mes);
+    const data = await res.json();
+    if (!data.ok) {
+      cont.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+      return;
+    }
+    const r = data.resumen;
+
+    if (r.total === 0) {
+      cont.innerHTML = `
+        <div class="v26-card">
+          <div class="v26-card-titulo">Cotizaciones</div>
+          <div class="text-muted" style="font-size:.84rem;">No hiciste ninguna cotización este mes.</div>
+        </div>`;
+      return;
+    }
+
+    const pillsEstado = Object.keys(etiquetasCotizacion)
+      .filter(e => r.por_estado[e] > 0)
+      .map(e => `<span class="v26-pill v26-pill--${e}">${etiquetasCotizacion[e]} · ${r.por_estado[e]}</span>`)
+      .join('');
+
+    cont.innerHTML = `
+      <div class="v26-card">
+        <div class="v26-card-titulo">Cotizaciones — ${r.porcentaje_conversion}% convertidas a aceptadas</div>
+        <div class="v26-pill-row mb-2">${pillsEstado}</div>
+        <div class="v26-mini-grid">
+          <div class="v26-mini-card">
+            <div class="num">${r.total}</div>
+            <div class="label">Cotizaciones</div>
+          </div>
+          <div class="v26-mini-card">
+            <div class="num">${money(r.total_cotizado)}</div>
+            <div class="label">Total cotizado</div>
+          </div>
+          <div class="v26-mini-card">
+            <div class="num">${money(r.total_aceptado)}</div>
+            <div class="label">Total aceptado</div>
+          </div>
+          <div class="v26-mini-card">
+            <div class="num">${money(r.promedio_por_cotizacion)}</div>
+            <div class="label">Promedio por cotización</div>
+          </div>
+        </div>
+        ${r.de_visita > 0 ? `<div class="text-muted mt-2" style="font-size:.76rem;"><i class="bi bi-geo-alt"></i> ${r.de_visita} de ${r.total} nacieron directo de una visita.</div>` : ''}
+      </div>`;
+  } catch (e) {
+    cont.innerHTML = '<div class="alert alert-danger">No se pudo cargar el reporte de cotizaciones.</div>';
+  }
+}
 
 async function cargarReporte(mes) {
   const cont = document.getElementById('contenido');
@@ -199,8 +268,12 @@ async function cargarReporte(mes) {
 const inputMes = document.getElementById('input-mes');
 const hoy = new Date();
 inputMes.value = hoy.toISOString().slice(0, 7);
-inputMes.addEventListener('change', () => cargarReporte(inputMes.value));
+inputMes.addEventListener('change', () => {
+  cargarReporte(inputMes.value);
+  cargarReporteCotizaciones(inputMes.value);
+});
 cargarReporte(inputMes.value);
+cargarReporteCotizaciones(inputMes.value);
 </script>
 </body>
 </html>

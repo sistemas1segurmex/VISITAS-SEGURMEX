@@ -78,6 +78,7 @@ $u = requireRole('vendedor');
       <a href="index.php"><i class="bi bi-house-fill"></i>Inicio</a>
       <a href="calendario.php" class="active"><i class="bi bi-calendar3"></i>Calendario</a>
       <a href="clientes.php"><i class="bi bi-people-fill"></i>Clientes</a>
+      <a href="cotizaciones.php"><i class="bi bi-file-earmark-text-fill"></i>Cotizar</a>
       <a href="reporte.php"><i class="bi bi-bar-chart-fill"></i>Reporte</a>
     </div>
   </div>
@@ -98,7 +99,9 @@ $u = requireRole('vendedor');
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script src="../assets/js/vendedor.js"></script>
 <script>
+iniciarTrackingPeriodico();
 const hoyStr = new Date().toISOString().slice(0, 10);
 let filtrosActivos = new Set(['pendiente', 'en_curso', 'completada', 'no_realizada', 'cancelada']);
 let calendar;

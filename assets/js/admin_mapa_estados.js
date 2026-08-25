@@ -67,7 +67,7 @@ async function cargarDetalleEstado(estado) {
       : data.vendedores.map(v => `
           <div class="d-flex justify-content-between align-items-center border-bottom py-1">
             <span>${v.nombre}</span>
-            ${v.en_linea == 1 ? '<span class="badge badge-verificado">En línea</span>' : '<span class="badge bg-secondary">Desconectado</span>'}
+            ${v.en_linea == 1 ? '<span class="v26-pill v26-pill--verificado">En línea</span>' : '<span class="v26-pill v26-pill--pendiente">Desconectado</span>'}
           </div>
         `).join('');
 

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/helpers.php';
 $u = requireRole('admin');
 ?>
 <!doctype html>
@@ -10,20 +11,27 @@ $u = requireRole('admin');
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vendedores — Control de Visitas</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="../assets/css/style.css<?= assetVer(__DIR__ . '/../assets/css/style.css') ?>">
+<link rel="stylesheet" href="../assets/css/admin-2026.css<?= assetVer(__DIR__ . '/../assets/css/admin-2026.css') ?>">
 </head>
-<body>
-<nav class="navbar navbar-dark" style="background:#111827">
-  <div class="container-fluid">
-    <a href="index.php" class="navbar-brand navbar-brand-custom text-decoration-none">← Control de Visitas</a>
-    <div class="d-flex align-items-center gap-2">
-      <span class="text-white small"><?= htmlspecialchars($u['nombre']) ?></span>
-      <a href="../logout.php" class="btn btn-sm btn-outline-light">Salir</a>
+<body class="v26">
+<div class="v26-header">
+  <div class="v26-topbar">
+    <div class="v26-topbar-left">
+      <a href="index.php" class="v26-back" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
+      <div class="v26-greeting">
+        <div class="hi">Control de Visitas</div>
+        <div class="name">Vendedores</div>
+      </div>
+    </div>
+    <div class="v26-topbar-right">
+      <span class="v26-user"><?= htmlspecialchars($u['nombre']) ?></span>
     </div>
   </div>
-</nav>
+</div>
 
-<div class="container py-4">
+<div class="v26-wrap">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0">Vendedores y administradores</h5>
     <button class="btn btn-brand btn-sm" onclick="abrirModalCrear()">+ Nuevo vendedor</button>
@@ -93,7 +101,7 @@ $u = requireRole('admin');
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="../assets/js/estados_mx.js"></script>
-<script src="../assets/js/admin_usuarios.js"></script>
+<script src="../assets/js/estados_mx.js<?= assetVer(__DIR__ . '/../assets/js/estados_mx.js') ?>"></script>
+<script src="../assets/js/admin_usuarios.js<?= assetVer(__DIR__ . '/../assets/js/admin_usuarios.js') ?>"></script>
 </body>
 </html>

@@ -50,6 +50,7 @@ $clienteId = (int)($_GET['id'] ?? 0);
 
 <script src="../assets/js/vendedor.js"></script>
 <script>
+iniciarTrackingPeriodico();
 const clienteId = <?= json_encode($clienteId) ?>;
 
 function fechaLarga(fechaHora) {

@@ -33,6 +33,7 @@ $u = requireRole('vendedor');
       <a href="index.php" class="active"><i class="bi bi-house-fill"></i>Inicio</a>
       <a href="calendario.php"><i class="bi bi-calendar3"></i>Calendario</a>
       <a href="clientes.php"><i class="bi bi-people-fill"></i>Clientes</a>
+      <a href="cotizaciones.php"><i class="bi bi-file-earmark-text-fill"></i>Cotizar</a>
       <a href="reporte.php"><i class="bi bi-bar-chart-fill"></i>Reporte</a>
     </div>
   </div>
@@ -53,6 +54,8 @@ $u = requireRole('vendedor');
     </div>
 
     <div id="resumen-pendientes"></div>
+
+    <div id="cta-prospeccion" class="mb-3"></div>
 
     <div id="lista-citas" class="v26-timeline"></div>
 

@@ -88,6 +88,16 @@ async function cargarCitas(dia = 'hoy') {
     } else {
       renderResumenPendientes(data.citas);
     }
+    // Si es "hoy" y no hay citas, ofrecemos marcar una jornada de
+    // prospección libre (el vendedor salió a buscar clientes por su cuenta).
+    const ctaProspeccion = document.getElementById('cta-prospeccion');
+    if (ctaProspeccion) {
+      if (!esManana && data.citas.length === 0) {
+        cargarEstadoProspeccion();
+      } else {
+        ctaProspeccion.innerHTML = '';
+      }
+    }
     if (data.citas.length === 0) {
       cont.innerHTML = `
         <div class="v26-empty">
@@ -188,4 +198,88 @@ function iniciarTrackingPeriodico(intervaloMs = 30000) {
 
   enviar();
   setInterval(enviar, intervaloMs);
+}
+
+// ---------------------------------------------------------------------
+// Jornada de prospección libre: el vendedor la marca cuando no tiene citas
+// hoy pero sale a buscar clientes por su cuenta. Es una acción consciente
+// (distinta del tracking GPS pasivo) que el admin puede usar como evidencia
+// de que el día sí tuvo actividad, junto con los clientes nuevos del día.
+// ---------------------------------------------------------------------
+
+async function cargarEstadoProspeccion() {
+  const cont = document.getElementById('cta-prospeccion');
+  if (!cont) return;
+  try {
+    const res = await fetch('../api/prospeccion.php');
+    const data = await res.json();
+    if (data.ok) renderCtaProspeccion(data.prospeccion);
+  } catch (e) {
+    // Silencioso: no bloqueamos el resto de la pantalla por esto.
+  }
+}
+
+function renderCtaProspeccion(prospeccion) {
+  const cont = document.getElementById('cta-prospeccion');
+  if (!cont) return;
+
+  if (!prospeccion) {
+    cont.innerHTML = `
+      <button type="button" id="btn-iniciar-prospeccion" class="v26-cta" style="border:none;width:100%;cursor:pointer;">
+        <span class="v26-cta-icon"><i class="bi bi-signpost-2-fill"></i></span>
+        <span class="v26-cta-text">
+          <strong>Salí a buscar clientes</strong>
+          <small>Marca tu jornada de prospección de hoy</small>
+        </span>
+        <i class="bi bi-chevron-right chev"></i>
+      </button>`;
+    document.getElementById('btn-iniciar-prospeccion').addEventListener('click', iniciarProspeccion);
+    return;
+  }
+
+  if (!prospeccion.hora_fin) {
+    cont.innerHTML = `
+      <div class="v26-banner v26-banner--ok">
+        <i class="bi bi-signpost-2-fill icon"></i>
+        <div class="txt">
+          <strong>En prospección desde las ${horaCorta(prospeccion.hora_inicio)}</strong>
+          <p>Cada cliente nuevo que registres hoy cuenta como evidencia de tu recorrido.</p>
+        </div>
+      </div>
+      <button type="button" id="btn-finalizar-prospeccion" class="v26-btn v26-btn-ghost v26-btn-block mb-3">
+        Finalizar jornada de prospección
+      </button>`;
+    document.getElementById('btn-finalizar-prospeccion').addEventListener('click', finalizarProspeccion);
+    return;
+  }
+
+  cont.innerHTML = `
+    <div class="v26-banner v26-banner--ok">
+      <i class="bi bi-check-circle-fill icon"></i>
+      <div class="txt"><p>Jornada de prospección registrada hoy (${horaCorta(prospeccion.hora_inicio)} – ${horaCorta(prospeccion.hora_fin)}).</p></div>
+    </div>`;
+}
+
+async function iniciarProspeccion() {
+  const fd = new FormData();
+  fd.append('action', 'iniciar');
+  try {
+    const res = await fetch('../api/prospeccion.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.ok) renderCtaProspeccion(data.prospeccion);
+    else alert(data.error || 'No se pudo registrar tu jornada.');
+  } catch (e) {
+    alert('Error de conexión. Intenta de nuevo.');
+  }
+}
+
+async function finalizarProspeccion() {
+  const fd = new FormData();
+  fd.append('action', 'finalizar');
+  try {
+    await fetch('../api/prospeccion.php', { method: 'POST', body: fd });
+    cargarEstadoProspeccion();
+  } catch (e) {
+    alert('Error de conexión. Intenta de nuevo.');
+  }
 }

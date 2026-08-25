@@ -1,0 +1,339 @@
+/* ============================================================
+   Sistema visual "Aurora" 2026 — version para el panel de
+   administrador de VISITAS. Mismo lenguaje visual que las vistas
+   de vendedor (assets/css/vendedor-2026.css): mismos colores,
+   tipografia, tarjetas y pildoras de estado. Vive en su propio
+   archivo a proposito (igual que vendedor-2026.css ya explica en
+   su encabezado) para que los cambios de una vista no choquen con
+   los de la otra al hacer git.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --v26-brand-1: #F5A623;
+  --v26-brand-2: #FF6B4A;
+  --v26-brand-grad: linear-gradient(135deg, var(--v26-brand-1), var(--v26-brand-2));
+  --v26-ink: #14171F;
+  --v26-ink-soft: #6B7280;
+  --v26-surface-solid: #ffffff;
+  --v26-border: rgba(20, 23, 31, 0.08);
+  --v26-bg: #FBF9F6;
+
+  --v26-blue: #4F46E5;
+  --v26-green: #16A34A;
+  --v26-red: #E11D48;
+  --v26-gray: #6B7280;
+
+  --v26-r-lg: 20px;
+  --v26-r-md: 14px;
+  --v26-r-pill: 999px;
+
+  --v26-shadow-sm: 0 2px 10px -4px rgba(20, 23, 31, 0.12);
+  --v26-shadow-brand: 0 14px 30px -10px rgba(245, 107, 74, 0.45);
+
+  --v26-ease: cubic-bezier(.22, 1, .36, 1);
+}
+
+body.v26 {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--v26-ink);
+  min-height: 100vh;
+  background:
+    radial-gradient(60vw 40vh at 90% -5%, rgba(245, 166, 35, .16), transparent 60%),
+    radial-gradient(50vw 35vh at -10% 10%, rgba(79, 70, 229, .10), transparent 60%),
+    var(--v26-bg);
+}
+body.v26 * { -webkit-tap-highlight-color: transparent; }
+
+/* ---------- Header / topbar (mismo look que vendedor, ancho de escritorio) ---------- */
+.v26-header {
+  position: sticky; top: 0; z-index: 40;
+  background: rgba(251, 249, 246, 0.85);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border-bottom: 1px solid var(--v26-border);
+}
+.v26-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 14px 22px; max-width: 1320px; margin: 0 auto;
+}
+.v26-topbar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.v26-topbar-right { display: flex; align-items: center; gap: 12px; flex: none; }
+
+.v26-avatar {
+  width: 40px; height: 40px; border-radius: var(--v26-r-pill);
+  background: var(--v26-brand-grad); color: #fff; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex: none; box-shadow: var(--v26-shadow-brand); font-size: .9rem;
+}
+.v26-back {
+  width: 38px; height: 38px; border-radius: var(--v26-r-pill);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--v26-surface-solid); border: 1px solid var(--v26-border);
+  color: var(--v26-ink); text-decoration: none; flex: none;
+  box-shadow: var(--v26-shadow-sm); transition: transform .15s var(--v26-ease), color .15s;
+}
+.v26-back:hover { color: var(--v26-brand-2); }
+.v26-back:active { transform: scale(.92); }
+
+.v26-greeting { min-width: 0; }
+.v26-greeting .hi { font-size: .72rem; color: var(--v26-ink-soft); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+.v26-greeting .name { font-size: 1rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.v26-user { font-size: .82rem; font-weight: 600; color: var(--v26-ink-soft); }
+
+.v26-btn-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--v26-surface-solid); color: var(--v26-ink);
+  border: 1px solid var(--v26-border); border-radius: var(--v26-r-pill);
+  padding: 8px 14px; font-size: .82rem; font-weight: 700; text-decoration: none;
+  box-shadow: var(--v26-shadow-sm); transition: transform .15s var(--v26-ease), color .15s;
+}
+.v26-btn-chip:hover { color: var(--v26-brand-2); }
+.v26-btn-chip:active { transform: scale(.96); }
+
+/* ---------- Contenido ---------- */
+.v26-wrap { max-width: 1320px; margin: 0 auto; padding: 22px 22px 40px; }
+
+/* Tarjetas de Bootstrap con el mismo look que las tarjetas "glass" de vendedor */
+.v26-wrap .card {
+  border: 1px solid var(--v26-border);
+  border-radius: var(--v26-r-lg);
+  box-shadow: var(--v26-shadow-sm);
+}
+.v26-wrap .card-cita { border-left: 4px solid var(--v26-brand-1); border-radius: var(--v26-r-md); }
+
+/* Tabla */
+.v26-wrap .table thead th {
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--v26-ink-soft); font-weight: 700; border-bottom: 1px solid var(--v26-border);
+}
+.v26-wrap .table td { border-color: var(--v26-border); vertical-align: middle; }
+.v26-wrap .table tbody tr:hover { background: rgba(245, 166, 35, .05); }
+
+/* Botones de marca */
+.v26-wrap .btn-brand {
+  background: var(--v26-brand-grad); border: none; color: #fff;
+  border-radius: var(--v26-r-pill); font-weight: 700; box-shadow: var(--v26-shadow-brand);
+}
+.v26-wrap .btn-brand:hover { color: #fff; opacity: .92; }
+
+/* Pestañas (detalle de vendedor) */
+.v26-wrap .nav-tabs { border-bottom-color: var(--v26-border); }
+.v26-wrap .nav-tabs .nav-link { color: var(--v26-ink-soft); font-weight: 600; border: none; }
+.v26-wrap .nav-tabs .nav-link.active {
+  color: var(--v26-brand-2); font-weight: 700; background: transparent;
+  border: none; border-bottom: 2px solid var(--v26-brand-2);
+}
+
+/* ---------- Pildoras de estado (mismas que en la vista de vendedor) ---------- */
+.v26-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .68rem; font-weight: 700; letter-spacing: .01em;
+  padding: 4px 10px; border-radius: var(--v26-r-pill); line-height: 1.4;
+}
+.v26-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.v26-pill--pendiente    { background: rgba(107,114,128,.12); color: var(--v26-gray); }
+.v26-pill--en_curso     { background: rgba(79,70,229,.12);   color: var(--v26-blue); }
+.v26-pill--completada   { background: rgba(22,163,74,.12);   color: var(--v26-green); }
+.v26-pill--no_realizada { background: rgba(225,29,72,.12);   color: var(--v26-red); }
+.v26-pill--verificado   { background: rgba(22,163,74,.12);   color: var(--v26-green); }
+.v26-pill--noverificado { background: rgba(225,29,72,.12);   color: var(--v26-red); }
+.v26-pill--cancelada    { background: rgba(107,114,128,.12); color: var(--v26-gray); }
+.v26-pill--retrasada    { background: rgba(225,29,72,.14);   color: var(--v26-red); animation: v26-pill-glow 1.6s ease-in-out infinite; }
+.v26-pill--retrasada::before { animation: v26-pill-dot 1.6s ease-in-out infinite; }
+.v26-pill--admin        { background: rgba(79,70,229,.12);   color: var(--v26-blue); }
+.v26-pill--vendedor     { background: rgba(107,114,128,.12); color: var(--v26-gray); }
+@keyframes v26-pill-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(225,29,72,.35); } 50% { box-shadow: 0 0 0 6px rgba(225,29,72,0); } }
+@keyframes v26-pill-dot  { 0%, 100% { box-shadow: 0 0 0 0 rgba(225,29,72,.6); } 50% { box-shadow: 0 0 0 4px rgba(225,29,72,0); } }
+
+/* ---------- Lista de citas tipo "timeline", no tabla plana ---------- */
+.v26-citas-list { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
+
+.v26-cita-card {
+  display: grid;
+  grid-template-columns: 64px 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  background: var(--v26-surface-solid);
+  border: 1px solid var(--v26-border);
+  border-left: 4px solid var(--v26-gray);
+  border-radius: var(--v26-r-md);
+  padding: 8px 14px;
+  box-shadow: var(--v26-shadow-sm);
+  transition: transform .15s var(--v26-ease), box-shadow .15s var(--v26-ease);
+}
+.v26-cita-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -10px rgba(20,23,31,.20); }
+/* El color del borde izquierdo adelanta el estado de la visita sin tener
+   que leer la píldora — siempre acompañado de la píldora, nunca solo. */
+.v26-cita-card--pendiente    { border-left-color: var(--v26-gray); }
+.v26-cita-card--en_curso     { border-left-color: var(--v26-blue); }
+.v26-cita-card--completada   { border-left-color: var(--v26-green); }
+.v26-cita-card--no_realizada { border-left-color: var(--v26-red); }
+.v26-cita-card--retrasada    { border-left-color: var(--v26-red); }
+
+/* Bloque de hora sola (listas de un solo día, como el dashboard de admin;
+   el día/mes ya lo dice el filtro de fecha, así que aquí no se repite). */
+.v26-cita-hora-solo {
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(160deg, rgba(245,166,35,.16), rgba(255,107,74,.10));
+  border-radius: var(--v26-r-md);
+  padding: 6px 4px; min-height: 40px;
+}
+.v26-cita-hora-solo .hora { font-size: .92rem; font-weight: 800; color: var(--v26-brand-2); font-variant-numeric: tabular-nums; }
+
+/* Línea de vendedor dentro de la tarjeta (vista cruzada de admin, donde el
+   cliente ya no basta para identificar de quién es la visita). */
+.v26-cita-info .vendedor {
+  font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--v26-ink-soft); display: flex; align-items: center; gap: 5px; margin-bottom: 2px;
+}
+.v26-cita-info .vendedor i { color: var(--v26-brand-2); }
+
+/* Contador junto al título de una sección ("Visitas  12") */
+.v26-badge-conteo {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 20px; padding: 0 6px;
+  border-radius: var(--v26-r-pill); background: rgba(245,166,35,.14);
+  color: var(--v26-brand-2); font-size: .72rem; font-weight: 800;
+}
+
+/* Estado vacío, con ícono, en vez de una fila de texto plano */
+.v26-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 34px 16px; text-align: center; color: var(--v26-ink-soft);
+}
+.v26-empty .icon { font-size: 1.6rem; opacity: .5; }
+.v26-empty p { margin: 0; font-size: .86rem; }
+
+.v26-cita-fecha {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: linear-gradient(160deg, rgba(245,166,35,.16), rgba(255,107,74,.10));
+  border-radius: var(--v26-r-md);
+  padding: 8px 4px;
+  line-height: 1.15;
+}
+.v26-cita-fecha .dia { font-size: 1.2rem; font-weight: 800; color: var(--v26-brand-2); }
+.v26-cita-fecha .mes { font-size: .6rem; font-weight: 700; letter-spacing: .05em; color: var(--v26-ink-soft); }
+.v26-cita-fecha .hora { font-size: .66rem; font-weight: 600; color: var(--v26-ink); margin-top: 2px; }
+
+.v26-cita-info { min-width: 0; }
+.v26-cita-info .cliente { font-weight: 700; font-size: .92rem; color: var(--v26-ink); }
+.v26-cita-info .direccion,
+.v26-cita-info .notas { font-size: .78rem; color: var(--v26-ink-soft); margin-top: 3px; display: flex; align-items: flex-start; gap: 5px; }
+.v26-cita-info .notas { color: var(--v26-blue); }
+.v26-cita-info .direccion i, .v26-cita-info .notas i { margin-top: 1px; }
+
+.v26-cita-estado { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+
+.v26-cita-fotos { display: flex; align-items: center; }
+.v26-foto-group { display: flex; gap: 8px; }
+.v26-foto-vacio { font-size: .74rem; color: var(--v26-ink-soft); }
+
+.v26-foto-thumb {
+  position: relative; width: 52px; height: 52px; padding: 0; border: none;
+  border-radius: var(--v26-r-md); overflow: hidden; cursor: pointer;
+  box-shadow: var(--v26-shadow-sm); transition: transform .15s var(--v26-ease);
+}
+.v26-foto-thumb:hover { transform: scale(1.07); }
+.v26-foto-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.v26-foto-thumb .v26-foto-tag {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: rgba(20,23,31,.65); color: #fff; font-size: .52rem; font-weight: 700;
+  text-align: center; padding: 1px 0; text-transform: uppercase; letter-spacing: .03em;
+}
+
+@media (max-width: 720px) {
+  .v26-cita-card {
+    grid-template-columns: 56px 1fr;
+    grid-template-areas: "fecha info" "estado estado" "fotos fotos";
+    row-gap: 10px;
+  }
+  .v26-cita-fecha,
+  .v26-cita-hora-solo { grid-area: fecha; }
+  .v26-cita-info { grid-area: info; }
+  .v26-cita-estado { grid-area: estado; flex-direction: row; flex-wrap: wrap; }
+  .v26-cita-fotos { grid-area: fotos; }
+}
+
+/* ---------- Pestaña Prospección (ficha de vendedor) ---------- */
+
+/* Colores por categoría de día — mismos tokens de estado que ya usa el
+   resto del panel (v26-blue/verde/gris/rojo), solo se agrega el naranja de
+   marca para "prospección" porque necesita distinguirse de las otras 4. */
+.v26-prosp-celda--cita          { --prosp-clr: var(--v26-blue); }
+.v26-prosp-celda--prospeccion   { --prosp-clr: var(--v26-brand-1); }
+.v26-prosp-celda--cliente       { --prosp-clr: var(--v26-green); }
+.v26-prosp-celda--ubicacion     { --prosp-clr: var(--v26-gray); }
+.v26-prosp-celda--sin-actividad { --prosp-clr: var(--v26-red); }
+.v26-prosp-celda--futuro        { --prosp-clr: var(--v26-ink-soft); }
+
+/* Banner "hoy" */
+.v26-prosp-banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: var(--v26-r-md);
+  font-size: .88rem; margin-bottom: 14px;
+  background: color-mix(in srgb, var(--prosp-clr) 12%, white);
+  color: var(--v26-ink);
+}
+.v26-prosp-banner i { color: var(--prosp-clr); font-size: 1.1rem; flex: none; }
+.v26-prosp-banner--cita          { --prosp-clr: var(--v26-blue); }
+.v26-prosp-banner--prospeccion   { --prosp-clr: var(--v26-brand-1); }
+.v26-prosp-banner--cliente       { --prosp-clr: var(--v26-green); }
+.v26-prosp-banner--ubicacion     { --prosp-clr: var(--v26-gray); }
+.v26-prosp-banner--sin-actividad { --prosp-clr: var(--v26-red); }
+
+/* Resumen: % de cobertura (hero) + conteos por categoría */
+.v26-prosp-resumen {
+  display: flex; flex-wrap: wrap; gap: 20px; align-items: center;
+  padding: 16px; margin-bottom: 16px;
+  background: var(--v26-surface-solid); border: 1px solid var(--v26-border);
+  border-radius: var(--v26-r-lg); box-shadow: var(--v26-shadow-sm);
+}
+.v26-prosp-pct { flex: none; min-width: 150px; }
+.v26-prosp-pct .valor { font-size: 2.1rem; font-weight: 800; line-height: 1; color: var(--v26-ink); }
+.v26-prosp-pct .etiqueta { font-size: .74rem; color: var(--v26-ink-soft); margin-top: 4px; line-height: 1.3; }
+.v26-prosp-conteos {
+  display: flex; flex-wrap: wrap; gap: 8px 18px;
+  font-size: .82rem; color: var(--v26-ink); border-left: 1px solid var(--v26-border); padding-left: 20px;
+}
+.v26-prosp-conteos > div { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.v26-prosp-conteos i { font-size: .9rem; color: var(--prosp-clr); }
+
+/* Tira de días del mes */
+.v26-prosp-tira { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 12px; }
+.v26-prosp-celda {
+  width: 38px; height: 38px; border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1px; background: color-mix(in srgb, var(--prosp-clr) 14%, white);
+  cursor: default;
+}
+.v26-prosp-celda .num { font-size: .62rem; font-weight: 700; color: var(--v26-ink-soft); font-variant-numeric: tabular-nums; }
+.v26-prosp-celda i { font-size: .78rem; color: var(--prosp-clr); }
+.v26-prosp-celda--futuro { background: rgba(20,23,31,.035); }
+.v26-prosp-celda--futuro .num { color: rgba(20,23,31,.28); }
+.v26-prosp-celda.activa,
+.v26-prosp-banner.activa { animation: v26-prosp-glow 1.6s ease-in-out infinite; }
+@keyframes v26-prosp-glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--prosp-clr) 45%, transparent); }
+  50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--prosp-clr) 0%, transparent); }
+}
+
+/* Leyenda: siempre visible, el color nunca va solo (icono + texto) */
+.v26-prosp-leyenda { display: flex; flex-wrap: wrap; gap: 14px; font-size: .76rem; color: var(--v26-ink-soft); }
+.v26-prosp-leyenda .item { display: flex; align-items: center; gap: 5px; }
+.v26-prosp-leyenda i { font-size: .82rem; color: var(--prosp-clr); }
+
+/* ---------- Paneles con scroll propio (dashboard de admin) ----------
+   Visitas y Alertas pueden crecer mucho en un día ocupado; en vez de
+   empujar toda la página hacia abajo, cada panel se desplaza dentro de
+   su propia tarjeta, con una altura razonable para ver varias filas de
+   un vistazo sin perder el mapa ni el resto del dashboard de la pantalla. */
+#tabla-citas { max-height: 380px; overflow-y: auto; padding-right: 4px; }
+#lista-alertas { max-height: 380px; overflow-y: auto; padding-right: 4px; }
+
+/* ---------- Modal de foto (lightbox), se ve sin salir de la pagina ---------- */
+.v26-foto-modal-dialog { max-width: 560px; }
+.v26-foto-modal-content { background: rgba(20,23,31,.94); border-radius: var(--v26-r-lg); border: none; }
+.v26-foto-modal-img { max-width: 100%; max-height: 70vh; border-radius: var(--v26-r-md); }
