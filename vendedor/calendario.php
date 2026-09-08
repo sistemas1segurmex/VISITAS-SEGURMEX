@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/helpers.php';
 $u = requireRole('vendedor');
 ?>
 <!doctype html>
@@ -11,10 +12,10 @@ $u = requireRole('vendedor');
 <title>Mi calendario</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-<link rel="stylesheet" href="../assets/css/style.css">
-<link rel="stylesheet" href="../assets/css/vendedor-2026.css">
+<link rel="stylesheet" href="../assets/css/style.css<?= assetVer(__DIR__ . '/../assets/css/style.css') ?>">
+<link rel="stylesheet" href="../assets/css/vendedor-2026.css<?= assetVer(__DIR__ . '/../assets/css/vendedor-2026.css') ?>">
 <style>
-  #calendario-wrap { background: var(--v26-surface-solid); border-radius: var(--v26-r-lg); padding: 10px; box-shadow: var(--v26-shadow-sm); border: 1px solid var(--v26-border); }
+  #calendario-wrap { padding: 12px; }
   .fc-event { cursor: pointer; border: none !important; }
   .v26-evento-atenuado { opacity: .45; }
   .fc-day-past { background: rgba(107,114,128,.05); }
@@ -34,7 +35,8 @@ $u = requireRole('vendedor');
 
   /* ---------- FullCalendar con la paleta de la marca ---------- */
   .fc { font-family: inherit; }
-  .fc .fc-toolbar-title { font-size: 1.05rem; font-weight: 800; color: var(--v26-ink); text-transform: capitalize; }
+  .fc .fc-toolbar-title { font-size: 1.05rem; font-weight: 800; color: var(--v26-ink); text-transform: lowercase; }
+  .fc .fc-toolbar-title::first-letter { text-transform: uppercase; }
   .fc .fc-button-primary {
     background: var(--v26-surface-solid); border: 1px solid var(--v26-border); color: var(--v26-ink-soft);
     font-weight: 700; text-transform: capitalize; box-shadow: none; transition: all .15s var(--v26-ease);
@@ -47,9 +49,12 @@ $u = requireRole('vendedor');
   .fc .fc-button-primary:disabled { opacity: .4; }
   .fc .fc-button:focus, .fc .fc-button-primary:focus { box-shadow: 0 0 0 3px rgba(245,166,35,.25); }
   .fc .fc-today-button { text-transform: capitalize; }
-  .fc-col-header-cell-cushion, .fc-daygrid-day-number, .fc-list-day-cushion {
+  .fc-col-header-cell-cushion, .fc-daygrid-day-number, .fc-list-day-cushion,
+  .fc-col-header-cell-cushion:hover, .fc-daygrid-day-number:hover, .fc-list-day-cushion:hover,
+  .fc-list-day-cushion a, .fc-list-day-cushion a:hover {
     color: var(--v26-ink) !important; text-decoration: none !important; font-weight: 700;
   }
+  .fc-list-day-cushion { background: rgba(20,23,31,.03) !important; }
   .fc-col-header-cell-cushion { color: var(--v26-ink-soft) !important; font-size: .74rem; text-transform: uppercase; }
   .fc-daygrid-day.fc-day-today, .fc-list-day.fc-day-today .fc-list-day-cushion {
     background: rgba(245,166,35,.1) !important;
@@ -58,6 +63,19 @@ $u = requireRole('vendedor');
   .fc-theme-standard td, .fc-theme-standard th, .fc-theme-standard .fc-scrollgrid { border-color: var(--v26-border); }
   .fc-list-event:hover td { background: rgba(245,166,35,.06); }
   .fc-list-event-dot { border-width: 5px !important; }
+  /* Mes: ícono de cita en vez del punto por defecto de FC */
+  .fc-daygrid-event { font-weight: 700; font-size: .68rem; margin-top: 3px !important; }
+  .v26-evento-mes { display: inline-flex; align-items: center; gap: 4px; }
+  .v26-evento-mes .bi { font-size: .85rem; line-height: 1; }
+  .fc-daygrid-event.v26-evento-atenuado { opacity: .55; }
+  /* Semana en lista: tarjetas al estilo v26-cita, reutilizando las mismas píldoras de estado */
+  .fc-list-table td { border: none !important; vertical-align: top; padding-top: 10px; padding-bottom: 10px; }
+  .fc-list-event-graphic { padding-right: 2px !important; }
+  .v26-evento-lista .cliente { font-weight: 700; font-size: .92rem; color: var(--v26-ink); }
+  .v26-evento-lista .direccion { font-size: .76rem; color: var(--v26-ink-soft); margin-top: 1px; }
+  .v26-evento-lista .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .fc-list-empty { background: transparent !important; }
+  .fc-list-empty-cushion { padding: 0; }
 </style>
 </head>
 <body class="v26">
@@ -92,14 +110,15 @@ $u = requireRole('vendedor');
       <button type="button" class="v26-filtro active" data-estado="cancelada">Cancelada</button>
     </div>
 
-    <div id="calendario-wrap">
+    <div id="calendario-wrap" class="v26-card">
       <div id="calendario"></div>
     </div>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
-<script src="../assets/js/vendedor.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/es.global.min.js"></script>
+<script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 const hoyStr = new Date().toISOString().slice(0, 10);
@@ -114,6 +133,37 @@ document.addEventListener('DOMContentLoaded', () => {
     headerToolbar: { left: 'prev,next today', center: 'title', right: esMovil ? 'listWeek,dayGridMonth' : 'dayGridMonth,dayGridWeek,listWeek' },
     initialView: esMovil ? 'listWeek' : 'dayGridMonth',
     height: 'auto',
+    noEventsContent: () => ({
+      html: `<div class="v26-empty"><div class="icon"><i class="bi bi-calendar2-check"></i></div><p>No tienes citas en este rango.</p></div>`
+    }),
+    views: {
+      dayGridMonth: {
+        eventContent: function (arg) {
+          const color = arg.event.backgroundColor || arg.event.borderColor || 'var(--v26-gray)';
+          return { html: `
+            <span class="v26-evento-mes" style="color:${color}">
+              <i class="bi bi-calendar-event-fill"></i>${arg.timeText}
+            </span>` };
+        }
+      },
+      listWeek: {
+        eventContent: function (arg) {
+          const p = arg.event.extendedProps;
+          const map = { pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada', no_realizada: 'No realizada', cancelada: 'Cancelada' };
+          const badges = [p.retrasada
+            ? '<span class="v26-pill v26-pill--retrasada">Retrasada</span>'
+            : `<span class="v26-pill v26-pill--${p.estado}">${map[p.estado] || p.estado}</span>`];
+          if (p.verificado == 1) badges.push('<span class="v26-pill v26-pill--verificado">GPS verificado</span>');
+          else if (p.verificado == 0) badges.push('<span class="v26-pill v26-pill--noverificado">Fuera de zona</span>');
+          return { html: `
+            <div class="v26-evento-lista">
+              <div class="cliente">${arg.event.title}</div>
+              <div class="direccion">${p.direccion || ''}</div>
+              <div class="badges">${badges.join(' ')}</div>
+            </div>` };
+        }
+      }
+    },
     events: async function (info, successCallback, failureCallback) {
       try {
         const url = `../api/citas_calendario.php?start=${info.startStr}&end=${info.endStr}`;

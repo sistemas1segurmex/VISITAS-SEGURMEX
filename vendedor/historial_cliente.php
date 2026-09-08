@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/helpers.php';
 $u = requireRole('vendedor');
 $clienteId = (int)($_GET['id'] ?? 0);
 ?>
@@ -12,8 +13,8 @@ $clienteId = (int)($_GET['id'] ?? 0);
 <title>Historial del cliente</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-<link rel="stylesheet" href="../assets/css/style.css">
-<link rel="stylesheet" href="../assets/css/vendedor-2026.css">
+<link rel="stylesheet" href="../assets/css/style.css<?= assetVer(__DIR__ . '/../assets/css/style.css') ?>">
+<link rel="stylesheet" href="../assets/css/vendedor-2026.css<?= assetVer(__DIR__ . '/../assets/css/vendedor-2026.css') ?>">
 <style>
   .v26-cliente-card { margin-bottom: 16px; }
   .v26-cliente-card h2 { font-size: 1.1rem; font-weight: 800; margin-bottom: 4px; }
@@ -48,7 +49,7 @@ $clienteId = (int)($_GET['id'] ?? 0);
     </div>
   </div>
 
-<script src="../assets/js/vendedor.js"></script>
+<script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 const clienteId = <?= json_encode($clienteId) ?>;
@@ -101,7 +102,8 @@ async function cargarHistorial() {
 
     let html = `
       <div class="v26-card v26-cliente-card">
-        <h2>${c.nombre}</h2>
+        <h2><i class="bi ${c.tipo_cliente === 'persona' ? 'bi-person' : 'bi-building'} text-muted"></i> ${c.nombre}</h2>
+        ${c.nombre_contacto ? `<div class="dir"><i class="bi bi-person-badge"></i> ${c.nombre_contacto}</div>` : ''}
         <div class="dir"><i class="bi bi-geo-alt"></i> ${direccionMostrar}</div>
         ${c.telefono ? `<div class="dir"><i class="bi bi-telephone"></i> ${c.telefono}</div>` : ''}
         <div class="v26-resumen-mini">
@@ -110,7 +112,8 @@ async function cargarHistorial() {
           <span class="v26-pill v26-pill--cancelada">${r.cancelada} canceladas</span>
           <span class="v26-pill v26-pill--pendiente">${r.pendiente} pendientes</span>
         </div>
-      </div>`;
+      </div>
+      <div id="etapa-embudo"></div>`;
 
     if (data.citas.length === 0) {
       html += `
@@ -124,7 +127,7 @@ async function cargarHistorial() {
           <span class="v26-timeline-dot ${cita.estado}"></span>
           <div class="info">
             <div class="cliente">${fechaLarga(cita.fecha_hora)}</div>
-            <div class="badges">${badgeEstado(cita)}</div>
+            <div class="badges">${badgeEstado(cita)} ${pillInteres(cita.interes)}</div>
             ${cita.notas ? `<div class="v26-motivo"><i class="bi bi-sticky"></i> ${cita.notas}</div>` : ''}
             ${cita.motivo ? `<div class="v26-motivo">"${cita.motivo}"</div>` : ''}
             ${renderEvidencia(cita.checkins)}
@@ -134,9 +137,68 @@ async function cargarHistorial() {
     }
 
     cont.innerHTML = html;
+    clienteActual = c;
+    renderEtapaEmbudo(c);
   } catch (e) {
     cont.innerHTML = '<div class="alert alert-danger">No se pudo cargar el historial.</div>';
   }
+}
+
+// ---------- Etapa del embudo de ventas ----------
+let clienteActual = null;
+
+function renderEtapaEmbudo(c) {
+  const cont = document.getElementById('etapa-embudo');
+  if (!cont) return;
+
+  // El interés (por visita) se queda siempre visible; el embudo de
+  // etapas se oculta por mientras ("d-none" abajo) sin quitar el código.
+  const interesHtml = c.ultimo_interes
+    ? `<div class="mb-3">${pillInteres(c.ultimo_interes)} <span class="text-muted small">(última visita)</span></div>`
+    : '';
+
+  let embudoHtml;
+  if (c.etapa === 'perdido') {
+    embudoHtml = `
+      <div class="v26-etapa-banner-perdido">
+        <i class="bi bi-x-circle-fill"></i>
+        <div>
+          <strong>Prospecto perdido</strong>
+          ${c.etapa_perdido_motivo ? `<div>${c.etapa_perdido_motivo}</div>` : ''}
+        </div>
+      </div>
+      <button type="button" id="btn-cambiar-etapa" class="v26-btn v26-btn-ghost v26-btn-block mb-3">
+        <i class="bi bi-arrow-counterclockwise"></i> Reactivar / cambiar etapa
+      </button>`;
+  } else {
+    const actualIdx = ETAPAS_CLIENTE.findIndex(e => e.valor === c.etapa);
+    embudoHtml = `
+      <div class="v26-etapa-stepper">
+        ${ETAPAS_CLIENTE.map((e, i) => `
+          <div class="v26-etapa-paso ${i < actualIdx ? 'hecho' : ''} ${i === actualIdx ? 'actual' : ''}">
+            <div class="linea"></div>
+            <div class="circulo">${i < actualIdx ? '<i class="bi bi-check"></i>' : `<i class="bi ${e.icono}"></i>`}</div>
+            <div class="txt">${e.etiqueta}</div>
+          </div>
+        `).join('')}
+      </div>
+      <button type="button" id="btn-cambiar-etapa" class="v26-btn v26-btn-ghost v26-btn-block mb-3">
+        <i class="bi bi-arrow-right-circle"></i> Actualizar etapa
+      </button>`;
+  }
+
+  cont.innerHTML = interesHtml + `<div class="d-none">${embudoHtml}</div>`;
+
+  document.getElementById('btn-cambiar-etapa').addEventListener('click', async () => {
+    const resultado = await v26SheetEtapa(clienteActual);
+    if (!resultado) return;
+    const data = await actualizarEtapaCliente(clienteActual.id, resultado);
+    if (data.ok) {
+      cargarHistorial();
+    } else {
+      alert(data.error || 'No se pudo actualizar.');
+    }
+  });
 }
 
 cargarHistorial();

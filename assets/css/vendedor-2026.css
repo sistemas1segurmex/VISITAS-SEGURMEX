@@ -204,6 +204,18 @@
   0%, 100% { box-shadow: 0 0 0 0 rgba(225,29,72,.6); }
   50%      { box-shadow: 0 0 0 4px rgba(225,29,72,0); }
 }
+/* Etapas del embudo de ventas (prospecto -> cliente) */
+.v26-pill--etapa-prospecto_agregado   { background: rgba(107,114,128,.12); color: var(--v26-gray); }
+.v26-pill--etapa-contacto_establecido { background: rgba(79,70,229,.12);   color: var(--v26-blue); }
+.v26-pill--etapa-reunion_presentacion { background: rgba(124,58,237,.12);  color: #7C3AED; }
+.v26-pill--etapa-propuesta_enviada    { background: rgba(217,119,6,.12);   color: #D97706; }
+.v26-pill--etapa-convertido           { background: rgba(22,163,74,.12);   color: var(--v26-green); }
+.v26-pill--etapa-perdido              { background: rgba(225,29,72,.1);    color: var(--v26-red); opacity: .85; }
+/* Nivel de interés del prospecto/cliente */
+.v26-pill--interes-bajo           { background: rgba(107,114,128,.12); color: var(--v26-gray); }
+.v26-pill--interes-medio          { background: rgba(79,70,229,.12);   color: var(--v26-blue); }
+.v26-pill--interes-interesado     { background: rgba(217,119,6,.12);   color: #D97706; }
+.v26-pill--interes-muy_interesado { background: rgba(225,29,72,.14);   color: var(--v26-red); }
 
 /* ---------- Botones ---------- */
 .v26-btn {
@@ -456,3 +468,178 @@
 .v26-search { position: relative; margin-bottom: 16px; }
 .v26-search i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--v26-ink-soft); }
 .v26-search input { padding-left: 40px; }
+
+/* ---------- Tarjetas de estadísticas con vidrio (ej. "Mis clientes") ---------- */
+.v26-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.v26-stat-card {
+  position: relative; overflow: hidden;
+  background: var(--v26-surface); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--v26-border); border-radius: var(--v26-r-lg);
+  padding: 12px 10px; text-align: center;
+  animation: v26-rise .45s var(--v26-ease) both;
+}
+.v26-stat-num { font-size: 1.35rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--v26-ink); }
+.v26-stat-label { font-size: .64rem; color: var(--v26-ink-soft); font-weight: 700; text-transform: uppercase; letter-spacing: .02em; margin-top: 2px; }
+.v26-stat-card--verde .v26-stat-num { color: var(--v26-green); }
+.v26-stat-card--ambar .v26-stat-num { color: var(--v26-brand-2); }
+
+/* ---------- Avatar con anillo degradado (iniciales de cliente/vendedor) ---------- */
+.v26-avatar-ring {
+  position: relative; width: 48px; height: 48px; border-radius: 50%; flex: none; padding: 3px;
+  background: conic-gradient(from 200deg, var(--v26-brand-1), var(--v26-brand-2), var(--v26-blue), var(--v26-brand-1));
+}
+.v26-avatar-ring.sin-gps { background: conic-gradient(from 200deg, var(--v26-gray), #D1D5DB, var(--v26-gray)); }
+.v26-avatar-ring .inner {
+  width: 100%; height: 100%; border-radius: 50%; background: var(--v26-surface-solid);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: .92rem; color: var(--v26-ink);
+}
+
+/* ---------- Tarjeta de cliente (cartera) ---------- */
+.v26-cliente-card {
+  background: var(--v26-surface-solid); border: 1px solid var(--v26-border); border-radius: var(--v26-r-lg);
+  padding: 14px; margin-bottom: 12px; box-shadow: var(--v26-shadow-sm);
+  animation: v26-rise .45s var(--v26-ease) both;
+  transition: transform .18s var(--v26-ease), box-shadow .18s var(--v26-ease);
+}
+.v26-cliente-card:hover { box-shadow: var(--v26-shadow-md); }
+.v26-cliente-card:nth-child(1) { animation-delay: .02s; }
+.v26-cliente-card:nth-child(2) { animation-delay: .05s; }
+.v26-cliente-card:nth-child(3) { animation-delay: .08s; }
+.v26-cliente-card:nth-child(4) { animation-delay: .11s; }
+.v26-cliente-card:nth-child(5) { animation-delay: .14s; }
+.v26-cliente-card .top { display: flex; align-items: center; gap: 12px; }
+.v26-cliente-card .top .info { min-width: 0; flex: 1; }
+.v26-cliente-card .nombre { font-weight: 700; font-size: .95rem; }
+.v26-cliente-card .direccion {
+  font-size: .78rem; color: var(--v26-ink-soft); margin-top: 1px;
+  display: flex; align-items: center; gap: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.v26-cliente-card .meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 0; padding-left: 60px; }
+.v26-cliente-card .meta-item { font-size: .72rem; color: var(--v26-ink-soft); display: flex; align-items: center; gap: 4px; }
+.v26-cliente-card .meta-item.destacado { color: var(--v26-brand-2); font-weight: 700; }
+.v26-cliente-card .acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-left: 60px; }
+
+.v26-mini-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--v26-border); background: var(--v26-surface-solid);
+  color: var(--v26-ink-soft); font-size: .72rem; font-weight: 700;
+  padding: 7px 12px; border-radius: var(--v26-r-pill); text-decoration: none;
+  transition: transform .15s var(--v26-ease), box-shadow .15s var(--v26-ease);
+}
+.v26-mini-btn:active { transform: scale(.94); }
+.v26-mini-btn.primario { background: var(--v26-brand-grad); border-color: transparent; color: #fff; box-shadow: var(--v26-shadow-brand); }
+.v26-mini-btn.whatsapp { background: rgba(22,163,74,.1); border-color: transparent; color: #128C4A; }
+
+/* ---------- Botón "cerca de ti" (ordena la cartera por distancia real) ---------- */
+.v26-cerca-btn {
+  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 16px;
+  border: 1px dashed var(--v26-border); background: var(--v26-surface-solid);
+  color: var(--v26-ink-soft); font-size: .78rem; font-weight: 700;
+  padding: 8px 14px; border-radius: var(--v26-r-pill); cursor: pointer;
+  transition: all .2s var(--v26-ease);
+}
+.v26-cerca-btn.activo { background: var(--v26-brand-grad); border-color: transparent; color: #fff; box-shadow: var(--v26-shadow-brand); }
+.v26-cerca-btn.cargando i { animation: v26-spin 1s linear infinite; }
+@keyframes v26-spin { to { transform: rotate(360deg); } }
+
+/* ---------- Punto de estatus sobre el avatar (ej. "compartiendo ubicación") ---------- */
+.v26-status-dot {
+  position: absolute; width: 12px; height: 12px; border-radius: 50%; bottom: 0; right: 0;
+  background: var(--v26-green); border: 2px solid var(--v26-surface-solid);
+}
+.v26-status-dot.pulso { animation: v26-dot-pulso 2s ease-in-out infinite; }
+@keyframes v26-dot-pulso { 0%, 100% { box-shadow: 0 0 0 0 rgba(22,163,74,.5); } 50% { box-shadow: 0 0 0 5px rgba(22,163,74,0); } }
+.v26-avatar-ring--header { width: 40px; height: 40px; }
+.v26-avatar-ring--header .inner { font-size: .8rem; }
+
+/* ---------- Resumen del día con anillo de avance (Inicio) ---------- */
+.v26-resumen-hero {
+  display: flex; gap: 16px; align-items: center;
+  background: var(--v26-surface-solid); border: 1px solid var(--v26-border);
+  border-radius: var(--v26-r-lg); padding: 16px; margin-bottom: 16px; box-shadow: var(--v26-shadow-sm);
+  animation: v26-rise .45s var(--v26-ease) both;
+}
+.v26-dia-ring {
+  width: 72px; height: 72px; border-radius: 50%; padding: 6px; flex: none;
+  display: flex; align-items: center; justify-content: center; box-shadow: var(--v26-shadow-sm);
+  transition: background 1s var(--v26-ease);
+}
+.v26-dia-ring-inner {
+  width: 100%; height: 100%; border-radius: 50%; background: var(--v26-surface-solid);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.v26-dia-ring-inner .valor { font-size: 1.05rem; font-weight: 800; line-height: 1; color: var(--v26-ink); font-variant-numeric: tabular-nums; }
+.v26-dia-ring-inner .etiqueta { font-size: .58rem; color: var(--v26-ink-soft); font-weight: 700; text-transform: uppercase; letter-spacing: .02em; }
+.v26-resumen-hero .txt { flex: 1; min-width: 0; font-size: .84rem; }
+.v26-resumen-hero .txt strong { font-size: .92rem; }
+.v26-resumen-hero .txt ul { margin: 4px 0 0; padding-left: 18px; }
+.v26-resumen-hero .txt p { margin: 4px 0 0; color: var(--v26-ink-soft); }
+
+/* ---------- Pastilla "ubicación compartida en vivo" ---------- */
+.v26-ubicacion-live {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 14px;
+  font-size: .76rem; color: var(--v26-ink-soft); background: var(--v26-surface-solid);
+  border: 1px solid var(--v26-border); border-radius: var(--v26-r-pill); padding: 8px 14px;
+}
+.v26-ubicacion-live .punto {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--v26-green); flex: none;
+  animation: v26-dot-pulso 2s ease-in-out infinite;
+}
+
+/* ---------- Chips seleccionables (hoja de etapa/interés) ---------- */
+.v26-chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.v26-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--v26-border); background: var(--v26-surface-solid);
+  color: var(--v26-ink-soft); font-size: .78rem; font-weight: 700;
+  padding: 7px 13px; border-radius: var(--v26-r-pill); cursor: pointer;
+  transition: all .15s var(--v26-ease);
+}
+.v26-chip.active { background: var(--v26-brand-grad); color: #fff; border-color: transparent; box-shadow: var(--v26-shadow-brand); }
+.v26-chip.peligro.active { background: var(--v26-red); box-shadow: 0 14px 30px -10px rgba(225,29,72,.45); }
+
+/* ---------- Filtro de etapa en "Mis clientes" (funnel horizontal) ---------- */
+.v26-funnel-filtro {
+  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 16px;
+  -ms-overflow-style: none; scrollbar-width: none;
+}
+.v26-funnel-filtro::-webkit-scrollbar { display: none; }
+.v26-funnel-chip {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--v26-border); background: var(--v26-surface-solid);
+  color: var(--v26-ink-soft); font-size: .76rem; font-weight: 700;
+  padding: 8px 14px; border-radius: var(--v26-r-pill); cursor: pointer;
+  transition: all .15s var(--v26-ease); white-space: nowrap;
+}
+.v26-funnel-chip .n {
+  font-size: .68rem; font-weight: 800; background: rgba(20,23,31,.08);
+  padding: 1px 7px; border-radius: var(--v26-r-pill);
+}
+.v26-funnel-chip.active { background: var(--v26-brand-grad); color: #fff; border-color: transparent; box-shadow: var(--v26-shadow-brand); }
+.v26-funnel-chip.active .n { background: rgba(255,255,255,.25); color: #fff; }
+
+/* ---------- Stepper de etapa (detalle del cliente) ---------- */
+.v26-etapa-stepper { display: flex; align-items: flex-start; margin-bottom: 18px; overflow-x: auto; }
+.v26-etapa-paso { flex: 1; min-width: 74px; text-align: center; position: relative; }
+.v26-etapa-paso .circulo {
+  width: 32px; height: 32px; border-radius: 50%; margin: 0 auto 6px;
+  display: flex; align-items: center; justify-content: center; font-size: .85rem;
+  background: var(--v26-surface-solid); border: 2px solid var(--v26-border); color: var(--v26-ink-soft);
+  transition: all .2s var(--v26-ease);
+}
+.v26-etapa-paso .linea {
+  position: absolute; top: 16px; left: -50%; width: 100%; height: 2px; background: var(--v26-border); z-index: -1;
+}
+.v26-etapa-paso:first-child .linea { display: none; }
+.v26-etapa-paso .txt { font-size: .64rem; color: var(--v26-ink-soft); font-weight: 700; line-height: 1.2; }
+.v26-etapa-paso.hecho .circulo { background: var(--v26-green); border-color: var(--v26-green); color: #fff; }
+.v26-etapa-paso.hecho .linea { background: var(--v26-green); }
+.v26-etapa-paso.actual .circulo { background: var(--v26-brand-grad); border-color: transparent; color: #fff; box-shadow: var(--v26-shadow-brand); }
+.v26-etapa-paso.actual .txt { color: var(--v26-ink); }
+.v26-etapa-banner-perdido {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
+  background: rgba(225,29,72,.08); border: 1px solid rgba(225,29,72,.2); color: var(--v26-red);
+  border-radius: var(--v26-r-lg); padding: 12px 16px; font-size: .84rem; font-weight: 600;
+}
