@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/helpers.php';
 $u = requireRole('vendedor');
 
 $citaId = (int)($_GET['cita_id'] ?? 0);
@@ -39,8 +40,8 @@ $siguienteTipo = (!$estadoResuelto && !$esFuturo) ? (!$tieneEntrada ? 'entrada' 
 <title>Check-in de visita</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-<link rel="stylesheet" href="../assets/css/style.css">
-<link rel="stylesheet" href="../assets/css/vendedor-2026.css">
+<link rel="stylesheet" href="../assets/css/style.css<?= assetVer(__DIR__ . '/../assets/css/style.css') ?>">
+<link rel="stylesheet" href="../assets/css/vendedor-2026.css<?= assetVer(__DIR__ . '/../assets/css/vendedor-2026.css') ?>">
 </head>
 <body class="v26">
   <div class="v26-header">
@@ -117,6 +118,19 @@ $siguienteTipo = (!$estadoResuelto && !$esFuturo) ? (!$tieneEntrada ? 'entrada' 
           <canvas id="canvas-foto" class="d-none"></canvas>
           <div id="estado-camara" class="small text-muted mt-2">Activando la cámara...</div>
         </div>
+
+        <?php if ($siguienteTipo === 'salida'): ?>
+        <div class="mb-3">
+          <label class="v26-field label" style="display:block;font-size:.78rem;font-weight:700;color:var(--v26-ink-soft);margin-bottom:6px;">¿Qué tan interesado se mostró el cliente en esta visita?</label>
+          <div class="v26-chip-group" id="chips-interes">
+            <button type="button" class="v26-chip" data-interes="bajo">Poco interesado</button>
+            <button type="button" class="v26-chip" data-interes="medio">Interés medio</button>
+            <button type="button" class="v26-chip" data-interes="interesado">Interesado</button>
+            <button type="button" class="v26-chip" data-interes="muy_interesado">Muy interesado</button>
+          </div>
+        </div>
+        <?php endif; ?>
+
         <div id="msg-checkin"></div>
         <button id="btn-registrar" class="v26-btn v26-btn-primary v26-btn-block" disabled>Obteniendo GPS...</button>
 
@@ -137,9 +151,9 @@ $siguienteTipo = (!$estadoResuelto && !$esFuturo) ? (!$tieneEntrada ? 'entrada' 
     <?php endif; ?>
   </div>
 
-<script src="../assets/js/fecha_utils.js"></script>
-<script src="../assets/js/v26-modal.js"></script>
-<script src="../assets/js/vendedor.js"></script>
+<script src="../assets/js/fecha_utils.js<?= assetVer(__DIR__ . '/../assets/js/fecha_utils.js') ?>"></script>
+<script src="../assets/js/v26-modal.js<?= assetVer(__DIR__ . '/../assets/js/v26-modal.js') ?>"></script>
+<script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 const citaId = <?= (int)$citaId ?>;
@@ -173,12 +187,13 @@ if (tipo && 'geolocation' in navigator) {
 
 function revisarListoParaEnviar() {
   if (!btn) return;
-  if (lat && lng && fotoBlob) {
+  const faltaInteres = tipo === 'salida' && !interesSel;
+  if (lat && lng && fotoBlob && !faltaInteres) {
     btn.disabled = false;
     btn.textContent = esReporteNoShow ? 'Confirmar: cliente no llegó' : 'Registrar ' + (tipo === 'entrada' ? 'entrada' : 'salida');
   } else {
     btn.disabled = true;
-    btn.textContent = !lat ? 'Obteniendo GPS...' : 'Toma la foto para continuar';
+    btn.textContent = !lat ? 'Obteniendo GPS...' : (!fotoBlob ? 'Toma la foto para continuar' : 'Elige qué tan interesado se mostró');
   }
 }
 
@@ -241,11 +256,23 @@ if (btnRepetirFoto) {
 
 iniciarCamara();
 
+// --- Nivel de interés (obligatorio al registrar salida) ---
+let interesSel = null;
+document.querySelectorAll('#chips-interes .v26-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('#chips-interes .v26-chip').forEach(c => c.classList.remove('active'));
+    interesSel = chip.dataset.interes;
+    chip.classList.add('active');
+    revisarListoParaEnviar();
+  });
+});
+
 async function enviarCheckin(motivoNoShow) {
   const msg = document.getElementById('msg-checkin');
   msg.innerHTML = '';
   if (!lat || !lng) { msg.innerHTML = '<div class="alert alert-danger py-2">Espera a que se obtenga tu ubicación GPS.</div>'; return; }
   if (!fotoBlob) { msg.innerHTML = '<div class="alert alert-danger py-2">Toma la foto de evidencia.</div>'; return; }
+  if (tipo === 'salida' && !interesSel) { msg.innerHTML = '<div class="alert alert-danger py-2">Elige qué tan interesado se mostró el cliente.</div>'; return; }
 
   btn.disabled = true;
   btn.textContent = 'Enviando...';
@@ -258,6 +285,9 @@ async function enviarCheckin(motivoNoShow) {
   if (motivoNoShow !== undefined) {
     fd.append('no_show', '1');
     fd.append('motivo', motivoNoShow);
+  }
+  if (tipo === 'salida') {
+    fd.append('interes', interesSel);
   }
 
   try {

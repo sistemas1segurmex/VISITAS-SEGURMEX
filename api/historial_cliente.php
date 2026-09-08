@@ -29,7 +29,7 @@ if (!$cliente) {
 }
 
 $stmtCitas = $db->prepare(
-    'SELECT id, fecha_hora, estado, notas, motivo
+    'SELECT id, fecha_hora, estado, notas, motivo, interes
      FROM citas
      WHERE cliente_id = ? AND vendedor_id = ?
      ORDER BY fecha_hora DESC'
@@ -59,6 +59,17 @@ if (!empty($citas)) {
 $resumen = ['total' => count($citas), 'completada' => 0, 'no_realizada' => 0, 'cancelada' => 0, 'pendiente' => 0, 'en_curso' => 0];
 foreach ($citas as $c) {
     if (isset($resumen[$c['estado']])) $resumen[$c['estado']]++;
+}
+
+// El interés se califica por cita (ver api/checkin.php); aquí se saca el de
+// la visita más reciente que sí tenga uno capturado. $citas ya viene
+// ordenado DESC por fecha_hora, así que basta con el primero que aplique.
+$cliente['ultimo_interes'] = null;
+foreach ($citas as $c) {
+    if (!empty($c['interes'])) {
+        $cliente['ultimo_interes'] = $c['interes'];
+        break;
+    }
 }
 
 jsonResponse(['ok' => true, 'cliente' => $cliente, 'citas' => $citas, 'resumen' => $resumen]);
