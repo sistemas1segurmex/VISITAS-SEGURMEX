@@ -28,6 +28,9 @@ $colonia     = trim($_GET['colonia'] ?? '');
 $calleNumero = trim($_GET['calle_numero'] ?? '');
 $lat = (isset($_GET['lat']) && $_GET['lat'] !== '') ? (float)$_GET['lat'] : null;
 $lng = (isset($_GET['lng']) && $_GET['lng'] !== '') ? (float)$_GET['lng'] : null;
+// Al editar un cliente ya existente se manda su propio id para que no se
+// marque como "duplicado de sí mismo".
+$excluirId = (int)($_GET['excluir_id'] ?? 0);
 
 if ($nombre === '') {
     jsonResponse(['ok' => true, 'candidatos' => []]);
@@ -59,6 +62,7 @@ $calleObjetivo    = normalizarTexto($calleNumero);
 $candidatos = [];
 
 foreach ($clientes as $c) {
+    if ($excluirId && (int)$c['id'] === $excluirId) continue;
     $razones = [];
 
     $nombreExistente = normalizarTexto($c['nombre']);
