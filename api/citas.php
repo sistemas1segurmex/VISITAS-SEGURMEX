@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     $sqlBase =
         "SELECT c.*, cl.nombre AS cliente_nombre, cl.direccion, cl.lat AS cliente_lat, cl.lng AS cliente_lng,
-                u.nombre AS vendedor_nombre,
+                u.nombre AS vendedor_nombre, u.foto_path AS vendedor_foto,
                 (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado,
                 (SELECT COUNT(*) FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada') AS tiene_entrada,
                 (SELECT COUNT(*) FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida') AS tiene_salida,

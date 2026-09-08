@@ -40,22 +40,16 @@ if (!$vendedorId) {
 <div class="v26-wrap">
   <div id="encabezado-vendedor" class="mb-3"><p class="text-muted">Cargando...</p></div>
 
-  <ul class="nav nav-tabs" id="tabsVendedor">
-    <li class="nav-item">
-      <button class="nav-link active" id="tab-proximas" data-bs-toggle="tab" data-bs-target="#panel-proximas" type="button">Próximas citas</button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" id="tab-todas" data-bs-toggle="tab" data-bs-target="#panel-todas" type="button">Todas las citas</button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" id="tab-clientes" data-bs-toggle="tab" data-bs-target="#panel-clientes" type="button">Clientes registrados</button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" id="tab-prospeccion" data-bs-toggle="tab" data-bs-target="#panel-prospeccion" type="button">Prospección</button>
-    </li>
-  </ul>
+  <div class="nav v26-segmented v26-segmented--tabs mb-3" id="tabsVendedor" role="tablist">
+    <div class="v26-segmented-slider" id="tabs-slider"></div>
+    <button class="opt active" id="tab-proximas" data-bs-toggle="tab" data-bs-target="#panel-proximas" type="button" role="tab">Próximas citas</button>
+    <button class="opt" id="tab-todas" data-bs-toggle="tab" data-bs-target="#panel-todas" type="button" role="tab">Todas las citas</button>
+    <button class="opt" id="tab-clientes" data-bs-toggle="tab" data-bs-target="#panel-clientes" type="button" role="tab">Clientes</button>
+    <button class="opt" id="tab-prospectos" data-bs-toggle="tab" data-bs-target="#panel-prospectos" type="button" role="tab">Prospectos</button>
+    <button class="opt" id="tab-prospeccion" data-bs-toggle="tab" data-bs-target="#panel-prospeccion" type="button" role="tab">Actividades</button>
+  </div>
 
-  <div class="tab-content border border-top-0 rounded-bottom p-3 bg-white">
+  <div class="tab-content v26-panel-glass p-3">
     <div class="tab-pane fade show active" id="panel-proximas">
       <div class="v26-citas-list" id="tabla-proximas"><p class="text-muted small px-2">Cargando...</p></div>
     </div>
@@ -65,14 +59,18 @@ if (!$vendedorId) {
     <div class="tab-pane fade" id="panel-clientes">
       <div id="lista-clientes-vendedor"><p class="text-muted">Cargando...</p></div>
     </div>
+    <div class="tab-pane fade" id="panel-prospectos">
+      <div id="lista-prospectos-vendedor"><p class="text-muted">Cargando...</p></div>
+    </div>
     <div class="tab-pane fade" id="panel-prospeccion">
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <p class="text-muted small mb-0">Días con cita, con jornada de prospección marcada, con cliente nuevo registrado o sin ninguna señal de actividad.</p>
         <div class="d-flex align-items-center gap-2 flex-wrap">
-          <div class="btn-group btn-group-sm" role="group" id="vista-prospeccion-tabs">
-            <button type="button" class="btn btn-outline-secondary active" data-vista="mes">Mes</button>
-            <button type="button" class="btn btn-outline-secondary" data-vista="semana">Semana</button>
-            <button type="button" class="btn btn-outline-secondary" data-vista="dia">Día</button>
+          <div class="v26-segmented" id="vista-prospeccion-tabs">
+            <div class="v26-segmented-slider" id="vista-prosp-slider"></div>
+            <button type="button" class="opt active" data-vista="mes">Mes</button>
+            <button type="button" class="opt" data-vista="semana">Semana</button>
+            <button type="button" class="opt" data-vista="dia">Día</button>
           </div>
           <input type="month" id="mes-prospeccion" class="form-control form-control-sm" style="width:150px">
           <input type="week" id="semana-prospeccion" class="form-control form-control-sm d-none" style="width:150px">

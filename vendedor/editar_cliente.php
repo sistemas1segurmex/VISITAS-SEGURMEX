@@ -3,13 +3,22 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 $u = requireRole('vendedor');
+
+$clienteId = (int)($_GET['id'] ?? 0);
+$stmt = getDB()->prepare('SELECT * FROM clientes WHERE id = ? AND vendedor_id = ?');
+$stmt->execute([$clienteId, $u['id']]);
+$cliente = $stmt->fetch();
+if (!$cliente) {
+    http_response_code(404);
+    die('Cliente no encontrado.');
+}
 ?>
 <!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nuevo cliente</title>
+<title>Editar cliente</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -41,8 +50,6 @@ $u = requireRole('vendedor');
   .v26-ubicacion-badge { font-size: .68rem; font-weight: 700; text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; gap: 3px; }
   .v26-ubicacion-badge.pendiente { color: var(--v26-red); }
   .v26-ubicacion-badge.lista { color: var(--v26-green); }
-  #seg-tipo-registro, #seg-tipo-cliente { display: flex; width: 100%; }
-  #seg-tipo-registro .v26-seg-btn, #seg-tipo-cliente .v26-seg-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
 </style>
 </head>
 <body class="v26 v26-compacto">
@@ -52,7 +59,7 @@ $u = requireRole('vendedor');
         <a href="clientes.php" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis clientes" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
           <div class="hi">Cartera</div>
-          <div class="name">Nuevo cliente</div>
+          <div class="name">Editar cliente</div>
         </div>
       </div>
       <div class="v26-topbar-right">
@@ -64,38 +71,30 @@ $u = requireRole('vendedor');
   <div class="v26-wrap">
     <div class="v26-card">
       <form id="form-cliente">
-        <div class="v26-field">
-          <label>¿Qué estás registrando?</label>
-          <div class="v26-seg" id="seg-tipo-registro">
-            <button type="button" class="v26-seg-btn active" data-tipo="prospecto"><i class="bi bi-person-plus"></i> Prospecto nuevo</button>
-            <button type="button" class="v26-seg-btn" data-tipo="cliente"><i class="bi bi-trophy"></i> Cliente ya ganado</button>
-          </div>
-          <input type="hidden" name="ya_es_cliente" id="ya-es-cliente" value="0">
-        </div>
-
+        <input type="hidden" name="id" value="<?= (int)$cliente['id'] ?>">
         <div class="v26-field">
           <label>¿Es persona u organización?</label>
-          <div class="v26-seg" id="seg-tipo-cliente">
-            <button type="button" class="v26-seg-btn" data-tipo="persona"><i class="bi bi-person"></i> Persona</button>
-            <button type="button" class="v26-seg-btn active" data-tipo="organizacion"><i class="bi bi-building"></i> Organización</button>
+          <div class="v26-seg" id="seg-tipo-cliente" style="display:flex;width:100%;">
+            <button type="button" class="v26-seg-btn <?= ($cliente['tipo_cliente'] ?? 'organizacion') === 'persona' ? 'active' : '' ?>" data-tipo="persona" style="flex:1;"><i class="bi bi-person"></i> Persona</button>
+            <button type="button" class="v26-seg-btn <?= ($cliente['tipo_cliente'] ?? 'organizacion') === 'persona' ? '' : 'active' ?>" data-tipo="organizacion" style="flex:1;"><i class="bi bi-building"></i> Organización</button>
           </div>
-          <input type="hidden" name="tipo_cliente" id="tipo-cliente" value="organizacion">
+          <input type="hidden" name="tipo_cliente" id="tipo-cliente" value="<?= htmlspecialchars($cliente['tipo_cliente'] ?? 'organizacion') ?>">
         </div>
 
         <div class="v26-grid-2">
           <div class="v26-field">
-            <label id="label-nombre">Nombre del negocio</label>
-            <input type="text" name="nombre" class="v26-input" required>
+            <label id="label-nombre"><?= ($cliente['tipo_cliente'] ?? 'organizacion') === 'persona' ? 'Nombre completo' : 'Nombre del negocio' ?></label>
+            <input type="text" name="nombre" class="v26-input" value="<?= htmlspecialchars($cliente['nombre']) ?>" required>
           </div>
           <div class="v26-field">
             <label>Teléfono (opcional)</label>
-            <input type="text" name="telefono" class="v26-input">
+            <input type="text" name="telefono" class="v26-input" value="<?= htmlspecialchars($cliente['telefono'] ?? '') ?>">
           </div>
         </div>
 
-        <div class="v26-field" id="campo-contacto">
+        <div class="v26-field <?= ($cliente['tipo_cliente'] ?? 'organizacion') === 'persona' ? 'd-none' : '' ?>" id="campo-contacto">
           <label>Persona de contacto (opcional)</label>
-          <input type="text" name="nombre_contacto" class="v26-input" placeholder="¿Con quién tratas ahí?">
+          <input type="text" name="nombre_contacto" class="v26-input" placeholder="¿Con quién tratas ahí?" value="<?= htmlspecialchars($cliente['nombre_contacto'] ?? '') ?>">
         </div>
 
         <div class="v26-buscar-row">
@@ -116,7 +115,7 @@ $u = requireRole('vendedor');
 
         <div class="v26-field">
           <label>Calle y número</label>
-          <input type="text" name="calle_numero" id="calle-numero" class="v26-input" placeholder="Ej. Av. Reforma 245" required>
+          <input type="text" name="calle_numero" id="calle-numero" class="v26-input" value="<?= htmlspecialchars($cliente['calle_numero'] ?? '') ?>" placeholder="Ej. Av. Reforma 245" required>
         </div>
 
         <div class="v26-grid-2">
@@ -148,7 +147,7 @@ $u = requireRole('vendedor');
         </div>
 
         <div id="msg-cliente"></div>
-        <button type="submit" class="v26-btn v26-btn-primary v26-btn-block mt-1">Guardar cliente</button>
+        <button type="submit" class="v26-btn v26-btn-primary v26-btn-block mt-1">Guardar cambios</button>
       </form>
     </div>
   </div>
@@ -159,6 +158,18 @@ $u = requireRole('vendedor');
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
+
+// Datos del cliente tal como quedaron guardados, para precargar el formulario.
+const clientePrevio = <?= json_encode([
+  'id'            => $cliente['id'],
+  'lat'           => $cliente['lat'],
+  'lng'           => $cliente['lng'],
+  'estado'        => $cliente['estado'],
+  'municipio'     => $cliente['municipio'],
+  'colonia'       => $cliente['colonia'],
+  'codigo_postal' => $cliente['codigo_postal'],
+], JSON_UNESCAPED_UNICODE) ?>;
+
 const mapa = L.map('mapa-cliente').setView([23.6345, -102.5528], 5); // centro de México por defecto
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
 let marcador = null;
@@ -177,21 +188,12 @@ function ponerMarcador(lat, lng, autocompletar = true) {
 
 mapa.on('click', (e) => ponerMarcador(e.latlng.lat, e.latlng.lng));
 
-document.querySelectorAll('#seg-tipo-registro .v26-seg-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#seg-tipo-registro .v26-seg-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('ya-es-cliente').value = btn.dataset.tipo === 'cliente' ? '1' : '0';
-  });
-});
-
 document.querySelectorAll('#seg-tipo-cliente .v26-seg-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('#seg-tipo-cliente .v26-seg-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tipo-cliente').value = btn.dataset.tipo;
     document.getElementById('label-nombre').textContent = btn.dataset.tipo === 'persona' ? 'Nombre completo' : 'Nombre del negocio';
-    // Una persona ya ES el contacto -- el campo solo tiene sentido para organización.
     document.getElementById('campo-contacto').classList.toggle('d-none', btn.dataset.tipo === 'persona');
   });
 });
@@ -368,9 +370,34 @@ async function autocompletarDesdeCoordenadas(lat, lng) {
   }
 }
 
-// --- Detección de posibles clientes duplicados ---
+// --- Precarga de lo que el cliente ya tenía guardado ---
+async function precargarCliente() {
+  await estadosListos;
+  if (clientePrevio.estado) {
+    selectEstado.value = clientePrevio.estado;
+    await cargarMunicipios(clientePrevio.estado);
+  }
+  if (clientePrevio.municipio) {
+    selectMunicipio.value = clientePrevio.municipio;
+    await cargarColonias(clientePrevio.estado, clientePrevio.municipio);
+  }
+  if (clientePrevio.colonia) {
+    selectColonia.value = clientePrevio.colonia;
+  }
+  if (clientePrevio.codigo_postal) {
+    inputCp.value = clientePrevio.codigo_postal;
+  }
+  if (clientePrevio.lat && clientePrevio.lng) {
+    // false = no reconsultar Nominatim para reautocompletar campos que el
+    // vendedor ya tiene capturados; solo se posiciona el marcador.
+    ponerMarcador(parseFloat(clientePrevio.lat), parseFloat(clientePrevio.lng), false);
+  }
+}
+precargarCliente();
+
+// --- Detección de posibles clientes duplicados (excluyendo al propio cliente) ---
 async function buscarPosiblesDuplicados({ nombre, telefono, lat, lng, colonia, calleNumero }) {
-  const params = new URLSearchParams({ nombre, telefono, colonia, calle_numero: calleNumero });
+  const params = new URLSearchParams({ nombre, telefono, colonia, calle_numero: calleNumero, excluir_id: clientePrevio.id || '' });
   if (lat) params.set('lat', lat);
   if (lng) params.set('lng', lng);
   try {
@@ -429,7 +456,7 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
   fd.append('estado', estado);
   fd.append('codigo_postal', cp);
 
-  const res = await fetch('../api/clientes.php', { method: 'POST', body: fd });
+  const res = await fetch('../api/editar_cliente.php', { method: 'POST', body: fd });
   const data = await res.json();
   if (data.ok) {
     window.location.href = 'clientes.php';

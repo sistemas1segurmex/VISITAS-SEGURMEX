@@ -20,6 +20,13 @@ $lat     = isset($_POST['lat']) ? (float)$_POST['lat'] : 0.0;
 $lng     = isset($_POST['lng']) ? (float)$_POST['lng'] : 0.0;
 $noShow  = ($_POST['no_show'] ?? '') === '1';
 $motivo  = trim($_POST['motivo'] ?? '');
+// Nivel de interés del cliente en ESTA visita -- obligatorio al registrar
+// la salida (ver comentario junto al UPDATE de abajo).
+$interes = trim($_POST['interes'] ?? '');
+$INTERES_VALIDOS = ['bajo', 'medio', 'interesado', 'muy_interesado'];
+if ($tipo === 'salida' && !$noShow && !in_array($interes, $INTERES_VALIDOS, true)) {
+    jsonResponse(['ok' => false, 'error' => 'Elige qué tan interesado se mostró el cliente.'], 400);
+}
 
 if (!$citaId || !$lat || !$lng || !in_array($tipo, ['entrada', 'salida'], true)) {
     jsonResponse(['ok' => false, 'error' => 'Datos incompletos (cita, GPS o tipo)'], 400);
@@ -87,8 +94,14 @@ $stmt->execute([$citaId, $tipo, $lat, $lng, $distancia, $fotoPath, $verificado])
 if ($noShow) {
     $nuevoEstado = 'no_realizada';
     $db->prepare('UPDATE citas SET estado = ?, motivo = ? WHERE id = ?')->execute([$nuevoEstado, $motivo, $citaId]);
+} elseif ($tipo === 'salida') {
+    // Solo al cerrar la visita (salida) tiene sentido preguntar el interés:
+    // ya se tuvo la conversación completa con el cliente.
+    $nuevoEstado = 'completada';
+    $db->prepare('UPDATE citas SET estado = ?, interes = ? WHERE id = ?')
+       ->execute([$nuevoEstado, $interes ?: null, $citaId]);
 } else {
-    $nuevoEstado = $tipo === 'entrada' ? 'en_curso' : 'completada';
+    $nuevoEstado = 'en_curso';
     $db->prepare('UPDATE citas SET estado = ? WHERE id = ?')->execute([$nuevoEstado, $citaId]);
 }
 

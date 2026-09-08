@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/helpers.php';
 $u = requireRole('vendedor');
 ?>
 <!doctype html>
@@ -11,8 +12,8 @@ $u = requireRole('vendedor');
 <title>Mis clientes</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-<link rel="stylesheet" href="../assets/css/style.css">
-<link rel="stylesheet" href="../assets/css/vendedor-2026.css">
+<link rel="stylesheet" href="../assets/css/style.css<?= assetVer(__DIR__ . '/../assets/css/style.css') ?>">
+<link rel="stylesheet" href="../assets/css/vendedor-2026.css<?= assetVer(__DIR__ . '/../assets/css/vendedor-2026.css') ?>">
 </head>
 <body class="v26">
   <div class="v26-header">
@@ -47,10 +48,20 @@ $u = requireRole('vendedor');
       <i class="bi bi-chevron-right chev"></i>
     </a>
 
+    <div class="v26-stats-row" id="stats-row"></div>
+
+    <!-- Embudo de ventas: oculto por mientras (quitar "d-none" para reactivarlo). -->
+    <div class="v26-funnel-filtro d-none" id="filtro-etapa"></div>
+
     <div class="v26-search">
       <i class="bi bi-search"></i>
       <input type="text" id="buscar-cliente" class="v26-input" placeholder="Buscar por nombre o dirección...">
     </div>
+
+    <button type="button" class="v26-cerca-btn" id="btn-cerca">
+      <i class="bi bi-signpost-2"></i> Ordenar por cercanía a mí
+    </button>
+
     <div id="lista-clientes">
       <div class="v26-skel"></div>
       <div class="v26-skel"></div>
@@ -59,11 +70,86 @@ $u = requireRole('vendedor');
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="../assets/js/vendedor.js"></script>
+<script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 let todosLosClientes = [];
+let miPosicion = null; // {lat, lng}, solo si el vendedor aceptó compartirla en esta pantalla
+let etapaFiltro = 'todos';
 
+// ---------- Utilidades propias de esta pantalla ----------
+function distanciaKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function hechaRelativa(fechaHora) {
+  if (!fechaHora) return 'Aún sin visitar';
+  const d = new Date(fechaHora.replace(' ', 'T'));
+  if (isNaN(d)) return 'Aún sin visitar';
+  const dias = Math.floor((new Date() - d) / 86400000);
+  if (dias <= 0) return 'Última visita: hoy';
+  if (dias === 1) return 'Última visita: ayer';
+  if (dias < 30) return `Última visita: hace ${dias} días`;
+  const meses = Math.floor(dias / 30);
+  return `Última visita: hace ${meses} ${meses === 1 ? 'mes' : 'meses'}`;
+}
+
+function soloDigitos(tel) { return (tel || '').replace(/\D/g, ''); }
+
+// ---------- Estadísticas de la cartera ----------
+function renderStats(lista) {
+  const cont = document.getElementById('stats-row');
+  const conGps = lista.filter(c => c.lat).length;
+  const inicioMes = new Date(); inicioMes.setDate(1); inicioMes.setHours(0, 0, 0, 0);
+  const visitadosEsteMes = lista.filter(c => c.ultima_visita && new Date(c.ultima_visita.replace(' ', 'T')) >= inicioMes).length;
+  cont.innerHTML = `
+    <div class="v26-stat-card"><div class="v26-stat-num" data-cuenta="${lista.length}">0</div><div class="v26-stat-label">Clientes</div></div>
+    <div class="v26-stat-card v26-stat-card--verde"><div class="v26-stat-num" data-cuenta="${conGps}">0</div><div class="v26-stat-label">Con GPS</div></div>
+    <div class="v26-stat-card v26-stat-card--ambar"><div class="v26-stat-num" data-cuenta="${visitadosEsteMes}">0</div><div class="v26-stat-label">Visitados este mes</div></div>
+  `;
+  cont.querySelectorAll('[data-cuenta]').forEach(el => animarContador(el, parseInt(el.dataset.cuenta, 10)));
+}
+
+// ---------- Filtro por etapa del embudo (con conteos) ----------
+function renderFunnelFiltro(lista) {
+  const cont = document.getElementById('filtro-etapa');
+  const grupos = [{ valor: 'todos', etiqueta: 'Todos' }, ...ETAPAS_CLIENTE, ETAPA_PERDIDO];
+  cont.innerHTML = grupos.map(g => {
+    const n = g.valor === 'todos' ? lista.length : lista.filter(c => (c.etapa || 'prospecto_agregado') === g.valor).length;
+    return `<button type="button" class="v26-funnel-chip ${etapaFiltro === g.valor ? 'active' : ''}" data-etapa="${g.valor}">${g.etiqueta} <span class="n">${n}</span></button>`;
+  }).join('');
+  cont.querySelectorAll('[data-etapa]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      etapaFiltro = btn.dataset.etapa;
+      aplicarFiltros();
+    });
+  });
+}
+
+// ---------- Cambiar etapa/interés desde la tarjeta ----------
+async function abrirCambioEtapa(clienteId) {
+  const cliente = todosLosClientes.find(c => c.id == clienteId);
+  if (!cliente) return;
+  const resultado = await v26SheetEtapa(cliente);
+  if (!resultado) return;
+  const data = await actualizarEtapaCliente(clienteId, resultado);
+  if (data.ok) {
+    cargarClientes();
+  } else {
+    alert(data.error || 'No se pudo actualizar.');
+  }
+}
+
+document.getElementById('lista-clientes').addEventListener('click', (e) => {
+  const fila = e.target.closest('[data-etapa-cliente]');
+  if (fila) abrirCambioEtapa(fila.dataset.etapaCliente);
+});
+
+// ---------- Tarjetas de cliente ----------
 function renderClientes(lista) {
   const cont = document.getElementById('lista-clientes');
   if (lista.length === 0) {
@@ -74,20 +160,63 @@ function renderClientes(lista) {
       </div>`;
     return;
   }
-  cont.innerHTML = lista.map(c => `
-    <div class="v26-cita">
-      <div class="info">
-        <div class="cliente">${c.nombre}</div>
-        <div class="direccion">${c.direccion}</div>
-        ${c.telefono ? `<div class="hora"><i class="bi bi-telephone"></i> ${c.telefono}</div>` : ''}
-        <div class="badges">
-          ${c.lat ? '<span class="v26-pill v26-pill--verificado">GPS ok</span>' : '<span class="v26-pill v26-pill--pendiente">Sin ubicación</span>'}
+  cont.innerHTML = lista.map(c => {
+    const inicial = (c.nombre || '?').trim().charAt(0).toUpperCase();
+    const tieneGps = !!c.lat;
+    const digitos = soloDigitos(c.telefono);
+    const distancia = (miPosicion && tieneGps) ? distanciaKm(miPosicion.lat, miPosicion.lng, parseFloat(c.lat), parseFloat(c.lng)) : null;
+    return `
+    <div class="v26-cliente-card">
+      <div class="top">
+        <div class="v26-avatar-ring ${tieneGps ? '' : 'sin-gps'}"><div class="inner">${inicial}</div></div>
+        <div class="info">
+          <div class="nombre"><i class="bi ${c.tipo_cliente === 'persona' ? 'bi-person' : 'bi-building'} text-muted"></i> ${c.nombre}</div>
+          ${c.nombre_contacto ? `<div class="direccion"><i class="bi bi-person-badge"></i> ${c.nombre_contacto}</div>` : ''}
+          <div class="direccion"><i class="bi bi-geo-alt"></i> ${c.direccion}</div>
         </div>
+        ${tieneGps
+          ? '<span class="v26-pill v26-pill--verificado">GPS ok</span>'
+          : `<a href="editar_cliente.php?id=${c.id}" class="v26-pill v26-pill--noverificado" style="text-decoration:none">Sin ubicación · corregir</a>`}
       </div>
-      <a href="nueva_cotizacion.php?cliente_id=${c.id}" class="accion v26-tip secundaria" data-tip="Cotizar" aria-label="Cotizar"><i class="bi bi-file-earmark-plus"></i></a>
-      <a href="historial_cliente.php?id=${c.id}" class="accion v26-tip secundaria" data-tip="Ver historial de visitas" aria-label="Ver historial"><i class="bi bi-clock-history"></i></a>
+      <div class="meta d-none" data-etapa-cliente="${c.id}" style="cursor:pointer;">
+        ${pillEtapa(c.etapa)}
+        <span class="meta-item" style="text-decoration:underline;"><i class="bi bi-pencil"></i> Actualizar etapa</span>
+      </div>
+      <div class="meta">
+        <span class="meta-item"><i class="bi bi-clock-history"></i> ${hechaRelativa(c.ultima_visita)}</span>
+        ${c.total_visitas > 0 ? `<span class="meta-item"><i class="bi bi-check2-circle"></i> ${c.total_visitas} visita${c.total_visitas == 1 ? '' : 's'}</span>` : ''}
+        ${pillInteres(c.ultimo_interes)}
+        ${distancia !== null ? `<span class="meta-item destacado"><i class="bi bi-signpost-2"></i> a ${distancia < 1 ? Math.round(distancia * 1000) + ' m' : distancia.toFixed(1) + ' km'}</span>` : ''}
+      </div>
+      <div class="acciones">
+        ${digitos ? `<a href="tel:${digitos}" class="v26-mini-btn primario"><i class="bi bi-telephone-fill"></i>Llamar</a>` : ''}
+        ${digitos ? `<a href="https://wa.me/52${digitos}" target="_blank" rel="noopener" class="v26-mini-btn whatsapp"><i class="bi bi-whatsapp"></i>WhatsApp</a>` : ''}
+        <a href="nueva_cotizacion.php?cliente_id=${c.id}" class="v26-mini-btn"><i class="bi bi-file-earmark-plus"></i>Cotizar</a>
+        <a href="historial_cliente.php?id=${c.id}" class="v26-mini-btn"><i class="bi bi-clock-history"></i>Historial</a>
+        <a href="editar_cliente.php?id=${c.id}" class="v26-mini-btn"><i class="bi bi-pencil"></i>Editar</a>
+      </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
+}
+
+function aplicarFiltros() {
+  const q = document.getElementById('buscar-cliente').value.toLowerCase();
+  const baseBusqueda = todosLosClientes.filter(c =>
+    c.nombre.toLowerCase().includes(q) || c.direccion.toLowerCase().includes(q)
+  );
+  renderFunnelFiltro(baseBusqueda);
+  let lista = etapaFiltro === 'todos'
+    ? baseBusqueda
+    : baseBusqueda.filter(c => (c.etapa || 'prospecto_agregado') === etapaFiltro);
+  if (miPosicion) {
+    lista = [...lista].sort((a, b) => {
+      const da = a.lat ? distanciaKm(miPosicion.lat, miPosicion.lng, parseFloat(a.lat), parseFloat(a.lng)) : Infinity;
+      const db = b.lat ? distanciaKm(miPosicion.lat, miPosicion.lng, parseFloat(b.lat), parseFloat(b.lng)) : Infinity;
+      return da - db;
+    });
+  }
+  renderClientes(lista);
 }
 
 async function cargarClientes() {
@@ -98,6 +227,7 @@ async function cargarClientes() {
     return;
   }
   if (data.clientes.length === 0) {
+    document.getElementById('stats-row').innerHTML = '';
     document.getElementById('lista-clientes').innerHTML = `
       <div class="v26-empty">
         <div class="icon"><i class="bi bi-person-plus"></i></div>
@@ -106,14 +236,31 @@ async function cargarClientes() {
     return;
   }
   todosLosClientes = data.clientes;
-  renderClientes(todosLosClientes);
+  renderStats(todosLosClientes);
+  aplicarFiltros();
 }
 
-document.getElementById('buscar-cliente').addEventListener('input', (e) => {
-  const q = e.target.value.toLowerCase();
-  renderClientes(todosLosClientes.filter(c =>
-    c.nombre.toLowerCase().includes(q) || c.direccion.toLowerCase().includes(q)
-  ));
+document.getElementById('buscar-cliente').addEventListener('input', aplicarFiltros);
+
+document.getElementById('btn-cerca').addEventListener('click', function () {
+  if (miPosicion) { miPosicion = null; this.classList.remove('activo'); this.innerHTML = '<i class="bi bi-signpost-2"></i> Ordenar por cercanía a mí'; aplicarFiltros(); return; }
+  this.classList.add('cargando');
+  this.innerHTML = '<i class="bi bi-arrow-repeat"></i> Obteniendo tu ubicación...';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      miPosicion = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      this.classList.remove('cargando');
+      this.classList.add('activo');
+      this.innerHTML = '<i class="bi bi-check2"></i> Ordenado por cercanía';
+      aplicarFiltros();
+    },
+    () => {
+      this.classList.remove('cargando');
+      this.innerHTML = '<i class="bi bi-exclamation-triangle"></i> No se pudo obtener tu ubicación';
+      setTimeout(() => { this.innerHTML = '<i class="bi bi-signpost-2"></i> Ordenar por cercanía a mí'; }, 2500);
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 });
 
 cargarClientes();

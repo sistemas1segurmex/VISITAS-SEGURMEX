@@ -8,7 +8,7 @@ $db    = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $stmt = $db->query(
-        "SELECT id, nombre, email, rol, telefono, estado_operacion, activo, created_at
+        "SELECT id, nombre, email, rol, telefono, estado_operacion, activo, created_at, foto_path
          FROM usuarios ORDER BY rol, nombre"
     );
     jsonResponse(['ok' => true, 'usuarios' => $stmt->fetchAll()]);
@@ -19,6 +19,35 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $accion = $_POST['accion'] ?? 'crear';
+
+// Sube la foto de perfil (opcional) a uploads/usuarios y regresa la ruta
+// relativa a guardar en foto_path — mismo patrón de validación que ya usa
+// api/checkin.php para las fotos de evidencia (valida por contenido real de
+// la imagen con getimagesize(), no por la extensión del nombre de archivo).
+function subirFotoUsuario(int $usuarioId): ?string {
+    if (empty($_FILES['foto']) || $_FILES['foto']['error'] === UPLOAD_ERR_NO_FILE) {
+        return null; // no mandaron foto, no es error
+    }
+    if ($_FILES['foto']['error'] !== UPLOAD_ERR_OK) {
+        jsonResponse(['ok' => false, 'error' => 'Error al subir la foto'], 400);
+    }
+    if ($_FILES['foto']['size'] > 5 * 1024 * 1024) {
+        jsonResponse(['ok' => false, 'error' => 'La foto no debe pesar más de 5 MB'], 400);
+    }
+    $tmp  = $_FILES['foto']['tmp_name'];
+    $info = @getimagesize($tmp);
+    if ($info === false) {
+        jsonResponse(['ok' => false, 'error' => 'El archivo no es una imagen válida'], 400);
+    }
+    $ext    = image_type_to_extension($info[2], false) ?: 'jpg';
+    $nombre = 'usuario_' . $usuarioId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $destinoDir = __DIR__ . '/../uploads/usuarios';
+    if (!is_dir($destinoDir)) mkdir($destinoDir, 0775, true);
+    if (!move_uploaded_file($tmp, $destinoDir . '/' . $nombre)) {
+        jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la foto'], 500);
+    }
+    return 'uploads/usuarios/' . $nombre;
+}
 
 if ($accion === 'crear') {
     $nombre   = trim($_POST['nombre'] ?? '');
@@ -39,7 +68,14 @@ if ($accion === 'crear') {
              VALUES (?,?,?,?,?,?,1)'
         );
         $stmt->execute([$nombre, $email, $hash, $rol, $telefono ?: null, $estado ?: null]);
-        jsonResponse(['ok' => true, 'id' => $db->lastInsertId()]);
+        $nuevoId = (int)$db->lastInsertId();
+
+        $fotoPath = subirFotoUsuario($nuevoId);
+        if ($fotoPath) {
+            $db->prepare('UPDATE usuarios SET foto_path = ? WHERE id = ?')->execute([$fotoPath, $nuevoId]);
+        }
+
+        jsonResponse(['ok' => true, 'id' => $nuevoId]);
     } catch (PDOException $e) {
         if ($e->getCode() === '23505' || stripos($e->getMessage(), 'unique') !== false) {
             jsonResponse(['ok' => false, 'error' => 'Ya existe un usuario con ese correo'], 409);
@@ -63,6 +99,19 @@ if ($accion === 'actualizar') {
         'UPDATE usuarios SET nombre = ?, rol = ?, telefono = ?, estado_operacion = ? WHERE id = ?'
     );
     $stmt->execute([$nombre, $rol, $telefono ?: null, $estado ?: null, $id]);
+
+    // Reemplaza la foto solo si mandaron una nueva; si no, se queda la que ya tenía.
+    $fotoPath = subirFotoUsuario($id);
+    if ($fotoPath) {
+        $anterior = $db->prepare('SELECT foto_path FROM usuarios WHERE id = ?');
+        $anterior->execute([$id]);
+        $rutaAnterior = $anterior->fetchColumn();
+        $db->prepare('UPDATE usuarios SET foto_path = ? WHERE id = ?')->execute([$fotoPath, $id]);
+        if ($rutaAnterior) {
+            @unlink(__DIR__ . '/../' . $rutaAnterior);
+        }
+    }
+
     jsonResponse(['ok' => true]);
 }
 

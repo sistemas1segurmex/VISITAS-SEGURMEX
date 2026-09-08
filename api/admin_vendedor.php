@@ -20,7 +20,7 @@ if (!$vendedorId) {
     jsonResponse(['ok' => false, 'error' => 'Falta vendedor_id'], 400);
 }
 
-$chk = $db->prepare("SELECT id, nombre, email, telefono, estado_operacion, activo FROM usuarios WHERE id = ? AND rol = 'vendedor'");
+$chk = $db->prepare("SELECT id, nombre, email, telefono, estado_operacion, activo, foto_path FROM usuarios WHERE id = ? AND rol = 'vendedor'");
 $chk->execute([$vendedorId]);
 $vendedor = $chk->fetch();
 if (!$vendedor) {
@@ -59,7 +59,7 @@ if ($accion === 'resumen') {
 
 if ($accion === 'citas_proximas') {
     $stmt = $db->prepare(
-        "SELECT c.id, c.fecha_hora, c.estado, c.notas, cl.nombre AS cliente_nombre, cl.direccion,
+        "SELECT c.id, c.fecha_hora, c.estado, c.notas, c.interes, cl.nombre AS cliente_nombre, cl.direccion,
                 (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_entrada_id,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_salida_id
@@ -73,7 +73,7 @@ if ($accion === 'citas_proximas') {
 
 if ($accion === 'citas_todas') {
     $stmt = $db->prepare(
-        "SELECT c.id, c.fecha_hora, c.estado, c.notas, cl.nombre AS cliente_nombre, cl.direccion,
+        "SELECT c.id, c.fecha_hora, c.estado, c.notas, c.interes, cl.nombre AS cliente_nombre, cl.direccion,
                 (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_entrada_id,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_salida_id
@@ -86,7 +86,14 @@ if ($accion === 'citas_todas') {
 }
 
 if ($accion === 'clientes') {
-    $stmt = $db->prepare('SELECT * FROM clientes WHERE vendedor_id = ? ORDER BY nombre');
+    // El interés se califica por cita, no en el cliente (ver
+    // api/checkin.php) -- aquí se trae el de la visita completada más
+    // reciente que sí tenga uno capturado.
+    $stmt = $db->prepare(
+        "SELECT c.*,
+                (SELECT ci.interes FROM citas ci WHERE ci.cliente_id = c.id AND ci.interes IS NOT NULL ORDER BY ci.fecha_hora DESC LIMIT 1) AS ultimo_interes
+         FROM clientes c WHERE c.vendedor_id = ? ORDER BY c.nombre"
+    );
     $stmt->execute([$vendedorId]);
     jsonResponse(['ok' => true, 'clientes' => $stmt->fetchAll()]);
 }
@@ -99,14 +106,14 @@ if ($accion === 'prospeccion') {
         if (!preg_match('/^(\d{4})-W(\d{2})$/', $semana, $m)) {
             jsonResponse(['ok' => false, 'error' => 'Semana inválida'], 400);
         }
-        jsonResponse(['ok' => true, 'vista' => 'semana'] + resumenProspeccionSemana($db, $vendedorId, (int)$m[1], (int)$m[2]));
+        jsonResponse(['ok' => true, 'vista' => 'semana'] + resumenProspeccionSemana($db, $vendedorId, (int)$m[1], (int)$m[2], $vendedor['email']));
     }
 
     $mes = $_GET['mes'] ?? (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y-m');
     if (!preg_match('/^\d{4}-\d{2}$/', $mes)) {
         jsonResponse(['ok' => false, 'error' => 'Mes inválido'], 400);
     }
-    jsonResponse(['ok' => true, 'vista' => 'mes'] + resumenProspeccionMes($db, $vendedorId, $mes));
+    jsonResponse(['ok' => true, 'vista' => 'mes'] + resumenProspeccionMes($db, $vendedorId, $mes, $vendedor['email']));
 }
 
 if ($accion === 'prospeccion_dia') {

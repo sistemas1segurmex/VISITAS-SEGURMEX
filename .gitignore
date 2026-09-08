@@ -5,6 +5,10 @@
 uploads/checkins/*
 !uploads/checkins/.gitkeep
 
+# Fotos de perfil de usuarios (datos reales, no código)
+uploads/usuarios/*
+!uploads/usuarios/.gitkeep
+
 # Basura de sistema
 .DS_Store
 Thumbs.db

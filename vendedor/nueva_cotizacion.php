@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/helpers.php';
 $u = requireRole('vendedor');
 
 $clientePrellenado      = (int)($_GET['cliente_id'] ?? 0);
@@ -15,8 +16,8 @@ $prospeccionPrellenada  = (int)($_GET['prospeccion_id'] ?? 0);
 <title>Nueva cotización</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-<link rel="stylesheet" href="../assets/css/style.css">
-<link rel="stylesheet" href="../assets/css/vendedor-2026.css">
+<link rel="stylesheet" href="../assets/css/style.css<?= assetVer(__DIR__ . '/../assets/css/style.css') ?>">
+<link rel="stylesheet" href="../assets/css/vendedor-2026.css<?= assetVer(__DIR__ . '/../assets/css/vendedor-2026.css') ?>">
 <style>
 .nc-tabla { width:100%; border-collapse:collapse; font-size:.82rem; }
 .nc-tabla th { text-align:left; font-size:.7rem; color:var(--v26-ink-soft); text-transform:uppercase; letter-spacing:.02em; padding:4px 6px; }
@@ -193,7 +194,7 @@ $prospeccionPrellenada  = (int)($_GET['prospeccion_id'] ?? 0);
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="../assets/js/vendedor.js"></script>
+<script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 

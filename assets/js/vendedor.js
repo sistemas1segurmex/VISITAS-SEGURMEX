@@ -30,21 +30,52 @@ function skeletonCitas(n = 3) {
   return Array(n).fill('<div class="v26-skel"></div>').join('');
 }
 
+// Cuenta ascendente animada para tarjetas de estadística (data-cuenta="N").
+// Compartida por Inicio y Mis clientes.
+function animarContador(el, destino) {
+  if (!destino) { el.textContent = '0'; return; }
+  const duracion = 600;
+  const inicio = performance.now();
+  requestAnimationFrame(function paso(ahora) {
+    const t = Math.min(1, (ahora - inicio) / duracion);
+    el.textContent = Math.round(destino * (1 - Math.pow(1 - t, 3)));
+    if (t < 1) requestAnimationFrame(paso);
+  });
+}
+
+// Tarjetas de estadística del día (Citas / Completadas / Pendientes) en Inicio.
+function renderStatsInicio(citas) {
+  const cont = document.getElementById('stats-inicio');
+  if (!cont) return;
+  const total = citas.length;
+  const completadas = citas.filter(c => c.estado === 'completada').length;
+  const pendientes = citas.filter(c => c.estado === 'pendiente').length;
+  cont.innerHTML = `
+    <div class="v26-stat-card"><div class="v26-stat-num" data-cuenta="${total}">0</div><div class="v26-stat-label">Citas</div></div>
+    <div class="v26-stat-card v26-stat-card--verde"><div class="v26-stat-num" data-cuenta="${completadas}">0</div><div class="v26-stat-label">Completadas</div></div>
+    <div class="v26-stat-card v26-stat-card--ambar"><div class="v26-stat-num" data-cuenta="${pendientes}">0</div><div class="v26-stat-label">Pendientes</div></div>
+  `;
+  cont.querySelectorAll('[data-cuenta]').forEach(el => animarContador(el, parseInt(el.dataset.cuenta, 10)));
+}
+
 function renderResumenPendientes(citas) {
   const cont = document.getElementById('resumen-pendientes');
   if (!cont) return;
 
-  const retrasadas = citas.filter(c => c.retrasada);
-  const salidasPendientes = citas.filter(c => c.tiene_entrada > 0 && c.tiene_salida == 0 && c.estado !== 'no_realizada');
-
-  if (retrasadas.length === 0 && salidasPendientes.length === 0) {
+  if (citas.length === 0) {
     cont.innerHTML = `
       <div class="v26-banner v26-banner--ok">
         <i class="bi bi-check-circle-fill icon"></i>
-        <div class="txt"><p>Vas al día, no tienes pendientes por ahora.</p></div>
+        <div class="txt"><p>No tienes citas programadas hoy.</p></div>
       </div>`;
     return;
   }
+
+  const completadas = citas.filter(c => c.estado === 'completada').length;
+  const retrasadas = citas.filter(c => c.retrasada);
+  const salidasPendientes = citas.filter(c => c.tiene_entrada > 0 && c.tiene_salida == 0 && c.estado !== 'no_realizada');
+  const pct = Math.round((completadas / citas.length) * 100);
+  const sinPendientes = retrasadas.length === 0 && salidasPendientes.length === 0;
 
   const items = [];
   if (retrasadas.length > 0) {
@@ -55,13 +86,24 @@ function renderResumenPendientes(citas) {
   }
 
   cont.innerHTML = `
-    <div class="v26-banner">
-      <i class="bi bi-exclamation-circle-fill icon"></i>
+    <div class="v26-resumen-hero">
+      <div class="v26-dia-ring" id="anillo-dia">
+        <div class="v26-dia-ring-inner"><span class="valor">${pct}%</span><span class="etiqueta">del día</span></div>
+      </div>
       <div class="txt">
-        <strong>Tienes pendientes por resolver</strong>
-        <ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>
+        ${sinPendientes
+          ? `<strong>Vas al día</strong><p>No tienes pendientes por ahora.</p>`
+          : `<strong>Tienes pendientes por resolver</strong><ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`}
       </div>
     </div>`;
+
+  const color = pct === 100 ? 'var(--v26-green)' : (retrasadas.length > 0 ? 'var(--v26-red)' : 'var(--v26-brand-2)');
+  const anillo = document.getElementById('anillo-dia');
+  // Se pinta en el siguiente frame para que el navegador anime la transición
+  // de "background" declarada en CSS en vez de aparecer ya lleno de golpe.
+  requestAnimationFrame(() => {
+    anillo.style.background = `conic-gradient(${color} ${(pct * 3.6).toFixed(1)}deg, var(--v26-border) 0deg)`;
+  });
 }
 
 function fechaParaDia(dia) {
@@ -82,6 +124,7 @@ async function cargarCitas(dia = 'hoy') {
       cont.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
       return;
     }
+    renderStatsInicio(data.citas);
     if (esManana) {
       const resumen = document.getElementById('resumen-pendientes');
       if (resumen) resumen.innerHTML = '';
@@ -282,4 +325,132 @@ async function finalizarProspeccion() {
   } catch (e) {
     alert('Error de conexión. Intenta de nuevo.');
   }
+}
+
+// ---------------------------------------------------------------------
+// Embudo de ventas: etapa del cliente/prospecto (progreso de la relación)
+// e interés (qué tan interesado se mostró en una visita puntual -- se
+// califica por cita, ver checkin.php, no aquí). Único lugar donde vive la
+// lista de valores -- si se agrega una etapa nueva, solo hay que tocar
+// esto y la validación en api/cambiar_etapa.php (la columna es texto
+// libre en la BD, sin ENUM/CHECK, a propósito).
+// ---------------------------------------------------------------------
+const ETAPAS_CLIENTE = [
+  { valor: 'prospecto_agregado',    etiqueta: 'Prospecto',               icono: 'bi-person-plus' },
+  { valor: 'contacto_establecido',  etiqueta: 'Contacto establecido',    icono: 'bi-telephone' },
+  { valor: 'reunion_presentacion',  etiqueta: 'Reunión de presentación', icono: 'bi-people' },
+  { valor: 'propuesta_enviada',     etiqueta: 'Propuesta enviada',       icono: 'bi-file-earmark-text' },
+  { valor: 'convertido',            etiqueta: 'Convertido',              icono: 'bi-trophy' },
+];
+const ETAPA_PERDIDO = { valor: 'perdido', etiqueta: 'Perdido', icono: 'bi-x-circle' };
+
+const INTERES_CLIENTE = [
+  { valor: 'bajo',           etiqueta: 'Poco interesado' },
+  { valor: 'medio',          etiqueta: 'Interés medio' },
+  { valor: 'interesado',     etiqueta: 'Interesado' },
+  { valor: 'muy_interesado', etiqueta: 'Muy interesado' },
+];
+
+function etapaInfo(valor) {
+  return ETAPAS_CLIENTE.find(e => e.valor === valor) || (valor === 'perdido' ? ETAPA_PERDIDO : ETAPAS_CLIENTE[0]);
+}
+function interesInfo(valor) {
+  return INTERES_CLIENTE.find(i => i.valor === valor) || null;
+}
+function pillEtapa(valor) {
+  const e = etapaInfo(valor);
+  return `<span class="v26-pill v26-pill--etapa-${e.valor}"><i class="bi ${e.icono}"></i> ${e.etiqueta}</span>`;
+}
+function pillInteres(valor) {
+  const i = interesInfo(valor);
+  if (!i) return '';
+  return `<span class="v26-pill v26-pill--interes-${i.valor}">${i.etiqueta}</span>`;
+}
+
+// Guarda el cambio de etapa de un cliente (usado por Mis clientes y por
+// el historial). El interés ya no se maneja aquí -- ver checkin.php.
+async function actualizarEtapaCliente(clienteId, cambios) {
+  const fd = new FormData();
+  fd.append('cliente_id', clienteId);
+  fd.append('etapa', cambios.etapa);
+  if (cambios.motivo_perdido !== undefined) fd.append('motivo_perdido', cambios.motivo_perdido || '');
+  try {
+    const res = await fetch('../api/cambiar_etapa.php', { method: 'POST', body: fd });
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: 'Error de conexión. Intenta de nuevo.' };
+  }
+}
+
+// Hoja para elegir la etapa de un cliente/prospecto. Regresa una Promise
+// que resuelve con { etapa, motivo_perdido } si se guarda, o null si se
+// cierra sin guardar. (El interés se califica por cita, no aquí -- ver
+// los chips de "¿qué tan interesado se mostró?" en checkin.php.)
+function v26SheetEtapa(cliente) {
+  return new Promise((resolve) => {
+    let backdrop = document.getElementById('v26-sheet-etapa');
+    if (!backdrop) {
+      backdrop = document.createElement('div');
+      backdrop.id = 'v26-sheet-etapa';
+      backdrop.className = 'v26-modal-backdrop d-none';
+      backdrop.innerHTML = `
+        <div class="v26-modal">
+          <h3>Actualizar a <span id="v26se-nombre"></span></h3>
+          <p class="text-muted small mb-2">Etapa del embudo</p>
+          <div class="v26-chip-group" id="v26se-etapas"></div>
+          <div id="v26se-perdido-wrap" class="mt-3 d-none">
+            <textarea id="v26se-perdido-motivo" class="v26-textarea" rows="2" placeholder="¿Por qué se perdió? (opcional)"></textarea>
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button type="button" id="v26se-cancel" class="v26-btn v26-btn-ghost v26-btn-block">Cerrar</button>
+            <button type="button" id="v26se-guardar" class="v26-btn v26-btn-primary v26-btn-block">Guardar</button>
+          </div>
+        </div>`;
+      document.body.appendChild(backdrop);
+    }
+
+    const elNombre    = backdrop.querySelector('#v26se-nombre');
+    const contEtapas  = backdrop.querySelector('#v26se-etapas');
+    const wrapMotivo  = backdrop.querySelector('#v26se-perdido-wrap');
+    const elMotivo    = backdrop.querySelector('#v26se-perdido-motivo');
+    const btnCancel   = backdrop.querySelector('#v26se-cancel');
+    const btnGuardar  = backdrop.querySelector('#v26se-guardar');
+
+    elNombre.textContent = cliente.nombre;
+    let etapaSel = cliente.etapa || 'prospecto_agregado';
+    elMotivo.value = cliente.etapa_perdido_motivo || '';
+
+    function pintar() {
+      const todas = [...ETAPAS_CLIENTE, ETAPA_PERDIDO];
+      contEtapas.innerHTML = todas.map(e => `
+        <button type="button" class="v26-chip ${e.valor === etapaSel ? 'active' : ''} ${e.valor === 'perdido' ? 'peligro' : ''}" data-etapa="${e.valor}">
+          <i class="bi ${e.icono}"></i> ${e.etiqueta}
+        </button>`).join('');
+      wrapMotivo.classList.toggle('d-none', etapaSel !== 'perdido');
+      contEtapas.querySelectorAll('[data-etapa]').forEach(b => b.addEventListener('click', () => { etapaSel = b.dataset.etapa; pintar(); }));
+    }
+    pintar();
+
+    backdrop.classList.remove('d-none');
+    requestAnimationFrame(() => backdrop.classList.add('show'));
+
+    function limpiar() {
+      btnCancel.removeEventListener('click', onCancel);
+      btnGuardar.removeEventListener('click', onGuardar);
+      backdrop.removeEventListener('click', onBackdropClick);
+    }
+    function cerrar(resultado) {
+      backdrop.classList.remove('show');
+      limpiar();
+      setTimeout(() => backdrop.classList.add('d-none'), 200);
+      resolve(resultado);
+    }
+    function onCancel() { cerrar(null); }
+    function onGuardar() { cerrar({ etapa: etapaSel, motivo_perdido: elMotivo.value.trim() }); }
+    function onBackdropClick(e) { if (e.target === backdrop) onCancel(); }
+
+    btnCancel.addEventListener('click', onCancel);
+    btnGuardar.addEventListener('click', onGuardar);
+    backdrop.addEventListener('click', onBackdropClick);
+  });
 }
