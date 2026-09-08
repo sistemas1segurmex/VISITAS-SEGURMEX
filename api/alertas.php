@@ -8,6 +8,7 @@ $db = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     generarAlertasSinActividad($db);
+    generarAlertasSinSeguimiento($db);
 
     $stmt = $db->query(
         "SELECT a.*, u.nombre AS vendedor_nombre

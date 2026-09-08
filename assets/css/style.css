@@ -37,9 +37,39 @@ body { background: #F5F6F8; font-family: system-ui, -apple-system, "Segoe UI", s
 }
 .visitas-marker.is-offline .visitas-marker-pulse { display: none; }
 .visitas-marker.is-offline .visitas-marker-dot { background: #9CA3AF; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+
+/* "Conexión perdida" — no reportó GPS en mucho más tiempo que un simple
+   "desconectado" (ver CONEXION_PERDIDA_HORAS en includes/helpers.php).
+   Pin oscuro con ícono de "sin señal" para que salte a la vista. */
+.visitas-marker.is-lost .visitas-marker-pulse { display: none; }
+.visitas-marker.is-lost .visitas-marker-dot {
+  background: #1F2937; box-shadow: 0 1px 4px rgba(0,0,0,.4), 0 0 0 2px rgba(225,29,72,.55);
+}
+.visitas-marker.is-lost .visitas-marker-dot::after {
+  content: '\F5EA'; /* bi-wifi-off */
+  font-family: 'bootstrap-icons'; font-size: 9px; color: #fff;
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+}
 @keyframes visitas-pulse {
   0%   { transform: scale(1);   opacity: .55; }
   100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* ── Badge flotante de eficiencia, junto al marcador del vendedor ──── */
+.visitas-eficiencia-badge {
+  background: rgba(17,24,39,.85); color: #fff; font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+}
+.visitas-eficiencia-badge.baja  { background: rgba(225,29,72,.9); }
+.visitas-eficiencia-badge.media { background: rgba(245,166,35,.92); color: #111827; }
+.visitas-eficiencia-badge.alta  { background: rgba(22,163,74,.9); }
+
+/* ── Etiqueta flotante sobre el pin de "conexión perdida" ──────────── */
+.visitas-lost-tag {
+  background: #1F2937; color: #fff; font-size: 10.5px; font-weight: 700;
+  padding: 3px 8px; border-radius: 6px; white-space: nowrap; letter-spacing: .02em;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
 }
 
 /* ── Leyenda flotante sobre el mapa ──────────────────────────────── */
@@ -52,7 +82,15 @@ body { background: #F5F6F8; font-family: system-ui, -apple-system, "Segoe UI", s
 .mapa-leyenda span { display: inline-flex; align-items: center; gap: 5px; }
 .mapa-leyenda .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand); display: inline-block; }
 .mapa-leyenda .dot.off { background: #9CA3AF; }
+.mapa-leyenda .dot.lost { background: #1F2937; box-shadow: 0 0 0 2px rgba(225,29,72,.55); }
 .mapa-leyenda strong { font-weight: 700; color: #111827; margin-left: 1px; }
+
+/* ── Tooltips flotantes "desnudos" (badge de eficiencia y de conexión
+   perdida): sin el globo/flecha por defecto de Leaflet, solo nuestro chip ── */
+.leaflet-tooltip.visitas-tooltip-limpio {
+  background: none; border: none; box-shadow: none; padding: 0; margin-top: -4px;
+}
+.leaflet-tooltip.visitas-tooltip-limpio::before { display: none; }
 
 /* ── Popups del mapa con el estilo de la marca ──────────────────── */
 .leaflet-popup-content-wrapper { border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.15); }
