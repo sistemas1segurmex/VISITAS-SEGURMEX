@@ -24,6 +24,9 @@ if ($token === '') {
 if ($nombre === '' || $telefono === '' || strlen($password) < 6) {
     jsonResponse(['ok' => false, 'error' => 'Llena tu nombre, teléfono y una contraseña de al menos 6 caracteres'], 400);
 }
+if (!preg_match('/^\d{10}$/', $telefono)) {
+    jsonResponse(['ok' => false, 'error' => 'El teléfono debe ser numérico, a 10 dígitos'], 400);
+}
 if (empty($_FILES['foto']) || $_FILES['foto']['error'] === UPLOAD_ERR_NO_FILE) {
     jsonResponse(['ok' => false, 'error' => 'Sube tu foto de perfil'], 400);
 }
