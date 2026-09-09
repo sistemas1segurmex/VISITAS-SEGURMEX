@@ -147,7 +147,9 @@ document.getElementById('form-invitar').addEventListener('submit', async (e) => 
       fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) + ', ' +
       fecha.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
 
-    document.getElementById('form-invitar').classList.add('d-none');
+    // El formulario se queda visible junto con el resultado (no se oculta)
+    // -- así se puede cambiar el correo/vigencia y generar otro sin cerrar
+    // el modal, y coincide con el maquetado que se aprobó (todo junto).
     document.getElementById('resultado-invitacion').classList.remove('d-none');
   } finally {
     btn.disabled = false;
