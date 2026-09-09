@@ -6,9 +6,11 @@ const PALETA_RUTAS = ['#4F46E5', '#F5A623', '#16A34A', '#E11D48', '#0EA5E9', '#9
 
 function initMapa() {
   mapa = L.map('mapa', { zoomControl: true }).setView([23.6345, -102.5528], 5);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: 'abcd',
+  // CARTO empezó a exigir API key en su CDN de mapas base (antes era libre);
+  // se cambia a los tiles de OpenStreetMap, gratis y sin key -- mismos que ya
+  // usa el lado del vendedor (nuevo_cliente.php, editar_cliente.php).
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
   }).addTo(mapa);
   capaRutas = L.layerGroup().addTo(mapa);
