@@ -489,9 +489,10 @@ function horaCortaLocal(fechaHoraLocal) {
 function bitacoraParadasHtml(data) {
   const paradas = data.paradas || [];
   if (paradas.length === 0) {
+    const lugarTxt = data.ubicaciones.lugar ? ` (última posición: ${data.ubicaciones.lugar})` : '';
     return `
       <h6 class="mt-4 mb-2">Recorrido del día</h6>
-      <p class="text-muted small">${data.ubicaciones.total} reporte(s) de GPS, pero sin ninguna parada de varios minutos detectada (todo el día en movimiento, o muy pocos puntos reportados).</p>`;
+      <p class="text-muted small">${data.ubicaciones.total} reporte(s) de GPS${lugarTxt}, pero sin ninguna parada de varios minutos detectada (todo el día en movimiento, o muy pocos puntos reportados).</p>`;
   }
   const filas = paradas.map((p, i) => {
     const nombre = p.cliente
