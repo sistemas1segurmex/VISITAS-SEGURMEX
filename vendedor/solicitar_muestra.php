@@ -51,9 +51,9 @@ $u = requireRole('vendedor');
     <div class="v26-card">
       <form id="form-muestra">
         <div class="v26-field">
-          <label>Cliente</label>
+          <label>Cliente o prospecto</label>
           <select id="id_cliente" class="v26-select" required>
-            <option value="">Cargando clientes...</option>
+            <option value="">Cargando tus clientes y prospectos...</option>
           </select>
         </div>
         <div class="v26-field">
@@ -151,10 +151,17 @@ async function cargarCatalogos() {
       selEstilo.innerHTML = `<option value="">${data.error}</option>`;
       return;
     }
-    selCliente.innerHTML = '<option value="">Elige un cliente...</option>' +
-      data.clientes.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
-    selEstilo.innerHTML = '<option value="">Elige un estilo...</option>' +
-      data.estilos.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+    selCliente.innerHTML = '<option value="">Elige un cliente o prospecto...</option>' +
+      data.clientes.map(c => {
+        const etiqueta = c.etapa === 'convertido' ? 'Cliente' : 'Prospecto';
+        return `<option value="${c.id}">${c.nombre} (${etiqueta})</option>`;
+      }).join('');
+    if (data.error_estilos) {
+      selEstilo.innerHTML = `<option value="">${data.error_estilos}</option>`;
+    } else {
+      selEstilo.innerHTML = '<option value="">Elige un estilo...</option>' +
+        data.estilos.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+    }
   } catch (e) {
     selCliente.innerHTML = '<option value="">Error al cargar</option>';
     selEstilo.innerHTML = '<option value="">Error al cargar</option>';
@@ -191,7 +198,7 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
   btn.textContent = 'Enviando...';
   try {
     const fd = new FormData();
-    fd.append('id_cliente', document.getElementById('id_cliente').value);
+    fd.append('cliente_id', document.getElementById('id_cliente').value);
     fd.append('id_estilo_base', document.getElementById('id_estilo_base').value);
     fd.append('talla', document.getElementById('talla').value);
     fd.append('fecha_promesa', document.getElementById('fecha_promesa').value);
