@@ -16,25 +16,61 @@ $u = requireRole('admin');
 <link rel="stylesheet" href="../assets/css/admin-2026.css<?= assetVer(__DIR__ . '/../assets/css/admin-2026.css') ?>">
 <style>
   /* El modal de invitar vive fuera de .v26-wrap (Bootstrap lo requiere para
-     que el backdrop tape toda la pantalla), así que no hereda el look de
-     botones/pills que sí aplica ahí -- se define aparte, mismo lenguaje
-     visual (degradado de marca, pills, caja de link punteada). */
-  #modalInvitar .btn-brand {
+     que el backdrop tape toda la pantalla), así que no hereda nada del look
+     v26 -- se construye aparte, calcado del maquetado que se aprobó
+     (tarjeta flotante sin header/footer de Bootstrap, inputs con fondo
+     relleno en vez de borde, selector y botón en la misma fila). */
+  #modalInvitar .modal-dialog { max-width: 440px; }
+  .v26-invitar-card {
+    position: relative; border: none; border-radius: var(--v26-r-lg);
+    box-shadow: 0 20px 50px -20px rgba(20,23,31,.35);
+    padding: 26px 26px 22px;
+  }
+  .v26-invitar-close {
+    position: absolute; top: 18px; right: 18px; width: 32px; height: 32px;
+    border: none; background: transparent; color: var(--v26-ink-soft);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  }
+  .v26-invitar-close:hover { background: var(--v26-bg); color: var(--v26-ink); }
+  .v26-invitar-eyebrow {
+    font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--v26-brand-2); margin: 0 0 4px;
+  }
+  .v26-invitar-titulo { font-size: 1.05rem; font-weight: 800; margin: 0 0 3px; padding-right: 30px; }
+  .v26-invitar-sub { font-size: .82rem; color: var(--v26-ink-soft); margin: 0 0 18px; }
+  .v26-invitar-label { display: block; font-size: .74rem; font-weight: 700; color: var(--v26-ink-soft); margin: 0 0 6px; }
+  .v26-invitar-input, .v26-invitar-select {
+    width: 100%; font-family: inherit; font-size: .88rem; color: var(--v26-ink);
+    background: var(--v26-bg); border: 1px solid var(--v26-border); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 16px;
+  }
+  .v26-invitar-row { display: flex; gap: 10px; align-items: center; }
+  .v26-invitar-row .v26-invitar-select { margin-bottom: 0; flex: 1; }
+  .v26-invitar-btn-brand {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
     background: var(--v26-brand-grad); border: none; color: #fff;
-    border-radius: var(--v26-r-pill); font-weight: 700;
-    box-shadow: var(--v26-shadow-brand);
+    border-radius: var(--v26-r-pill); font-weight: 700; font-size: .84rem;
+    padding: 10px 18px; box-shadow: var(--v26-shadow-brand);
   }
-  #modalInvitar .btn-brand:hover { color: #fff; opacity: .92; }
-  #modalInvitar .btn-outline-secondary {
-    border-radius: var(--v26-r-pill); border-color: var(--v26-border); color: var(--v26-ink); font-weight: 700;
+  .v26-invitar-btn-brand:hover { color: #fff; opacity: .92; }
+  .v26-invitar-btn-ghost {
+    display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+    background: transparent; border: 1px solid var(--v26-border); color: var(--v26-ink);
+    border-radius: var(--v26-r-pill); font-weight: 700; font-size: .78rem; padding: 8px 14px;
   }
-  #modalInvitar .form-control, #modalInvitar .form-select { border-radius: 10px; }
+  #resultado-invitacion { margin-top: 16px; }
+  .v26-invitar-linkbox {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--v26-bg); border: 1px dashed var(--v26-border); border-radius: 12px;
+    padding: 8px 8px 8px 14px;
+  }
   #invitar-link {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem;
-    background: var(--v26-bg); border-style: dashed;
+    flex: 1; min-width: 0; border: none; background: transparent; outline: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .76rem; color: var(--v26-blue);
   }
-  #invitar-vence-txt.v26-pill--pendiente {
-    background: #FEF3E2; color: var(--v26-brand-2); font-weight: 700;
+  .v26-invitar-pill-vence {
+    display: inline-flex; align-items: center; font-size: .74rem; font-weight: 700;
+    background: #FEF3E2; color: var(--v26-brand-2); border-radius: var(--v26-r-pill); padding: 6px 14px;
   }
 </style>
 </head>
@@ -173,41 +209,36 @@ $u = requireRole('admin');
 <!-- Modal invitar vendedor -->
 <div class="modal fade" id="modalInvitar" tabindex="-1">
   <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Invitar vendedor nuevo</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div id="msg-invitar"></div>
-        <form id="form-invitar">
-          <div class="mb-3">
-            <label class="form-label">Correo del nuevo vendedor</label>
-            <input type="email" id="invitar-email" class="form-control" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Vence en</label>
-            <select id="invitar-dias" class="form-select">
-              <option value="2" selected>2 días (recomendado)</option>
-              <option value="1">1 día</option>
-              <option value="7">7 días</option>
-            </select>
-          </div>
-          <button type="submit" class="btn btn-brand w-100" id="btn-generar-link">Generar link</button>
-        </form>
+    <div class="modal-content v26-invitar-card">
+      <button type="button" class="v26-invitar-close" data-bs-dismiss="modal" aria-label="Cerrar"><i class="bi bi-x-lg"></i></button>
+      <p class="v26-invitar-eyebrow">Invitar vendedor</p>
+      <h5 class="v26-invitar-titulo">Invitar vendedor nuevo</h5>
+      <p class="v26-invitar-sub">Genera un link de un solo uso para que se registre solo.</p>
+      <div id="msg-invitar"></div>
+      <form id="form-invitar">
+        <label class="v26-invitar-label">Correo del nuevo vendedor</label>
+        <input type="email" id="invitar-email" class="v26-invitar-input" placeholder="vendedor.nuevo@segurmex.com.mx" required>
+        <label class="v26-invitar-label">Vence en</label>
+        <div class="v26-invitar-row">
+          <select id="invitar-dias" class="v26-invitar-select">
+            <option value="2" selected>2 días (recomendado)</option>
+            <option value="1">1 día</option>
+            <option value="7">7 días</option>
+          </select>
+          <button type="submit" class="v26-invitar-btn-brand" id="btn-generar-link">Generar link</button>
+        </div>
+      </form>
 
-        <div id="resultado-invitacion" class="d-none mt-3">
-          <label class="form-label">Link de registro</label>
-          <div class="input-group mb-2">
-            <input type="text" id="invitar-link" class="form-control form-control-sm" readonly>
-            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copiarLinkInvitacion()"><i class="bi bi-clipboard"></i> Copiar</button>
-          </div>
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span class="v26-pill v26-pill--pendiente" id="invitar-vence-txt"></span>
-            <button class="btn btn-brand btn-sm" type="button" id="btn-enviar-correo" onclick="enviarInvitacionPorCorreo()">
-              <i class="bi bi-envelope"></i> Enviar por correo
-            </button>
-          </div>
+      <div id="resultado-invitacion" class="d-none">
+        <div class="v26-invitar-linkbox">
+          <input type="text" id="invitar-link" readonly>
+          <button type="button" class="v26-invitar-btn-ghost" onclick="copiarLinkInvitacion()"><i class="bi bi-clipboard"></i> Copiar</button>
+        </div>
+        <div class="v26-invitar-row" style="margin-top:10px">
+          <span class="v26-invitar-pill-vence" id="invitar-vence-txt"></span>
+          <button type="button" class="v26-invitar-btn-brand" id="btn-enviar-correo" onclick="enviarInvitacionPorCorreo()">
+            <i class="bi bi-envelope"></i> Enviar por correo
+          </button>
         </div>
       </div>
     </div>
