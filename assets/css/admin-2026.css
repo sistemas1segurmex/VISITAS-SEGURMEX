@@ -271,6 +271,23 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 }
 .v26-user-ver-detalle:hover { filter: brightness(1.08); color: #fff; }
 
+/* Aprobar/Rechazar un registro pendiente -- mismo tamaño de "Ver detalle"
+   (flex:1, texto + ícono), NO el botón redondo de solo-ícono (.v26-icon-btn
+   es de 32x32px fijo, pensado para un ícono sin texto). */
+.v26-btn-aprobar, .v26-btn-rechazar {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  text-align: center; font-size: .78rem; font-weight: 700; font-family: inherit;
+  border-radius: 10px; padding: 7px 10px; cursor: pointer; transition: filter .15s, background .15s, color .15s;
+}
+.v26-btn-aprobar {
+  border: none; color: #fff; background: linear-gradient(135deg, var(--v26-green), #4ADE80);
+}
+.v26-btn-aprobar:hover { filter: brightness(1.08); }
+.v26-btn-rechazar {
+  border: 1px solid var(--v26-border); color: var(--v26-red); background: var(--v26-bg);
+}
+.v26-btn-rechazar:hover { background: var(--v26-red); color: #fff; border-color: var(--v26-red); }
+
 @keyframes v26-card-in { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes v26-dot-pulso { 0%, 100% { box-shadow: 0 0 0 0 rgba(22,163,74,.5); } 50% { box-shadow: 0 0 0 5px rgba(22,163,74,0); } }
 
