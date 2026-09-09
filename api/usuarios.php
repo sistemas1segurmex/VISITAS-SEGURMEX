@@ -7,9 +7,14 @@ $admin = requireRole('admin');
 $db    = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    // es_autoregistro: se registró solo vía link de invitación (ver
+    // registro_vendedor.php). Combinado con activo=0 en el frontend, marca
+    // "pendiente de aprobar" -- distinto de una cuenta real que un admin
+    // desactivó a propósito.
     $stmt = $db->query(
-        "SELECT id, nombre, email, rol, telefono, estado_operacion, activo, created_at, foto_path
-         FROM usuarios ORDER BY rol, nombre"
+        "SELECT u.id, u.nombre, u.email, u.rol, u.telefono, u.estado_operacion, u.activo, u.created_at, u.foto_path,
+                EXISTS(SELECT 1 FROM invitaciones_vendedor iv WHERE iv.usuario_creado_id = u.id) AS es_autoregistro
+         FROM usuarios u ORDER BY u.rol, u.nombre"
     );
     jsonResponse(['ok' => true, 'usuarios' => $stmt->fetchAll()]);
 }
@@ -134,6 +139,27 @@ if ($accion === 'resetear_password') {
     }
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $db->prepare('UPDATE usuarios SET password_hash = ? WHERE id = ?')->execute([$hash, $id]);
+    jsonResponse(['ok' => true]);
+}
+
+if ($accion === 'rechazar') {
+    // Solo aplica a registros que todavía están pendientes de aprobar
+    // (activo=0) -- nunca borra una cuenta real que un admin desactivó a
+    // propósito, esa se reactiva o se queda desactivada, no se elimina.
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) jsonResponse(['ok' => false, 'error' => 'Id inválido'], 400);
+
+    $stmt = $db->prepare('SELECT foto_path FROM usuarios WHERE id = ? AND activo = 0');
+    $stmt->execute([$id]);
+    $usuario = $stmt->fetch();
+    if (!$usuario) {
+        jsonResponse(['ok' => false, 'error' => 'No se encontró un registro pendiente con ese id'], 404);
+    }
+
+    $db->prepare('DELETE FROM usuarios WHERE id = ?')->execute([$id]);
+    if ($usuario['foto_path']) {
+        @unlink(__DIR__ . '/../' . $usuario['foto_path']);
+    }
     jsonResponse(['ok' => true]);
 }
 

@@ -102,6 +102,108 @@ async function resetearPassword(id) {
   }
 }
 
+// ---------------------------------------------------------------------
+// Invitar vendedor nuevo por link (registro_vendedor.php) -- ver
+// api/invitaciones.php. El link se arma en el navegador a partir de la URL
+// actual (no en el servidor), así funciona igual en localhost, en el
+// servidor de la oficina o detrás de cualquier proxy/alias.
+// ---------------------------------------------------------------------
+let invitacionActual = null; // { id, link }
+
+function abrirModalInvitar() {
+  invitacionActual = null;
+  document.getElementById('form-invitar').reset();
+  document.getElementById('form-invitar').classList.remove('d-none');
+  document.getElementById('resultado-invitacion').classList.add('d-none');
+  document.getElementById('msg-invitar').innerHTML = '';
+  new bootstrap.Modal(document.getElementById('modalInvitar')).show();
+}
+
+document.getElementById('form-invitar').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('msg-invitar');
+  const btn = document.getElementById('btn-generar-link');
+  msg.innerHTML = '';
+  btn.disabled = true;
+  btn.textContent = 'Generando...';
+  try {
+    const fd = new FormData();
+    fd.append('accion', 'crear');
+    fd.append('email', document.getElementById('invitar-email').value.trim());
+    fd.append('dias', document.getElementById('invitar-dias').value);
+    const res = await fetch('../api/invitaciones.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.ok) {
+      msg.innerHTML = `<div class="alert alert-danger py-2">${data.error}</div>`;
+      return;
+    }
+    const base = location.origin + location.pathname.replace(/admin\/usuarios\.php.*/, '');
+    const link = base + 'registro_vendedor.php?token=' + data.token;
+    invitacionActual = { id: data.id, link };
+
+    document.getElementById('invitar-link').value = link;
+    const fecha = new Date(String(data.expira_en).replace(' ', 'T'));
+    document.getElementById('invitar-vence-txt').textContent = 'Vence el ' +
+      fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) + ', ' +
+      fecha.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
+
+    document.getElementById('form-invitar').classList.add('d-none');
+    document.getElementById('resultado-invitacion').classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generar link';
+  }
+});
+
+function copiarLinkInvitacion() {
+  const input = document.getElementById('invitar-link');
+  input.select();
+  navigator.clipboard?.writeText(input.value).catch(() => document.execCommand('copy'));
+}
+
+async function enviarInvitacionPorCorreo() {
+  if (!invitacionActual) return;
+  const btn = document.getElementById('btn-enviar-correo');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enviando...';
+  const fd = new FormData();
+  fd.append('accion', 'enviar');
+  fd.append('id', invitacionActual.id);
+  fd.append('link', invitacionActual.link);
+  const res = await fetch('../api/invitaciones.php', { method: 'POST', body: fd });
+  const data = await res.json();
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-envelope"></i> Enviar por correo';
+  if (!data.ok) {
+    alert(data.error || 'No se pudo enviar el correo. Copia el link y mándalo a mano.');
+  } else {
+    alert('Correo enviado.');
+  }
+}
+
+// ---------------------------------------------------------------------
+// Aprobar / rechazar registros de vendedores que llegaron solos por link
+// ---------------------------------------------------------------------
+async function aprobarRegistro(id) {
+  const fd = new FormData();
+  fd.append('accion', 'cambiar_estado');
+  fd.append('id', id);
+  fd.append('activo', 1);
+  const res = await fetch('../api/usuarios.php', { method: 'POST', body: fd });
+  const data = await res.json();
+  if (data.ok) cargarUsuarios(); else alert(data.error);
+}
+
+async function rechazarRegistro(id) {
+  if (!confirm('¿Rechazar este registro? No se podrá recuperar.')) return;
+  const fd = new FormData();
+  fd.append('accion', 'rechazar');
+  fd.append('id', id);
+  const res = await fetch('../api/usuarios.php', { method: 'POST', body: fd });
+  const data = await res.json();
+  if (data.ok) cargarUsuarios(); else alert(data.error);
+}
+
 function iniciales(nombre) {
   const partes = String(nombre).trim().split(/\s+/).filter(Boolean);
   const letras = partes.length > 1 ? partes[0][0] + partes[1][0] : (partes[0] || '?').slice(0, 2);
@@ -132,6 +234,7 @@ let filtroRolActivo = '';
 
 function tarjetaUsuario(u, i) {
   const activo = u.activo == 1;
+  const pendiente = u.es_autoregistro && !activo;
   const avatarContenido = u.foto_path ? `<img src="../${u.foto_path}" alt="">` : iniciales(u.nombre);
   const estiloAvatar = u.foto_path ? '' : `background:${colorAvatar(u.id)};color:#fff`;
   return `
@@ -148,15 +251,22 @@ function tarjetaUsuario(u, i) {
       </div>
       <div class="v26-user-meta">
         <span class="v26-pill v26-pill--${u.rol}">${u.rol}</span>
+        ${u.telefono ? `<span class="v26-user-region"><i class="bi bi-telephone"></i> ${u.telefono}</span>` : ''}
         ${u.estado_operacion ? `<span class="v26-user-region"><i class="bi bi-geo-alt"></i> ${u.estado_operacion}</span>` : ''}
+        ${pendiente ? '<span class="v26-pill v26-pill--pendiente"><i class="bi bi-hourglass-split"></i> Pendiente de aprobar</span>' : ''}
       </div>
       <div class="v26-user-acciones">
-        ${u.rol === 'vendedor' ? `<a href="vendedor_detalle.php?id=${u.id}" class="v26-user-ver-detalle"><i class="bi bi-eye"></i> Ver detalle</a>` : ''}
-        <button class="v26-icon-btn" title="Editar" onclick='abrirModalEditar(${JSON.stringify(u).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button>
-        <button class="v26-icon-btn" title="Restablecer contraseña" onclick="resetearPassword(${u.id})"><i class="bi bi-key"></i></button>
-        <button class="v26-icon-btn ${activo ? 'peligro' : 'exito'}" title="${activo ? 'Desactivar' : 'Activar'}" onclick="cambiarEstado(${u.id}, ${activo ? 0 : 1})">
-          <i class="bi ${activo ? 'bi-slash-circle' : 'bi-check-circle'}"></i>
-        </button>
+        ${pendiente ? `
+          <button class="v26-icon-btn exito" title="Aprobar" onclick="aprobarRegistro(${u.id})"><i class="bi bi-check-circle"></i> Aprobar</button>
+          <button class="v26-icon-btn peligro" title="Rechazar" onclick="rechazarRegistro(${u.id})"><i class="bi bi-x-circle"></i> Rechazar</button>
+        ` : `
+          ${u.rol === 'vendedor' ? `<a href="vendedor_detalle.php?id=${u.id}" class="v26-user-ver-detalle"><i class="bi bi-eye"></i> Ver detalle</a>` : ''}
+          <button class="v26-icon-btn" title="Editar" onclick='abrirModalEditar(${JSON.stringify(u).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button>
+          <button class="v26-icon-btn" title="Restablecer contraseña" onclick="resetearPassword(${u.id})"><i class="bi bi-key"></i></button>
+          <button class="v26-icon-btn ${activo ? 'peligro' : 'exito'}" title="${activo ? 'Desactivar' : 'Activar'}" onclick="cambiarEstado(${u.id}, ${activo ? 0 : 1})">
+            <i class="bi ${activo ? 'bi-slash-circle' : 'bi-check-circle'}"></i>
+          </button>
+        `}
       </div>
     </div>
   `;
@@ -167,6 +277,7 @@ function actualizarStats() {
   animarNumero(document.getElementById('stat-activos'), usuariosCache.filter(u => u.activo == 1).length);
   animarNumero(document.getElementById('stat-vendedores'), usuariosCache.filter(u => u.rol === 'vendedor').length);
   animarNumero(document.getElementById('stat-admins'), usuariosCache.filter(u => u.rol === 'admin').length);
+  animarNumero(document.getElementById('stat-pendientes'), usuariosCache.filter(u => u.es_autoregistro && u.activo != 1).length);
 }
 
 function renderizarUsuarios() {
@@ -175,7 +286,11 @@ function renderizarUsuarios() {
   const texto = (document.getElementById('buscar-usuario').value || '').trim().toLowerCase();
 
   const filtrados = usuariosCache.filter(u => {
-    if (filtroRolActivo && u.rol !== filtroRolActivo) return false;
+    if (filtroRolActivo === 'pendientes') {
+      if (!(u.es_autoregistro && u.activo != 1)) return false;
+    } else if (filtroRolActivo && u.rol !== filtroRolActivo) {
+      return false;
+    }
     if (!texto) return true;
     return u.nombre.toLowerCase().includes(texto)
         || u.email.toLowerCase().includes(texto)

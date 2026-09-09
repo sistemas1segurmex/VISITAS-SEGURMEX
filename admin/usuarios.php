@@ -37,7 +37,10 @@ $u = requireRole('admin');
       <h5 class="mb-0">Vendedores y administradores</h5>
       <p class="v26-subtitulo mb-0">Tu equipo de campo, en un vistazo</p>
     </div>
-    <button class="btn btn-brand btn-sm v26-btn-glow" onclick="abrirModalCrear()"><i class="bi bi-plus-lg"></i> Nuevo vendedor</button>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary btn-sm" onclick="abrirModalInvitar()"><i class="bi bi-link-45deg"></i> Invitar vendedor</button>
+      <button class="btn btn-brand btn-sm v26-btn-glow" onclick="abrirModalCrear()"><i class="bi bi-plus-lg"></i> Nuevo vendedor</button>
+    </div>
   </div>
 
   <div class="v26-stats-row mb-3" id="stats-usuarios">
@@ -57,6 +60,10 @@ $u = requireRole('admin');
       <div class="v26-stat-icon"><i class="bi bi-shield-lock-fill"></i></div>
       <div><div class="v26-stat-num" data-valor="0" id="stat-admins">0</div><div class="v26-stat-label">Administradores</div></div>
     </div>
+    <div class="v26-stat-card">
+      <div class="v26-stat-icon"><i class="bi bi-hourglass-split"></i></div>
+      <div><div class="v26-stat-num" data-valor="0" id="stat-pendientes">0</div><div class="v26-stat-label">Pendientes de aprobar</div></div>
+    </div>
   </div>
 
   <div class="v26-toolbar mb-3">
@@ -69,6 +76,7 @@ $u = requireRole('admin');
       <button type="button" class="opt active" data-rol="">Todos</button>
       <button type="button" class="opt" data-rol="vendedor">Vendedores</button>
       <button type="button" class="opt" data-rol="admin">Administradores</button>
+      <button type="button" class="opt" data-rol="pendientes">Pendientes</button>
     </div>
   </div>
 
@@ -135,6 +143,50 @@ $u = requireRole('admin');
           <button type="submit" class="btn btn-brand">Guardar</button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal invitar vendedor -->
+<div class="modal fade" id="modalInvitar" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Invitar vendedor nuevo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="msg-invitar"></div>
+        <form id="form-invitar">
+          <div class="mb-3">
+            <label class="form-label">Correo del nuevo vendedor</label>
+            <input type="email" id="invitar-email" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Vence en</label>
+            <select id="invitar-dias" class="form-select">
+              <option value="2" selected>2 días (recomendado)</option>
+              <option value="1">1 día</option>
+              <option value="7">7 días</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-brand w-100" id="btn-generar-link">Generar link</button>
+        </form>
+
+        <div id="resultado-invitacion" class="d-none mt-3">
+          <label class="form-label">Link de registro</label>
+          <div class="input-group mb-2">
+            <input type="text" id="invitar-link" class="form-control form-control-sm" readonly>
+            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copiarLinkInvitacion()"><i class="bi bi-clipboard"></i> Copiar</button>
+          </div>
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="v26-pill v26-pill--pendiente" id="invitar-vence-txt"></span>
+            <button class="btn btn-brand btn-sm" type="button" id="btn-enviar-correo" onclick="enviarInvitacionPorCorreo()">
+              <i class="bi bi-envelope"></i> Enviar por correo
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
