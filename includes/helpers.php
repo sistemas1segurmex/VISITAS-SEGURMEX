@@ -103,6 +103,11 @@ function assetVer(string $rutaAbsoluta): string {
 // ---------------------------------------------------------------------
 define('GEOCODE_CACHE_PATH', __DIR__ . '/../uploads/cache/geocode.json');
 define('GEOCODE_CACHE_DIAS', 180);
+// Un fallo (Nominatim no respondió, sin red saliente, etc.) se recuerda poco
+// rato, NO 180 días -- si se cacheara igual que un éxito, un problema
+// temporal (ej. SELinux bloqueando la salida a internet) dejaría el "no
+// encontrado" pegado por meses aunque el problema real ya se haya arreglado.
+define('GEOCODE_CACHE_FALLO_SEGUNDOS', 3600);
 
 function nombreLugarGPS(float $lat, float $lng): ?string {
     $clave = round($lat, 2) . ',' . round($lng, 2);
@@ -117,11 +122,16 @@ function nombreLugarGPS(float $lat, float $lng): ?string {
         $contenido = stream_get_contents($fp);
         $cache = $contenido ? (json_decode($contenido, true) ?: []) : [];
 
-        if (isset($cache[$clave]) && (time() - $cache[$clave]['ts']) < GEOCODE_CACHE_DIAS * 86400) {
-            $lugar = $cache[$clave]['lugar'];
-            flock($fp, LOCK_UN);
-            fclose($fp);
-            return $lugar;
+        if (isset($cache[$clave])) {
+            $vigenciaSegundos = $cache[$clave]['lugar'] === null
+                ? GEOCODE_CACHE_FALLO_SEGUNDOS
+                : GEOCODE_CACHE_DIAS * 86400;
+            if ((time() - $cache[$clave]['ts']) < $vigenciaSegundos) {
+                $lugar = $cache[$clave]['lugar'];
+                flock($fp, LOCK_UN);
+                fclose($fp);
+                return $lugar;
+            }
         }
     }
 
