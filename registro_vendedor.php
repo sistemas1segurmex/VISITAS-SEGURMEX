@@ -151,7 +151,7 @@ if ($token === '') {
         </div>
         <div class="vlg-field">
           <label>Teléfono</label>
-          <input type="tel" name="telefono" required>
+          <input type="tel" name="telefono" id="telefono" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" placeholder="10 dígitos" required>
         </div>
         <div class="vlg-field">
           <label>Elige tu contraseña</label>
@@ -165,6 +165,10 @@ if ($token === '') {
 
 <?php if (!$error): ?>
 <script>
+document.getElementById('telefono').addEventListener('input', (e) => {
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10);
+});
+
 document.getElementById('foto').addEventListener('change', (e) => {
   const archivo = e.target.files[0];
   if (!archivo) return;
