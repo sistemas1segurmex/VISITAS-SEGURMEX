@@ -379,6 +379,22 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
 
     $paradas = (int)$ubic['n'] > 0 ? detectarParadasDia($db, $vendedorId, $inicioUtc, $finUtc) : [];
 
+    // Ciudad/municipio real del último punto GPS del día -- para poder decir
+    // "detectado en X" en vez de solo "solo ubicación GPS registrada" a
+    // secas (ver nombreLugarGPS en este mismo archivo).
+    $lugarDia = null;
+    if ((int)$ubic['n'] > 0) {
+        $stmt = $db->prepare(
+            'SELECT lat, lng FROM tracking_ubicaciones
+             WHERE vendedor_id = ? AND fecha_hora BETWEEN ? AND ? ORDER BY fecha_hora DESC LIMIT 1'
+        );
+        $stmt->execute([$vendedorId, $inicioUtc, $finUtc]);
+        $ultimoPunto = $stmt->fetch();
+        if ($ultimoPunto) {
+            $lugarDia = nombreLugarGPS((float)$ultimoPunto['lat'], (float)$ultimoPunto['lng']);
+        }
+    }
+
     if (count($citas) > 0) {
         $categoria = 'cita';
         $detalle   = count($citas) . ' cita(s)';
@@ -392,7 +408,7 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
         $detalle   = count($clientes) . ' cliente(s) nuevo(s)';
     } elseif ((int)$ubic['n'] > 0) {
         $categoria = 'ubicacion';
-        $detalle   = 'Solo ubicación GPS registrada';
+        $detalle   = $lugarDia ? "Detectada en {$lugarDia}" : 'Sin poder ubicar el lugar exacto';
     } else {
         $categoria = 'sin_actividad';
         $detalle   = null;
@@ -405,7 +421,7 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
         'citas'       => $citas,
         'prospeccion' => $prospeccion,
         'clientes'    => $clientes,
-        'ubicaciones' => ['total' => (int)$ubic['n'], 'primera' => $ubic['primera'], 'ultima' => $ubic['ultima']],
+        'ubicaciones' => ['total' => (int)$ubic['n'], 'primera' => $ubic['primera'], 'ultima' => $ubic['ultima'], 'lugar' => $lugarDia],
         'paradas'     => $paradas,
     ];
 }
