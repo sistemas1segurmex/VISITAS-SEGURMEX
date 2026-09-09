@@ -142,7 +142,22 @@ function nombreLugarGPS(float $lat, float $lng): ?string {
     // concurrentes cuando varios vendedores caen en zona sin caché a la vez.
     // Los que se quedan sin resolver este ciclo simplemente se completan en
     // el siguiente refresco (20s después).
+    //
+    // OJO: la variable static por sí sola NO basta como límite "por request"
+    // -- en PHP-FPM (y en mod_php con workers reciclados) el mismo proceso
+    // atiende MUCHAS peticiones a lo largo de días sin reiniciarse, así que
+    // una static normal se queda pegada en 1 para siempre después de la
+    // primera vez, y nunca vuelve a intentar geocodificar nada. Se compara
+    // contra REQUEST_TIME_FLOAT (distinto en cada petición aunque el
+    // proceso sea el mismo) para detectar "empezó una petición nueva" y
+    // reiniciar el contador cada vez.
     static $consultasVivasHechas = 0;
+    static $peticionMarcador = null;
+    $peticionActual = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
+    if ($peticionActual !== $peticionMarcador) {
+        $peticionMarcador = $peticionActual;
+        $consultasVivasHechas = 0;
+    }
     if ($consultasVivasHechas >= 1) {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
         return null;
