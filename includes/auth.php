@@ -2,6 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+require_once __DIR__ . '/helpers.php';
 
 /**
  * Single sign-on con el ERP (21-ago-2026, ajustado despues para que solo
@@ -51,6 +52,7 @@ function bridgeDesdeERP(): void {
 function currentUser(): ?array {
     bridgeDesdeERP();
     if (!isset($_SESSION['usuario_id'])) return null;
+    tocarSesionActual(getDB());
     return [
         'id'     => $_SESSION['usuario_id'],
         'nombre' => $_SESSION['usuario_nombre'] ?? '',
