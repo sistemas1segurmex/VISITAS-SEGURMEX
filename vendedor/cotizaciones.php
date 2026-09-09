@@ -48,6 +48,15 @@ $u = requireRole('vendedor');
       <i class="bi bi-chevron-right chev"></i>
     </a>
 
+    <a href="solicitar_muestra.php" class="v26-cta mt-2">
+      <span class="v26-cta-icon"><i class="bi bi-box-seam"></i></span>
+      <span class="v26-cta-text">
+        <strong>Solicitar muestra</strong>
+        <small>Se procesa igual que en oficina, con autorización de Dirección</small>
+      </span>
+      <i class="bi bi-chevron-right chev"></i>
+    </a>
+
     <div id="lista-cotizaciones">
       <div class="v26-skel"></div>
       <div class="v26-skel"></div>
