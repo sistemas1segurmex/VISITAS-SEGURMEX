@@ -44,7 +44,7 @@ $u = requireRole('admin');
     background: var(--v26-bg); border: 1px solid var(--v26-border); border-radius: 10px;
     padding: 10px 12px; margin-bottom: 16px;
   }
-  .v26-invitar-row { display: flex; gap: 10px; align-items: center; }
+  .v26-invitar-row { display: flex; gap: 10px; align-items: center; justify-content: flex-start; }
   .v26-invitar-row .v26-invitar-select { margin-bottom: 0; flex: 1; }
   .v26-invitar-btn-brand {
     display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
