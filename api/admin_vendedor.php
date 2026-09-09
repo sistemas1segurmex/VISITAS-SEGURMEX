@@ -47,6 +47,13 @@ if ($accion === 'resumen') {
     $stmt->execute([$vendedorId]);
     $verificadas = (int)$stmt->fetchColumn();
 
+    // Última vez que el celular del vendedor reportó GPS, sea hoy o hace
+    // días -- para poder decir "se le vio por última vez..." aunque ya no
+    // esté activo en este momento (ver dot de estado en el mapa en vivo).
+    $stmt = $db->prepare('SELECT MAX(fecha_hora) FROM tracking_ubicaciones WHERE vendedor_id = ?');
+    $stmt->execute([$vendedorId]);
+    $ultimaConexion = $stmt->fetchColumn() ?: null;
+
     jsonResponse([
         'ok' => true,
         'vendedor' => $vendedor,
@@ -54,6 +61,7 @@ if ($accion === 'resumen') {
         'total_citas' => $totalCitas,
         'proximas_citas' => $proximas,
         'checkins_verificados' => $verificadas,
+        'ultima_conexion' => $ultimaConexion,
     ]);
 }
 

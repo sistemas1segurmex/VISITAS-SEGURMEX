@@ -23,6 +23,24 @@ function iniciales(nombre) {
 const PALETA_AVATAR = ['#4F46E5', '#F5A623', '#16A34A', '#E11D48', '#0EA5E9', '#9333EA', '#D97706', '#0891B2'];
 function colorAvatar(id) { return PALETA_AVATAR[id % PALETA_AVATAR.length]; }
 
+// Convierte "YYYY-MM-DD HH:MM:SS" en UTC (así se guarda tracking_ubicaciones,
+// ver includes/db.php) a un texto relativo tipo "hace 12 min" / "ayer 6:45pm",
+// para poder decir dónde estuvo un vendedor aunque ya no esté activo ahorita.
+function ultimaConexionTexto(fechaUtc) {
+  if (!fechaUtc) return 'Sin ubicación registrada todavía';
+  const d = new Date(String(fechaUtc).replace(' ', 'T') + 'Z');
+  if (isNaN(d.getTime())) return 'Sin ubicación registrada todavía';
+  const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+  const hora = d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
+  if (diffMin < 2) return 'Última conexión: justo ahora';
+  if (diffMin < 60) return `Última conexión: hace ${diffMin} min`;
+  if (diffMin < 24 * 60) return `Última conexión: hace ${Math.floor(diffMin / 60)} h (${hora})`;
+  const diffDias = Math.floor(diffMin / (24 * 60));
+  if (diffDias === 1) return `Última conexión: ayer ${hora}`;
+  const fecha = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+  return `Última conexión: ${fecha}, ${hora} (hace ${diffDias} días)`;
+}
+
 function animarNumero(el, valorFinal) {
   if (!el) return;
   const inicio = parseInt(el.dataset.valor || '0', 10);
@@ -58,6 +76,7 @@ async function cargarResumen() {
       <div>
         <h5 class="mb-0">${v.nombre}</h5>
         <div class="v26-subtitulo">${v.email}${v.telefono ? ' · ' + v.telefono : ''}${v.estado_operacion ? ' · ' + v.estado_operacion : ''}</div>
+        <div class="v26-subtitulo"><i class="bi bi-geo-alt"></i> ${ultimaConexionTexto(data.ultima_conexion)}</div>
       </div>
     </div>
     <div class="v26-stats-row mb-3">
@@ -453,6 +472,84 @@ async function cargarProspeccionMesOSemana(vista) {
   }
 }
 
+// ---------------------------------------------------------------------
+// Bitácora de "paradas" del día: en vez de dibujar la línea completa del
+// rastro GPS (que con cientos de puntos se ve como un rayadero ilegible),
+// el backend (detectarParadasDia en includes/helpers.php) ya agrupó el
+// rastro en los lugares donde el vendedor se quedó quieto un rato. Aquí
+// solo se listan en texto y se marcan como pines numerados sueltos.
+// ---------------------------------------------------------------------
+
+function horaCortaLocal(fechaHoraLocal) {
+  const d = new Date(String(fechaHoraLocal).replace(' ', 'T'));
+  if (isNaN(d.getTime())) return String(fechaHoraLocal).slice(11, 16);
+  return d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
+}
+
+function bitacoraParadasHtml(data) {
+  const paradas = data.paradas || [];
+  if (paradas.length === 0) {
+    return `
+      <h6 class="mt-4 mb-2">Recorrido del día</h6>
+      <p class="text-muted small">${data.ubicaciones.total} reporte(s) de GPS, pero sin ninguna parada de varios minutos detectada (todo el día en movimiento, o muy pocos puntos reportados).</p>`;
+  }
+  const filas = paradas.map((p, i) => {
+    const nombre = p.cliente
+      ? `<strong>${p.cliente.nombre}</strong>`
+      : '<span class="text-muted">Sin cliente registrado cerca</span>';
+    return `
+      <div class="v26-parada-item">
+        <span class="v26-parada-num">${i + 1}</span>
+        <div>
+          <div>${nombre}</div>
+          <div class="text-muted small">${horaCortaLocal(p.inicio)} – ${horaCortaLocal(p.fin)} · ${p.minutos} min ahí</div>
+        </div>
+      </div>`;
+  }).join('');
+  return `
+    <h6 class="mt-4 mb-2">Recorrido del día (${paradas.length} parada${paradas.length === 1 ? '' : 's'})</h6>
+    <div class="v26-paradas-lista mb-2">${filas}</div>
+    <div id="mapa-paradas-dia" class="v26-mapa-paradas"></div>`;
+}
+
+let mapaParadasDia = null;
+function renderMapaParadas(paradas) {
+  const cont = document.getElementById('mapa-paradas-dia');
+  if (!cont || !paradas || paradas.length === 0) return;
+
+  // Recrear el mapa cada vez (no solo mover los pines): el contenedor es
+  // nuevo en el DOM en cada llamada a renderDiaDetalle, y Leaflet no
+  // reutiliza un div que ya "invalidó" al reemplazar innerHTML.
+  if (mapaParadasDia) { mapaParadasDia.remove(); mapaParadasDia = null; }
+  mapaParadasDia = L.map('mapa-paradas-dia', { zoomControl: true, scrollWheelZoom: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap',
+    maxZoom: 19,
+  }).addTo(mapaParadasDia);
+
+  const pinIcon = (num) => L.divIcon({
+    className: '',
+    html: `<div class="v26-parada-pin"><span>${num}</span></div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -22],
+  });
+
+  const puntos = [];
+  paradas.forEach((p, i) => {
+    const marcador = L.marker([p.lat, p.lng], { icon: pinIcon(i + 1) }).addTo(mapaParadasDia);
+    const nombreCliente = p.cliente ? p.cliente.nombre : 'Sin cliente registrado cerca';
+    marcador.bindPopup(`<strong>Parada ${i + 1}</strong><br>${nombreCliente}<br>${horaCortaLocal(p.inicio)} – ${horaCortaLocal(p.fin)} (${p.minutos} min)`);
+    puntos.push([p.lat, p.lng]);
+  });
+
+  if (puntos.length === 1) {
+    mapaParadasDia.setView(puntos[0], 16);
+  } else {
+    mapaParadasDia.fitBounds(puntos, { padding: [30, 30] });
+  }
+}
+
 // Vista "Día": aquí sí se ve el detalle completo (citas, jornada de
 // prospección, clientes nuevos y GPS), no solo la categoría del día.
 function renderDiaDetalle(data) {
@@ -491,9 +588,7 @@ function renderDiaDetalle(data) {
   }
 
   if (data.ubicaciones.total > 0) {
-    partes.push(`
-      <h6 class="mt-4 mb-2">Ubicación GPS</h6>
-      <p class="text-muted small">${data.ubicaciones.total} reporte(s) de ubicación, de ${String(data.ubicaciones.primera).slice(11, 16)} a ${String(data.ubicaciones.ultima).slice(11, 16)} (hora UTC del servidor).</p>`);
+    partes.push(bitacoraParadasHtml(data));
   }
 
   if (!hayAlgo) {
@@ -515,6 +610,7 @@ async function cargarProspeccionDia(fecha) {
     const data = await res.json();
     if (!data.ok) { cont.innerHTML = `<p class="text-danger small">${data.error}</p>`; return; }
     cont.innerHTML = renderDiaDetalle(data);
+    renderMapaParadas(data.paradas);
   } catch (e) {
     cont.innerHTML = '<p class="text-danger small">Error al cargar el día.</p>';
   }
