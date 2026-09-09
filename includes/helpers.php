@@ -108,6 +108,9 @@ define('GEOCODE_CACHE_DIAS', 180);
 // temporal (ej. SELinux bloqueando la salida a internet) dejaría el "no
 // encontrado" pegado por meses aunque el problema real ya se haya arreglado.
 define('GEOCODE_CACHE_FALLO_SEGUNDOS', 3600);
+// Tope de consultas EN VIVO (sin caché) por carga del mapa -- suficiente
+// para un equipo chico de vendedores sin dejar a ninguno sin turno nunca.
+define('GEOCODE_MAX_CONSULTAS_VIVAS_POR_REQUEST', 8);
 
 function nombreLugarGPS(float $lat, float $lng): ?string {
     $clave = round($lat, 2) . ',' . round($lng, 2);
@@ -136,21 +139,23 @@ function nombreLugarGPS(float $lat, float $lng): ?string {
     }
 
     // api/tracking.php llama esto en un ciclo, con la conexión a la BD
-    // (Supabase, pool_size limitado) todavía abierta -- una consulta viva a
-    // Nominatim tarda hasta 1.5s, así que se limita a 1 por request para no
-    // retener esa conexión de más y toparse con el límite de sesiones
-    // concurrentes cuando varios vendedores caen en zona sin caché a la vez.
-    // Los que se quedan sin resolver este ciclo simplemente se completan en
-    // el siguiente refresco (20s después).
+    // todavía abierta -- una consulta viva a Nominatim tarda hasta 1.5s, así
+    // que se limita cuántas se hacen por request para no retener esa
+    // conexión de más. Se permiten varias (no solo 1): con 1 sola, el
+    // vendedor que siempre gana la carrera (ej. el primero alfabéticamente,
+    // o el que va en movimiento real y su caché nunca "pega") le quitaba el
+    // turno para siempre a los demás. GEOCODE_MAX_CONSULTAS_VIVAS_POR_REQUEST
+    // alcanza de sobra para un equipo chico; los que no alcancen a resolverse
+    // en esta ronda se completan solos en el siguiente refresco (20s
+    // después).
     //
     // OJO: la variable static por sí sola NO basta como límite "por request"
     // -- en PHP-FPM (y en mod_php con workers reciclados) el mismo proceso
     // atiende MUCHAS peticiones a lo largo de días sin reiniciarse, así que
-    // una static normal se queda pegada en 1 para siempre después de la
-    // primera vez, y nunca vuelve a intentar geocodificar nada. Se compara
-    // contra REQUEST_TIME_FLOAT (distinto en cada petición aunque el
-    // proceso sea el mismo) para detectar "empezó una petición nueva" y
-    // reiniciar el contador cada vez.
+    // una static normal se queda pegada en el tope para siempre después de
+    // gastarlo una vez. Se compara contra REQUEST_TIME_FLOAT (distinto en
+    // cada petición aunque el proceso sea el mismo) para detectar "empezó
+    // una petición nueva" y reiniciar el contador cada vez.
     static $consultasVivasHechas = 0;
     static $peticionMarcador = null;
     $peticionActual = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
@@ -158,7 +163,7 @@ function nombreLugarGPS(float $lat, float $lng): ?string {
         $peticionMarcador = $peticionActual;
         $consultasVivasHechas = 0;
     }
-    if ($consultasVivasHechas >= 1) {
+    if ($consultasVivasHechas >= GEOCODE_MAX_CONSULTAS_VIVAS_POR_REQUEST) {
         if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
         return null;
     }
