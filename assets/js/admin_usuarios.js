@@ -259,8 +259,8 @@ function tarjetaUsuario(u, i) {
       </div>
       <div class="v26-user-acciones">
         ${pendiente ? `
-          <button class="v26-icon-btn exito" title="Aprobar" onclick="aprobarRegistro(${u.id})"><i class="bi bi-check-circle"></i> Aprobar</button>
-          <button class="v26-icon-btn peligro" title="Rechazar" onclick="rechazarRegistro(${u.id})"><i class="bi bi-x-circle"></i> Rechazar</button>
+          <button class="v26-btn-aprobar" onclick="aprobarRegistro(${u.id})"><i class="bi bi-check-circle"></i> Aprobar</button>
+          <button class="v26-btn-rechazar" onclick="rechazarRegistro(${u.id})"><i class="bi bi-x-circle"></i> Rechazar</button>
         ` : `
           ${u.rol === 'vendedor' ? `<a href="vendedor_detalle.php?id=${u.id}" class="v26-user-ver-detalle"><i class="bi bi-eye"></i> Ver detalle</a>` : ''}
           <button class="v26-icon-btn" title="Editar" onclick='abrirModalEditar(${JSON.stringify(u).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button>
