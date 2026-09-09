@@ -14,6 +14,29 @@ $u = requireRole('admin');
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <link rel="stylesheet" href="../assets/css/style.css<?= assetVer(__DIR__ . '/../assets/css/style.css') ?>">
 <link rel="stylesheet" href="../assets/css/admin-2026.css<?= assetVer(__DIR__ . '/../assets/css/admin-2026.css') ?>">
+<style>
+  /* El modal de invitar vive fuera de .v26-wrap (Bootstrap lo requiere para
+     que el backdrop tape toda la pantalla), así que no hereda el look de
+     botones/pills que sí aplica ahí -- se define aparte, mismo lenguaje
+     visual (degradado de marca, pills, caja de link punteada). */
+  #modalInvitar .btn-brand {
+    background: var(--v26-brand-grad); border: none; color: #fff;
+    border-radius: var(--v26-r-pill); font-weight: 700;
+    box-shadow: var(--v26-shadow-brand);
+  }
+  #modalInvitar .btn-brand:hover { color: #fff; opacity: .92; }
+  #modalInvitar .btn-outline-secondary {
+    border-radius: var(--v26-r-pill); border-color: var(--v26-border); color: var(--v26-ink); font-weight: 700;
+  }
+  #modalInvitar .form-control, #modalInvitar .form-select { border-radius: 10px; }
+  #invitar-link {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem;
+    background: var(--v26-bg); border-style: dashed;
+  }
+  #invitar-vence-txt.v26-pill--pendiente {
+    background: #FEF3E2; color: var(--v26-brand-2); font-weight: 700;
+  }
+</style>
 </head>
 <body class="v26">
 <div class="v26-header">
