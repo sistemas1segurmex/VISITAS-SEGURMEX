@@ -9,6 +9,11 @@ uploads/checkins/*
 uploads/usuarios/*
 !uploads/usuarios/.gitkeep
 
+# Caché de geocodificación (nombreLugarGPS en includes/helpers.php) — datos
+# generados en tiempo de ejecución, no código.
+uploads/cache/*
+!uploads/cache/.gitkeep
+
 # Basura de sistema
 .DS_Store
 Thumbs.db

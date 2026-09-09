@@ -60,7 +60,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
          WHERE u.rol = 'vendedor' AND u.activo = 1
          ORDER BY u.nombre"
     );
-    jsonResponse(['ok' => true, 'ubicaciones' => $stmt->fetchAll()]);
+    $ubicaciones = $stmt->fetchAll();
+    // Ciudad/municipio real según el GPS (no el territorio asignado a mano)
+    // para mostrar en el popup del mapa -- ver nombreLugarGPS() en helpers.php.
+    foreach ($ubicaciones as &$row) {
+        $row['lugar'] = ($row['lat'] !== null && $row['lng'] !== null)
+            ? nombreLugarGPS((float)$row['lat'], (float)$row['lng'])
+            : null;
+    }
+    unset($row);
+    jsonResponse(['ok' => true, 'ubicaciones' => $ubicaciones]);
 }
 
 jsonResponse(['ok' => false, 'error' => 'Método no soportado'], 405);
