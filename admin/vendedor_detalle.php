@@ -18,8 +18,28 @@ if (!$vendedorId) {
 <title>Detalle de vendedor — Control de Visitas</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="../assets/css/style.css<?= assetVer(__DIR__ . '/../assets/css/style.css') ?>">
 <link rel="stylesheet" href="../assets/css/admin-2026.css<?= assetVer(__DIR__ . '/../assets/css/admin-2026.css') ?>">
+<style>
+  /* Bitácora de paradas del día (vista Día de Actividades) — pines
+     numerados en vez de la línea completa del rastro GPS, para que no se
+     vea como un rayadero de líneas cruzadas. */
+  .v26-paradas-lista { display: flex; flex-direction: column; gap: 8px; }
+  .v26-parada-item { display: flex; align-items: center; gap: 10px; }
+  .v26-parada-num {
+    flex: none; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--v26-brand-1); color: #fff; font-weight: 800; font-size: .78rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .v26-mapa-paradas { height: 260px; border-radius: var(--v26-r-md); overflow: hidden; border: 1px solid var(--v26-border); }
+  .v26-parada-pin {
+    width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+    background: var(--v26-brand-1); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .v26-parada-pin span { transform: rotate(45deg); color: #fff; font-weight: 800; font-size: .72rem; }
+</style>
 </head>
 <body class="v26">
 <div class="v26-header">
@@ -97,6 +117,7 @@ if (!$vendedorId) {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="../assets/js/admin_vendedor_detalle.js<?= assetVer(__DIR__ . '/../assets/js/admin_vendedor_detalle.js') ?>"></script>
 </body>
 </html>

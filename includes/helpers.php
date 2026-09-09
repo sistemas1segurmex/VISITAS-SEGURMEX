@@ -3,6 +3,73 @@
 // registrada del cliente para considerar una visita "verificada".
 define('RADIO_VERIFICACION_METROS', 150);
 
+// ---------------------------------------------------------------------
+// Límite de sesiones concurrentes por usuario (login.php). Cada login
+// exitoso registra una fila en usuarios_sesiones; a partir de la 3ra
+// sesión activa se bloquea con una alerta hasta que el usuario cierre
+// alguna. Una sesión "activa" es la que tuvo actividad dentro de esta
+// ventana -- si nadie le dio "Salir" (cerró el navegador sin más), se
+// libera sola pasado ese tiempo, sin necesitar un cron.
+// ---------------------------------------------------------------------
+define('SESION_MAX_ACTIVAS', 2);
+define('SESION_VENTANA_INACTIVIDAD_MIN', 20);
+
+/**
+ * Cuenta las sesiones activas de un usuario. De paso barre filas vencidas
+ * de CUALQUIER usuario (barato: el índice ya está por ultima_actividad) para
+ * que la tabla no crezca sin límite sin necesitar un cron aparte.
+ */
+function contarSesionesActivas(PDO $db, int $usuarioId): int {
+    $db->exec("DELETE FROM usuarios_sesiones WHERE ultima_actividad < NOW() - INTERVAL '" . SESION_VENTANA_INACTIVIDAD_MIN . " minutes'");
+    $stmt = $db->prepare('SELECT COUNT(*) FROM usuarios_sesiones WHERE usuario_id = ?');
+    $stmt->execute([$usuarioId]);
+    return (int)$stmt->fetchColumn();
+}
+
+/** Registra una sesión nueva justo después de un login exitoso. */
+function registrarSesion(PDO $db, int $usuarioId, string $sessionId): void {
+    $stmt = $db->prepare(
+        'INSERT INTO usuarios_sesiones (usuario_id, session_id, ip, user_agent)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT (session_id) DO UPDATE SET usuario_id = EXCLUDED.usuario_id, ultima_actividad = CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([
+        $usuarioId,
+        $sessionId,
+        $_SERVER['REMOTE_ADDR'] ?? null,
+        substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255),
+    ]);
+}
+
+/**
+ * Refresca "última actividad" de la sesión actual para que siga contando
+ * como viva. Se llama en cada request autenticado (ver currentUser() en
+ * auth.php) pero se throttlea a lo más 1 escritura por minuto vía $_SESSION,
+ * para no pegarle a la BD en cada click/fetch del usuario.
+ */
+function tocarSesionActual(PDO $db): void {
+    if (empty($_SESSION['usuario_id'])) return;
+    $ahora = time();
+    if (!empty($_SESSION['_sesion_tocada_en']) && ($ahora - $_SESSION['_sesion_tocada_en']) < 60) return;
+    $_SESSION['_sesion_tocada_en'] = $ahora;
+    try {
+        $stmt = $db->prepare('UPDATE usuarios_sesiones SET ultima_actividad = CURRENT_TIMESTAMP WHERE session_id = ?');
+        $stmt->execute([session_id()]);
+    } catch (Throwable $e) {
+        error_log('[VISITAS] tocarSesionActual: ' . $e->getMessage());
+    }
+}
+
+/** Libera el lugar de esta sesión al cerrar sesión explícitamente. */
+function cerrarSesionActual(PDO $db): void {
+    try {
+        $stmt = $db->prepare('DELETE FROM usuarios_sesiones WHERE session_id = ?');
+        $stmt->execute([session_id()]);
+    } catch (Throwable $e) {
+        error_log('[VISITAS] cerrarSesionActual: ' . $e->getMessage());
+    }
+}
+
 function jsonResponse($data, int $code = 200) {
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
@@ -20,6 +87,91 @@ function jsonResponse($data, int $code = 200) {
 function assetVer(string $rutaAbsoluta): string {
     $mtime = @filemtime($rutaAbsoluta);
     return $mtime ? ('?v=' . $mtime) : '';
+}
+
+// ---------------------------------------------------------------------
+// Nombre del lugar (ciudad/municipio) a partir de coordenadas GPS, para el
+// popup del mapa en vivo del admin -- reemplaza el campo manual
+// "estado_operacion" (territorio asignado al vendedor, no su ubicación
+// real) por dónde el GPS lo ubicó de verdad ahora mismo.
+//
+// Usa Nominatim (OpenStreetMap), gratis y sin API key -- mismo proveedor
+// que ya usan los tiles del mapa. Su política de uso pide no automatizar
+// consultas en exceso, así que el resultado se cachea en disco por
+// coordenada redondeada a ~1 km: la primera vez que un vendedor pisa una
+// zona nueva tarda un poco, después es instantáneo para todos.
+// ---------------------------------------------------------------------
+define('GEOCODE_CACHE_PATH', __DIR__ . '/../uploads/cache/geocode.json');
+define('GEOCODE_CACHE_DIAS', 180);
+
+function nombreLugarGPS(float $lat, float $lng): ?string {
+    $clave = round($lat, 2) . ',' . round($lng, 2);
+
+    $dir = dirname(GEOCODE_CACHE_PATH);
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+
+    $fp = @fopen(GEOCODE_CACHE_PATH, 'c+');
+    $cache = [];
+    if ($fp) {
+        flock($fp, LOCK_EX);
+        $contenido = stream_get_contents($fp);
+        $cache = $contenido ? (json_decode($contenido, true) ?: []) : [];
+
+        if (isset($cache[$clave]) && (time() - $cache[$clave]['ts']) < GEOCODE_CACHE_DIAS * 86400) {
+            $lugar = $cache[$clave]['lugar'];
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            return $lugar;
+        }
+    }
+
+    // api/tracking.php llama esto en un ciclo, con la conexión a la BD
+    // (Supabase, pool_size limitado) todavía abierta -- una consulta viva a
+    // Nominatim tarda hasta 1.5s, así que se limita a 1 por request para no
+    // retener esa conexión de más y toparse con el límite de sesiones
+    // concurrentes cuando varios vendedores caen en zona sin caché a la vez.
+    // Los que se quedan sin resolver este ciclo simplemente se completan en
+    // el siguiente refresco (20s después).
+    static $consultasVivasHechas = 0;
+    if ($consultasVivasHechas >= 1) {
+        if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
+        return null;
+    }
+    $consultasVivasHechas++;
+
+    $lugar = consultarNominatim($lat, $lng);
+
+    if ($fp) {
+        $cache[$clave] = ['lugar' => $lugar, 'ts' => time()];
+        ftruncate($fp, 0);
+        rewind($fp);
+        fwrite($fp, json_encode($cache, JSON_UNESCAPED_UNICODE));
+        fflush($fp);
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+
+    return $lugar;
+}
+
+/** Llamada real a Nominatim -- timeout corto para no colgar api/tracking.php. */
+function consultarNominatim(float $lat, float $lng): ?string {
+    try {
+        $url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&addressdetails=1'
+             . '&lat=' . urlencode((string)$lat) . '&lon=' . urlencode((string)$lng);
+        $ctx = stream_context_create(['http' => [
+            'method' => 'GET',
+            'header' => "User-Agent: VisitasSegurmex/1.0 (sistemas@segurmex.com.mx)\r\n",
+            'timeout' => 1.5,
+        ]]);
+        $resp = @file_get_contents($url, false, $ctx);
+        if (!$resp) return null;
+        $addr = json_decode($resp, true)['address'] ?? [];
+        return $addr['city'] ?? $addr['town'] ?? $addr['municipality'] ?? $addr['county'] ?? $addr['state'] ?? null;
+    } catch (Throwable $e) {
+        error_log('[VISITAS] consultarNominatim: ' . $e->getMessage());
+        return null;
+    }
 }
 
 /**
@@ -225,6 +377,8 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
     $stmt->execute([$vendedorId, $inicioUtc, $finUtc]);
     $ubic = $stmt->fetch();
 
+    $paradas = (int)$ubic['n'] > 0 ? detectarParadasDia($db, $vendedorId, $inicioUtc, $finUtc) : [];
+
     if (count($citas) > 0) {
         $categoria = 'cita';
         $detalle   = count($citas) . ' cita(s)';
@@ -252,7 +406,99 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
         'prospeccion' => $prospeccion,
         'clientes'    => $clientes,
         'ubicaciones' => ['total' => (int)$ubic['n'], 'primera' => $ubic['primera'], 'ultima' => $ubic['ultima']],
+        'paradas'     => $paradas,
     ];
+}
+
+// Radio (metros) dentro del cual varios puntos GPS seguidos se consideran
+// "el mismo lugar" para formar una parada, y minutos mínimos ahí parado para
+// que cuente como tal (así no se marca como parada un alto en el tráfico).
+define('PARADA_RADIO_METROS', 100);
+define('PARADA_DURACION_MIN_MINUTOS', 5);
+
+/**
+ * A partir del rastro crudo de GPS de un día (un punto cada pocos segundos o
+ * minutos), agrupa los puntos en "paradas": lugares donde el vendedor se
+ * quedó quieto un rato, en vez de mandar todo el rastro como una línea
+ * (que en un mapa se ve como un rayadero e ilegible con tantos puntos).
+ * Algoritmo clásico de "stay point detection": avanza por los puntos
+ * ordenados por hora, agrupando mientras el siguiente siga dentro del radio
+ * del primero del grupo; si el grupo duró lo suficiente, es una parada.
+ *
+ * Cada parada trae el cliente más cercano (si hay uno de este vendedor a
+ * menos de RADIO_VERIFICACION_METROS) para poder mostrar su nombre en vez de
+ * solo coordenadas.
+ *
+ * @param string $inicioUtc 'YYYY-MM-DD HH:MM:SS' en UTC
+ * @param string $finUtc    'YYYY-MM-DD HH:MM:SS' en UTC
+ */
+function detectarParadasDia(PDO $db, int $vendedorId, string $inicioUtc, string $finUtc): array {
+    $utc  = new DateTimeZone('UTC');
+    $tzMx = new DateTimeZone('America/Mexico_City');
+
+    $stmt = $db->prepare(
+        'SELECT lat, lng, fecha_hora FROM tracking_ubicaciones
+         WHERE vendedor_id = ? AND fecha_hora BETWEEN ? AND ? ORDER BY fecha_hora ASC'
+    );
+    $stmt->execute([$vendedorId, $inicioUtc, $finUtc]);
+    $puntos = $stmt->fetchAll();
+    $n = count($puntos);
+    if ($n === 0) return [];
+
+    $stmt = $db->prepare('SELECT id, nombre, lat, lng FROM clientes WHERE vendedor_id = ? AND lat IS NOT NULL AND lng IS NOT NULL');
+    $stmt->execute([$vendedorId]);
+    $clientes = $stmt->fetchAll();
+
+    $paradas = [];
+    $i = 0;
+    while ($i < $n) {
+        $j = $i;
+        while (
+            $j + 1 < $n &&
+            haversineDistance((float)$puntos[$i]['lat'], (float)$puntos[$i]['lng'], (float)$puntos[$j + 1]['lat'], (float)$puntos[$j + 1]['lng']) <= PARADA_RADIO_METROS
+        ) {
+            $j++;
+        }
+
+        $tInicio = new DateTime($puntos[$i]['fecha_hora'], $utc);
+        $tFin    = new DateTime($puntos[$j]['fecha_hora'], $utc);
+        $minutos = ($tFin->getTimestamp() - $tInicio->getTimestamp()) / 60;
+
+        if ($minutos >= PARADA_DURACION_MIN_MINUTOS) {
+            $sumaLat = 0.0; $sumaLng = 0.0;
+            for ($k = $i; $k <= $j; $k++) {
+                $sumaLat += (float)$puntos[$k]['lat'];
+                $sumaLng += (float)$puntos[$k]['lng'];
+            }
+            $cnt = $j - $i + 1;
+            $lat = $sumaLat / $cnt;
+            $lng = $sumaLng / $cnt;
+
+            $clienteCercano = null;
+            $mejorDist = null;
+            foreach ($clientes as $c) {
+                $d = haversineDistance($lat, $lng, (float)$c['lat'], (float)$c['lng']);
+                if ($d <= RADIO_VERIFICACION_METROS && ($mejorDist === null || $d < $mejorDist)) {
+                    $mejorDist = $d;
+                    $clienteCercano = ['id' => (int)$c['id'], 'nombre' => $c['nombre']];
+                }
+            }
+
+            $paradas[] = [
+                'lat'     => $lat,
+                'lng'     => $lng,
+                'inicio'  => $tInicio->setTimezone($tzMx)->format('Y-m-d H:i:s'),
+                'fin'     => $tFin->setTimezone($tzMx)->format('Y-m-d H:i:s'),
+                'minutos' => (int)round($minutos),
+                'cliente' => $clienteCercano,
+            ];
+            $i = $j + 1;
+        } else {
+            $i++;
+        }
+    }
+
+    return $paradas;
 }
 
 /**

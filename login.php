@@ -12,17 +12,30 @@ $error = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $pass  = $_POST['password'] ?? '';
-    $stmt = getDB()->prepare('SELECT * FROM usuarios WHERE email = ? AND activo = 1');
+    $db = getDB();
+    $stmt = $db->prepare('SELECT * FROM usuarios WHERE email = ? AND activo = 1');
     $stmt->execute([$email]);
     $u = $stmt->fetch();
     if ($u && password_verify($pass, $u['password_hash'])) {
-        $_SESSION['usuario_id']     = $u['id'];
-        $_SESSION['usuario_nombre'] = $u['nombre'];
-        $_SESSION['usuario_rol']    = $u['rol'];
-        header('Location: ' . ($u['rol'] === 'admin' ? 'admin/index.php' : 'vendedor/index.php'));
-        exit;
+        // Límite de sesiones concurrentes (SESION_MAX_ACTIVAS, ver
+        // includes/helpers.php): se regenera el id de sesión ANTES de contar
+        // para que este intento de login siempre cuente como una sesión
+        // nueva propia, nunca reutilice el conteo de una sesión anterior ya
+        // cerrada en este mismo navegador.
+        session_regenerate_id(true);
+        if (contarSesionesActivas($db, $u['id']) >= SESION_MAX_ACTIVAS) {
+            $error = 'Ya tienes ' . SESION_MAX_ACTIVAS . ' sesiones activas en otros dispositivos o navegadores. Cierra sesión en uno de ellos para poder entrar aquí.';
+        } else {
+            $_SESSION['usuario_id']     = $u['id'];
+            $_SESSION['usuario_nombre'] = $u['nombre'];
+            $_SESSION['usuario_rol']    = $u['rol'];
+            registrarSesion($db, $u['id'], session_id());
+            header('Location: ' . ($u['rol'] === 'admin' ? 'admin/index.php' : 'vendedor/index.php'));
+            exit;
+        }
+    } else {
+        $error = 'Correo o contraseña incorrectos.';
     }
-    $error = 'Correo o contraseña incorrectos.';
 }
 ?>
 <!doctype html>

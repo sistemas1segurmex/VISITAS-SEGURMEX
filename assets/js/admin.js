@@ -67,15 +67,20 @@ async function actualizarUbicaciones() {
       if (u.estado_conexion === 'en_linea') enLineaCount++;
       if (u.estado_conexion === 'perdida') perdidaCount++;
 
+      // Ciudad/municipio real según el GPS (nombreLugarGPS en
+      // includes/helpers.php), no el territorio asignado a mano al
+      // vendedor -- si Nominatim no responde o no cachea todavía, se omite
+      // en vez de mostrar algo vacío o incorrecto.
+      const lugarTxt = u.lugar ? `: ${u.lugar}` : '';
       const estadoTxt = u.estado_conexion === 'en_linea'
-        ? '<span class="text-success">🟢 En línea</span>'
+        ? `<span class="text-success">🟢 En línea${lugarTxt}</span>`
         : u.estado_conexion === 'perdida'
-          ? `<span class="text-danger">⚫ Conexión perdida — última señal: ${formatearFechaUTC(u.fecha_hora)}</span>`
-          : `<span class="text-muted">⚪ Desconectado — última señal: ${formatearFechaUTC(u.fecha_hora)}</span>`;
+          ? `<span class="text-danger">⚫ Conexión perdida${lugarTxt} — última señal: ${formatearFechaUTC(u.fecha_hora)}</span>`
+          : `<span class="text-muted">⚪ Desconectado${lugarTxt} — última señal: ${formatearFechaUTC(u.fecha_hora)}</span>`;
       const eficienciaTxt = (u.eficiencia_pct !== null && u.eficiencia_pct !== undefined)
         ? `<br>Eficiencia hoy: <strong>${Math.round(u.eficiencia_pct)}%</strong> (${u.citas_completadas}/${u.citas_total} citas)`
         : '';
-      const popup = `<strong>${u.nombre}</strong><br>${u.estado_operacion || ''}<br>${estadoTxt}${eficienciaTxt}`;
+      const popup = `<strong>${u.nombre}</strong><br>${estadoTxt}${eficienciaTxt}`;
 
       let marker = marcadoresVendedores[u.vendedor_id];
       if (marker) {
