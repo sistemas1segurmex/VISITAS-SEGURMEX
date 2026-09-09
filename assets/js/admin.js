@@ -104,7 +104,11 @@ async function actualizarUbicaciones() {
         if (marker.getTooltip()) {
           marker.setTooltipContent(contenidoTooltip);
         } else {
-          marker.bindTooltip(contenidoTooltip, { permanent: true, direction: 'top', offset: [0, -10], className: 'visitas-tooltip-limpio' });
+          // permanent:false -- antes quedaba siempre visible encima del pin y
+          // estorbaba las calles del mapa; ahora solo aparece al pasar el
+          // cursor (el popup con el detalle completo se sigue abriendo al
+          // dar clic, eso no cambia).
+          marker.bindTooltip(contenidoTooltip, { permanent: false, direction: 'top', offset: [0, -10], className: 'visitas-tooltip-limpio' });
         }
       } else if (marker.getTooltip()) {
         marker.unbindTooltip();
