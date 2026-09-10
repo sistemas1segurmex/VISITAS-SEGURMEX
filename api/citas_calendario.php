@@ -37,7 +37,7 @@ $stmt->execute($params);
 $citas = $stmt->fetchAll();
 
 $colores = [
-    'pendiente'     => '#F5A623',
+    'pendiente'     => '#FFD23F',
     'en_curso'      => '#2563eb',
     'completada'    => '#16a34a',
     'no_realizada'  => '#dc2626',

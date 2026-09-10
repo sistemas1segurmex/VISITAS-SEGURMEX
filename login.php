@@ -50,8 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link rel="stylesheet" href="assets/css/style.css">
 <style>
   :root {
-    --vlg-brand-1: #F5A623;
-    --vlg-brand-2: #FF6B4A;
+    --vlg-brand-1: #FFD23F;
+    --vlg-brand-2: #E8A400;
     --vlg-indigo: #4F46E5;
     --vlg-grad: linear-gradient(135deg, var(--vlg-brand-1), var(--vlg-brand-2));
     --vlg-ink: #14171F;
@@ -75,9 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, "Segoe UI", sans-serif;
     color: var(--vlg-ink);
     background:
-      radial-gradient(60vw 45vh at 88% -8%, rgba(245, 166, 35, .28), transparent 60%),
+      radial-gradient(60vw 45vh at 88% -8%, rgba(255, 210, 63, .28), transparent 60%),
       radial-gradient(55vw 45vh at -10% 108%, rgba(79, 70, 229, .20), transparent 60%),
-      radial-gradient(40vw 30vh at 50% 40%, rgba(255, 107, 74, .10), transparent 65%),
+      radial-gradient(40vw 30vh at 50% 40%, rgba(232, 164, 0, .10), transparent 65%),
       var(--vlg-bg);
     overflow: hidden;
     position: relative;
@@ -98,9 +98,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     z-index: 0;
     animation: vlg-float 13s ease-in-out infinite alternate;
   }
-  .vlg-orb-1 { width: 420px; height: 420px; background: rgba(245,166,35,.35); top: -140px; left: -110px; animation-delay: 0s; }
+  .vlg-orb-1 { width: 420px; height: 420px; background: rgba(255, 210, 63,.35); top: -140px; left: -110px; animation-delay: 0s; }
   .vlg-orb-2 { width: 380px; height: 380px; background: rgba(79,70,229,.25); bottom: -150px; right: -110px; animation-delay: 2s; }
-  .vlg-orb-3 { width: 260px; height: 260px; background: rgba(255,107,74,.22); bottom: 12%; left: 6%; animation-delay: 4s; }
+  .vlg-orb-3 { width: 260px; height: 260px; background: rgba(232, 164, 0,.22); bottom: 12%; left: 6%; animation-delay: 4s; }
   @keyframes vlg-float {
     0%   { transform: translate(0, 0) scale(1); }
     100% { transform: translate(30px, -22px) scale(1.1); }
@@ -249,7 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   .vlg-field input:focus {
     outline: none;
     border-color: var(--vlg-brand-1);
-    box-shadow: 0 0 0 4px rgba(245, 166, 35, .16);
+    box-shadow: 0 0 0 4px rgba(255, 210, 63, .16);
   }
   .vlg-field input:focus + label,
   .vlg-field input:not(:placeholder-shown) + label {
@@ -288,7 +288,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     cursor: pointer;
     transition: color .15s, background .15s;
   }
-  .vlg-eye:hover { color: var(--vlg-brand-2); background: rgba(245,166,35,.1); }
+  .vlg-eye:hover { color: var(--vlg-brand-2); background: rgba(255, 210, 63,.1); }
 
   .vlg-btn {
     position: relative;
@@ -308,7 +308,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     padding: 15px 18px;
     margin-top: 6px;
     cursor: pointer;
-    box-shadow: 0 14px 30px -10px rgba(255, 107, 74, .5);
+    box-shadow: 0 14px 30px -10px rgba(232, 164, 0, .5);
     transition: transform .15s cubic-bezier(.22,1,.36,1), box-shadow .15s;
     opacity: 0;
     animation: vlg-rise .55s cubic-bezier(.22,1,.36,1) .34s both;
@@ -327,7 +327,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     45%  { left: 130%; }
     100% { left: 130%; }
   }
-  .vlg-btn:hover { transform: translateY(-2px); box-shadow: 0 18px 36px -10px rgba(255, 107, 74, .6); }
+  .vlg-btn:hover { transform: translateY(-2px); box-shadow: 0 18px 36px -10px rgba(232, 164, 0, .6); }
   .vlg-btn:active { transform: scale(.97); }
   .vlg-btn:disabled { opacity: .8 !important; cursor: default; transform: none; }
   .vlg-btn .spinner {
@@ -417,11 +417,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       fpsLimit: 60,
       particles: {
         number: { value: 46, density: { enable: true, area: 900 } },
-        color: { value: ['#F5A623', '#FF6B4A', '#4F46E5'] },
+        color: { value: ['#FFD23F', '#E8A400', '#4F46E5'] },
         shape: { type: 'circle' },
         opacity: { value: { min: 0.15, max: 0.45 } },
         size: { value: { min: 1, max: 4 } },
-        links: { enable: true, distance: 130, color: '#F5A623', opacity: 0.12, width: 1 },
+        links: { enable: true, distance: 130, color: '#FFD23F', opacity: 0.12, width: 1 },
         move: { enable: true, speed: 0.7, direction: 'none', random: true, outModes: { default: 'out' } }
       },
       interactivity: {
