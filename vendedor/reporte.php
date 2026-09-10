@@ -74,7 +74,7 @@ const coloresEstado = {
   completada: '#16a34a',
   no_realizada: '#e11d48',
   cancelada: '#6b7280',
-  pendiente: '#f5a623',
+  pendiente: '#FFD23F',
   en_curso: '#4f46e5',
 };
 const etiquetasEstado = {

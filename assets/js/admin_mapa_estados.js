@@ -8,7 +8,7 @@ let capaSeleccionada = null;
 
 const estiloBase = { color: '#374151', weight: 1, fillColor: '#9CA3AF', fillOpacity: 0.08 };
 const estiloHover = { fillOpacity: 0.25 };
-const estiloSeleccionado = { color: '#d98f10', weight: 2, fillColor: '#F5A623', fillOpacity: 0.35 };
+const estiloSeleccionado = { color: '#C98800', weight: 2, fillColor: '#FFD23F', fillOpacity: 0.35 };
 
 function nombreEstadoDeFeature(feature) {
   const id = feature.properties && feature.properties.id;

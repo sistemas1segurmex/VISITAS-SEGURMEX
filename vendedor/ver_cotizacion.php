@@ -29,12 +29,12 @@ if (!$id) { header('Location: cotizaciones.php'); exit; }
 .vc-dato span:last-child { text-align:right; font-weight:600; }
 .vc-card-titulo { font-size:.78rem; font-weight:800; text-transform:uppercase; letter-spacing:.03em; color:var(--v26-ink-soft); margin-bottom:10px; }
 
-.vc-link-banner { background:linear-gradient(120deg,#FFFBEB,#FFF3D6 60%,#FFFBEB); border:1.5px solid #F5A623; border-radius:16px; padding:16px; margin-bottom:14px; }
+.vc-link-banner { background:linear-gradient(120deg,#FFFBEB,#FFF3D6 60%,#FFFBEB); border:1.5px solid #FFD23F; border-radius:16px; padding:16px; margin-bottom:14px; }
 .vc-link-titulo { font-weight:800; font-size:.9rem; color:#111827; }
 .vc-link-sub { font-size:.76rem; color:#92400E; margin:4px 0 10px; }
 .vc-link-caja { display:flex; gap:8px; }
 .vc-link-caja input { flex:1; font-size:.76rem; border:1px solid #F5D8A0; border-radius:10px; padding:8px 10px; background:#fff; color:#4B4536; }
-.vc-link-btn { background:#F5A623; border:none; color:#111827; font-weight:700; border-radius:10px; padding:0 14px; flex-shrink:0; }
+.vc-link-btn { background:#FFD23F; border:none; color:#111827; font-weight:700; border-radius:10px; padding:0 14px; flex-shrink:0; }
 
 .vc-estado-banner { background:var(--v26-surface-solid); border:1px solid var(--v26-border); border-radius:16px; padding:14px; margin-bottom:14px; }
 .vc-btn-estado { display:inline-flex; align-items:center; gap:6px; border-radius:10px; padding:9px 14px; font-weight:700; font-size:.8rem; border:1.5px solid var(--v26-border); background:var(--v26-surface-solid); color:var(--v26-ink); margin:0 6px 6px 0; }

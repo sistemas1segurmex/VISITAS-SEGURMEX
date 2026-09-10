@@ -11,8 +11,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --v26-brand-1: #F5A623;
-  --v26-brand-2: #FF6B4A;
+  --v26-brand-1: #FFD23F;
+  --v26-brand-2: #E8A400;
   --v26-brand-grad: linear-gradient(135deg, var(--v26-brand-1), var(--v26-brand-2));
   --v26-ink: #14171F;
   --v26-ink-soft: #6B7280;
@@ -30,7 +30,7 @@
   --v26-r-pill: 999px;
 
   --v26-shadow-sm: 0 2px 10px -4px rgba(20, 23, 31, 0.12);
-  --v26-shadow-brand: 0 14px 30px -10px rgba(245, 107, 74, 0.45);
+  --v26-shadow-brand: 0 14px 30px -10px rgba(232, 164, 0, 0.45);
 
   --v26-ease: cubic-bezier(.22, 1, .36, 1);
 }
@@ -40,7 +40,7 @@ body.v26 {
   color: var(--v26-ink);
   min-height: 100vh;
   background:
-    radial-gradient(60vw 40vh at 90% -5%, rgba(245, 166, 35, .16), transparent 60%),
+    radial-gradient(60vw 40vh at 90% -5%, rgba(255, 210, 63, .16), transparent 60%),
     radial-gradient(50vw 35vh at -10% 10%, rgba(79, 70, 229, .10), transparent 60%),
     var(--v26-bg);
 }
@@ -110,7 +110,7 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
   color: var(--v26-ink-soft); font-weight: 700; border-bottom: 1px solid var(--v26-border);
 }
 .v26-wrap .table td { border-color: var(--v26-border); vertical-align: middle; }
-.v26-wrap .table tbody tr:hover { background: rgba(245, 166, 35, .05); }
+.v26-wrap .table tbody tr:hover { background: rgba(255, 210, 63, .05); }
 
 /* Botones de marca */
 .v26-wrap .btn-brand {
@@ -131,8 +131,8 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
    Vendedores y administradores — rediseño "futurista"
    ================================================================== */
 .v26-subtitulo { font-size: .78rem; color: var(--v26-ink-soft); }
-.v26-btn-glow { box-shadow: 0 8px 22px -6px rgba(255, 107, 74, .55); }
-.v26-btn-glow:hover { box-shadow: 0 10px 26px -4px rgba(255, 107, 74, .7); }
+.v26-btn-glow { box-shadow: 0 8px 22px -6px rgba(232, 164, 0, .55); }
+.v26-btn-glow:hover { box-shadow: 0 10px 26px -4px rgba(232, 164, 0, .7); }
 
 /* ---------- Tarjetas de estadísticas con vidrio + acento de color ---------- */
 .v26-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
@@ -172,7 +172,7 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
   padding: 9px 16px; color: var(--v26-ink-soft); box-shadow: var(--v26-shadow-sm);
   transition: box-shadow .2s, border-color .2s;
 }
-.v26-search-box:focus-within { border-color: var(--v26-brand-2); box-shadow: 0 0 0 3px rgba(255,107,74,.15); }
+.v26-search-box:focus-within { border-color: var(--v26-brand-2); box-shadow: 0 0 0 3px rgba(232,164,0,.15); }
 .v26-search-box input { border: none; background: transparent; outline: none; font-size: .85rem; width: 100%; color: var(--v26-ink); }
 
 .v26-segmented {
@@ -188,7 +188,7 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 .v26-segmented-slider {
   position: absolute; top: 4px; bottom: 4px; left: 4px; border-radius: var(--v26-r-pill);
   background: linear-gradient(135deg, var(--v26-brand-1), var(--v26-brand-2));
-  box-shadow: 0 4px 12px -2px rgba(255,107,74,.5);
+  box-shadow: 0 4px 12px -2px rgba(232,164,0,.5);
   transition: left .3s var(--v26-ease), width .3s var(--v26-ease);
 }
 
@@ -220,7 +220,7 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
   animation: v26-card-in .45s var(--v26-ease) backwards;
   transition: transform .25s var(--v26-ease), box-shadow .25s, border-color .25s;
 }
-.v26-user-card:hover, .v26-cliente-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px -16px rgba(20,23,31,.28); border-color: rgba(255,107,74,.35); }
+.v26-user-card:hover, .v26-cliente-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px -16px rgba(20,23,31,.28); border-color: rgba(232,164,0,.35); }
 .v26-user-card::before, .v26-cliente-card::before {
   content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
   background: linear-gradient(90deg, var(--v26-brand-1), var(--v26-brand-2));
@@ -380,7 +380,7 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
    el día/mes ya lo dice el filtro de fecha, así que aquí no se repite). */
 .v26-cita-hora-solo {
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, rgba(245,166,35,.16), rgba(255,107,74,.10));
+  background: linear-gradient(160deg, rgba(255,210,63,.16), rgba(232,164,0,.10));
   border-radius: var(--v26-r-md);
   padding: 6px 4px; min-height: 40px;
 }
@@ -399,7 +399,7 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 .v26-badge-conteo {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 22px; height: 20px; padding: 0 6px;
-  border-radius: var(--v26-r-pill); background: rgba(245,166,35,.14);
+  border-radius: var(--v26-r-pill); background: rgba(255,210,63,.14);
   color: var(--v26-brand-2); font-size: .72rem; font-weight: 800;
 }
 
@@ -413,7 +413,7 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 
 .v26-cita-fecha {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, rgba(245,166,35,.16), rgba(255,107,74,.10));
+  background: linear-gradient(160deg, rgba(255,210,63,.16), rgba(232,164,0,.10));
   border-radius: var(--v26-r-md);
   padding: 8px 4px;
   line-height: 1.15;

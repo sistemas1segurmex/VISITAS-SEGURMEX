@@ -187,7 +187,7 @@ async function initSparkline() {
         labels: data.dias.map(d => d.fecha.slice(5)),
         datasets: [{
           data: data.dias.map(d => d.total),
-          borderColor: '#F5A623', backgroundColor: 'rgba(245,166,35,.12)',
+          borderColor: '#FFD23F', backgroundColor: 'rgba(255,210,63,.12)',
           fill: true, tension: 0.35, pointRadius: 2, borderWidth: 2,
         }],
       },

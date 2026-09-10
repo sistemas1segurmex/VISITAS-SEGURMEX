@@ -34,8 +34,8 @@ if ($token === '') {
 <link rel="stylesheet" href="assets/css/style.css">
 <style>
   :root {
-    --vlg-brand-1: #F5A623;
-    --vlg-brand-2: #FF6B4A;
+    --vlg-brand-1: #FFD23F;
+    --vlg-brand-2: #E8A400;
     --vlg-indigo: #4F46E5;
     --vlg-grad: linear-gradient(135deg, var(--vlg-brand-1), var(--vlg-brand-2));
     --vlg-ink: #14171F;
@@ -51,7 +51,7 @@ if ($token === '') {
     padding: 24px; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, "Segoe UI", sans-serif;
     color: var(--vlg-ink);
     background:
-      radial-gradient(60vw 45vh at 88% -8%, rgba(245, 166, 35, .28), transparent 60%),
+      radial-gradient(60vw 45vh at 88% -8%, rgba(255, 210, 63, .28), transparent 60%),
       radial-gradient(55vw 45vh at -10% 108%, rgba(79, 70, 229, .20), transparent 60%),
       var(--vlg-bg);
   }
@@ -101,7 +101,7 @@ if ($token === '') {
     width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
     background: var(--vlg-grad); color: #fff; font-family: inherit; font-weight: 800; font-size: .92rem;
     border: none; border-radius: 14px; padding: 14px 18px; margin-top: 4px; cursor: pointer;
-    box-shadow: 0 14px 30px -10px rgba(255, 107, 74, .5);
+    box-shadow: 0 14px 30px -10px rgba(232, 164, 0, .5);
   }
   .vlg-btn:disabled { opacity: .7; cursor: default; }
   .vlg-error, .vlg-msg-ok {

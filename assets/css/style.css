@@ -1,6 +1,6 @@
 :root {
-  --brand: #F5A623;
-  --brand-dark: #d98f10;
+  --brand: #FFD23F;
+  --brand-dark: #C98800;
 }
 body { background: #F5F6F8; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
 .login-bg { background: linear-gradient(135deg, #111827, #1f2937); }
