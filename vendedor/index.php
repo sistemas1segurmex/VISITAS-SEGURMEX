@@ -66,6 +66,8 @@ $u = requireRole('vendedor');
 
     <div id="lista-citas" class="v26-timeline"></div>
 
+    <button type="button" class="v26-btn v26-btn-ghost v26-btn-block mt-2" id="btn-tour-guiado"><i class="bi bi-signpost-split"></i> Tour guiado</button>
+
     <div class="v26-ubicacion-live"><span class="punto"></span> Compartiendo tu ubicación en vivo, para que la empresa pueda verificar tu recorrido.</div>
   </div>
 
@@ -110,6 +112,7 @@ const OPCIONES_TOUR_INICIO = {
   finalTexto: 'Repite este recorrido cuando quieras tocando el ícono ? de arriba.',
 };
 document.getElementById('btn-tour-ayuda').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_INICIO, OPCIONES_TOUR_INICIO));
+document.getElementById('btn-tour-guiado').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_INICIO, OPCIONES_TOUR_INICIO));
 
 cargarCitas('hoy').then(() => V26Tour.iniciar(PASOS_TOUR_INICIO, OPCIONES_TOUR_INICIO));
 iniciarTrackingPeriodico();
