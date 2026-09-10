@@ -722,3 +722,53 @@
   font-size: .78rem; color: var(--v26-ink-soft); display: flex; flex-direction: column; gap: 4px;
 }
 .v26-muestra-detalle-inner strong { color: var(--v26-ink); }
+
+/* ---------- Recorrido guiado (spotlight) -- ver assets/js/v26-tour.js ---------- */
+.v26-tour-cutout {
+  position: fixed; z-index: 900; border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(15,17,20,.72);
+  pointer-events: none; opacity: 0;
+  transition: top .35s var(--v26-ease), left .35s var(--v26-ease), width .35s var(--v26-ease), height .35s var(--v26-ease), opacity .2s var(--v26-ease);
+}
+.v26-tour-cutout.show { opacity: 1; }
+.v26-tour-bubble {
+  position: fixed; z-index: 910; width: 240px; max-width: calc(100vw - 32px);
+  background: var(--v26-surface-solid); border-radius: 16px; padding: 14px 15px;
+  box-shadow: var(--v26-shadow-md); opacity: 0; transform: translateY(6px);
+  transition: opacity .25s, transform .25s; pointer-events: none;
+}
+.v26-tour-bubble.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.v26-tour-bubble .step-count { font-size: .62rem; font-weight: 800; color: var(--v26-brand-2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 5px; }
+.v26-tour-bubble p { margin: 0 0 12px; font-size: .8rem; line-height: 1.4; color: var(--v26-ink); }
+.v26-tour-bubble .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.v26-tour-bubble .dots { display: flex; gap: 4px; }
+.v26-tour-bubble .dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--v26-border); transition: all .2s; }
+.v26-tour-bubble .dots span.on { background: var(--v26-brand-2); width: 14px; border-radius: 4px; }
+.v26-tour-bubble button { border: none; font-family: inherit; font-weight: 800; font-size: .72rem; cursor: pointer; border-radius: 999px; padding: 7px 13px; }
+.v26-tour-bubble .btn-next { background: var(--v26-brand-grad); color: #fff; }
+.v26-tour-bubble .btn-skip { background: none; color: var(--v26-ink-soft); padding: 7px 4px; }
+
+.v26-tour-start, .v26-tour-final {
+  position: fixed; inset: 0; z-index: 920; display: flex; align-items: center; justify-content: center;
+  background: rgba(20,17,12,.42); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.v26-tour-start.show, .v26-tour-final.show { opacity: 1; pointer-events: auto; }
+.v26-tour-start .box, .v26-tour-final .box {
+  width: 270px; max-width: calc(100vw - 48px); background: var(--v26-surface-solid);
+  border-radius: var(--v26-r-xl); padding: 24px 22px; text-align: center; box-shadow: var(--v26-shadow-md);
+}
+.v26-tour-start .ico, .v26-tour-final .ico {
+  width: 46px; height: 46px; margin: 0 auto 12px; border-radius: 50%; background: var(--v26-brand-grad);
+  display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: var(--v26-shadow-brand); font-size: 1.15rem;
+}
+.v26-tour-start h3, .v26-tour-final h3 { font-size: 1rem; font-weight: 800; margin: 0 0 6px; }
+.v26-tour-start p, .v26-tour-final p { font-size: .8rem; color: var(--v26-ink-soft); margin: 0 0 16px; line-height: 1.5; }
+.v26-tour-start .go, .v26-tour-final .go {
+  width: 100%; border: none; background: var(--v26-brand-grad); color: #fff; font-weight: 800; font-size: .84rem;
+  padding: 12px; border-radius: 999px; box-shadow: var(--v26-shadow-brand); cursor: pointer; font-family: inherit;
+}
+.v26-tour-start .later {
+  display: block; width: 100%; border: none; background: none; color: var(--v26-ink-soft);
+  font-weight: 700; font-size: .76rem; padding: 10px; cursor: pointer; font-family: inherit; margin-top: 2px;
+}

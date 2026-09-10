@@ -19,7 +19,7 @@ $u = requireRole('vendedor');
   <div class="v26-header">
     <div class="v26-topbar">
       <div class="v26-topbar-left">
-        <div class="v26-avatar-ring v26-avatar-ring--header">
+        <div class="v26-avatar-ring v26-avatar-ring--header" data-tour="perfil">
           <div class="inner"><?= htmlspecialchars(mb_strtoupper(mb_substr($u['nombre'], 0, 1))) ?></div>
           <span class="v26-status-dot pulso" id="dot-ubicacion" title="Compartiendo ubicación"></span>
         </div>
@@ -30,10 +30,11 @@ $u = requireRole('vendedor');
       </div>
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
+        <button type="button" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Ver el recorrido de nuevo" aria-label="Ayuda" id="btn-tour-ayuda"><i class="bi bi-question-lg"></i></button>
         <a href="../logout.php" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Cerrar sesión" aria-label="Salir"><i class="bi bi-box-arrow-right"></i></a>
       </div>
     </div>
-    <div class="v26-tabbar">
+    <div class="v26-tabbar" data-tour="tabbar">
       <a href="index.php" class="active"><i class="bi bi-house-fill"></i>Inicio</a>
       <a href="calendario.php"><i class="bi bi-calendar3"></i>Calendario</a>
       <a href="clientes.php"><i class="bi bi-people-fill"></i>Clientes</a>
@@ -43,7 +44,7 @@ $u = requireRole('vendedor');
   </div>
 
   <div class="v26-wrap">
-    <a href="nueva_cita.php" class="v26-cta">
+    <a href="nueva_cita.php" class="v26-cta" data-tour="cta">
       <span class="v26-cta-icon"><i class="bi bi-calendar-plus"></i></span>
       <span class="v26-cta-text">
         <strong>Nueva cita</strong>
@@ -52,7 +53,7 @@ $u = requireRole('vendedor');
       <i class="bi bi-chevron-right chev"></i>
     </a>
 
-    <div class="v26-stats-row" id="stats-inicio"></div>
+    <div class="v26-stats-row" id="stats-inicio" data-tour="stats"></div>
 
     <div class="v26-seg" id="seg-dia">
       <button type="button" class="v26-seg-btn active" data-dia="hoy">Hoy</button>
@@ -70,6 +71,7 @@ $u = requireRole('vendedor');
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/v26-modal.js<?= assetVer(__DIR__ . '/../assets/js/v26-modal.js') ?>"></script>
+<script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 // Saludo según la hora local del dispositivo del vendedor (evita el bug de
@@ -88,7 +90,28 @@ document.querySelectorAll('#seg-dia .v26-seg-btn').forEach(btn => {
   });
 });
 
-cargarCitas('hoy');
+// Recorrido guiado de bienvenida -- ver assets/js/v26-tour.js. Se muestra
+// solo la primera vez que este vendedor entra a Inicio (y siempre que toque
+// el ícono "?"). Espera a que carguen las citas de hoy para poder señalar
+// el resumen del día y la primera cita real (si no hay ninguna hoy, ese
+// paso se omite solo).
+const NOMBRE_VENDEDOR = <?= json_encode(explode(' ', trim($u['nombre']))[0]) ?>;
+const PASOS_TOUR_INICIO = [
+  { selector: '[data-tour="perfil"]', texto: 'Aquí ves tu perfil y el punto verde que confirma que estás compartiendo tu ubicación en vivo.' },
+  { selector: '[data-tour="tabbar"]', texto: 'Desde aquí te mueves entre tus 5 secciones: Inicio, Calendario, Clientes, Cotizar y Reporte.' },
+  { selector: '[data-tour="cta"]', texto: 'Agenda tu próxima visita en un toque, aquí mismo.' },
+  { selector: '[data-tour="stats"]', texto: 'Tu resumen de hoy siempre a la vista: citas, completadas y pendientes.' },
+  { selector: '#lista-citas .v26-cita', texto: 'Toca una visita para hacer check-in con GPS al llegar -- así la empresa confirma tu recorrido.' },
+];
+const OPCIONES_TOUR_INICIO = {
+  storageKey: 'v26_tour_inicio_visto',
+  saludoTitulo: `¡Bienvenida, ${NOMBRE_VENDEDOR}!`,
+  saludoTexto: 'Te enseñamos en unos pasos rápidos dónde está todo antes de que empieces.',
+  finalTexto: 'Repite este recorrido cuando quieras tocando el ícono ? de arriba.',
+};
+document.getElementById('btn-tour-ayuda').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_INICIO, OPCIONES_TOUR_INICIO));
+
+cargarCitas('hoy').then(() => V26Tour.iniciar(PASOS_TOUR_INICIO, OPCIONES_TOUR_INICIO));
 iniciarTrackingPeriodico();
 </script>
 </body>
