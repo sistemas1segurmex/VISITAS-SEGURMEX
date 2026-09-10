@@ -90,6 +90,7 @@ $u = requireRole('vendedor');
       </div>
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
+        <button type="button" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Ver el recorrido de nuevo" aria-label="Ayuda" id="btn-tour-ayuda"><i class="bi bi-question-lg"></i></button>
       </div>
     </div>
     <div class="v26-tabbar">
@@ -102,7 +103,7 @@ $u = requireRole('vendedor');
   </div>
 
   <div class="v26-wrap">
-    <div class="v26-filtros" id="filtros-estado">
+    <div class="v26-filtros" id="filtros-estado" data-tour="filtros">
       <button type="button" class="v26-filtro active" data-estado="pendiente">Pendiente</button>
       <button type="button" class="v26-filtro active" data-estado="en_curso">En curso</button>
       <button type="button" class="v26-filtro active" data-estado="completada">Completada</button>
@@ -110,18 +111,34 @@ $u = requireRole('vendedor');
       <button type="button" class="v26-filtro active" data-estado="cancelada">Cancelada</button>
     </div>
 
-    <div id="calendario-wrap" class="v26-card">
+    <div id="calendario-wrap" class="v26-card" data-tour="calendario">
       <div id="calendario"></div>
     </div>
+
+    <button type="button" class="v26-btn v26-btn-ghost v26-btn-block mt-3" id="btn-tour-guiado"><i class="bi bi-signpost-split"></i> Tour guiado</button>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/es.global.min.js"></script>
+<script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 const hoyStr = new Date().toISOString().slice(0, 10);
+
+const PASOS_TOUR_CALENDARIO = [
+  { selector: '[data-tour="filtros"]', texto: 'Filtra qué estados de cita quieres ver en el calendario.' },
+  { selector: '[data-tour="calendario"]', texto: 'Toca un día vacío para agendar una cita nueva, o una cita existente para ver su detalle.' },
+];
+const OPCIONES_TOUR_CALENDARIO = {
+  storageKey: 'v26_tour_calendario_visto',
+  saludoTitulo: 'Así funciona tu calendario',
+  saludoTexto: 'Un par de cosas rápidas antes de que lo uses.',
+  finalTexto: 'Repite este recorrido cuando quieras tocando el ícono ? de arriba.',
+};
+document.getElementById('btn-tour-ayuda').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_CALENDARIO, OPCIONES_TOUR_CALENDARIO));
+document.getElementById('btn-tour-guiado').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_CALENDARIO, OPCIONES_TOUR_CALENDARIO));
 let filtrosActivos = new Set(['pendiente', 'en_curso', 'completada', 'no_realizada', 'cancelada']);
 let calendar;
 
@@ -197,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   calendar.render();
+  V26Tour.iniciar(PASOS_TOUR_CALENDARIO, OPCIONES_TOUR_CALENDARIO);
 });
 
 document.querySelectorAll('#filtros-estado .v26-filtro').forEach(btn => {

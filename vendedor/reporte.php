@@ -42,6 +42,7 @@ $u = requireRole('vendedor');
       </div>
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
+        <button type="button" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Ver el recorrido de nuevo" aria-label="Ayuda" id="btn-tour-ayuda"><i class="bi bi-question-lg"></i></button>
       </div>
     </div>
     <div class="v26-tabbar">
@@ -54,22 +55,40 @@ $u = requireRole('vendedor');
   </div>
 
   <div class="v26-wrap">
-    <div class="v26-mes-selector">
+    <div class="v26-mes-selector" data-tour="mes">
       <input type="month" id="input-mes" class="v26-input">
     </div>
-    <div id="contenido">
+    <div id="contenido" data-tour="graficas">
       <div class="v26-skel"></div>
       <div class="v26-skel"></div>
       <div class="v26-skel"></div>
     </div>
 
-    <div id="contenido-cotizaciones" style="margin-top:14px;"></div>
+    <div id="contenido-cotizaciones" style="margin-top:14px;" data-tour="cotizaciones-reporte"></div>
+
+    <button type="button" class="v26-btn v26-btn-ghost v26-btn-block mt-3" id="btn-tour-guiado"><i class="bi bi-signpost-split"></i> Tour guiado</button>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
+
+const PASOS_TOUR_REPORTE = [
+  { selector: '[data-tour="mes"]', texto: 'Cambia el mes para ver tu desempeño de otros periodos.' },
+  { selector: '[data-tour="graficas"]', texto: 'Aquí ves tus citas por día y tus check-ins verificados con GPS.' },
+  { selector: '[data-tour="cotizaciones-reporte"]', texto: 'Y aquí el resumen de tus cotizaciones del mes.' },
+];
+const OPCIONES_TOUR_REPORTE = {
+  storageKey: 'v26_tour_reporte_visto',
+  saludoTitulo: 'Tu desempeño en números',
+  saludoTexto: 'Un par de cosas rápidas antes de que lo veas.',
+  finalTexto: 'Repite este recorrido cuando quieras tocando el ícono ? de arriba.',
+};
+document.getElementById('btn-tour-ayuda').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_REPORTE, OPCIONES_TOUR_REPORTE));
+document.getElementById('btn-tour-guiado').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_REPORTE, OPCIONES_TOUR_REPORTE));
+
 const coloresEstado = {
   completada: '#16a34a',
   no_realizada: '#e11d48',
@@ -273,8 +292,8 @@ inputMes.addEventListener('change', () => {
   cargarReporte(inputMes.value);
   cargarReporteCotizaciones(inputMes.value);
 });
-cargarReporte(inputMes.value);
-cargarReporteCotizaciones(inputMes.value);
+Promise.all([cargarReporte(inputMes.value), cargarReporteCotizaciones(inputMes.value)])
+  .then(() => V26Tour.iniciar(PASOS_TOUR_REPORTE, OPCIONES_TOUR_REPORTE));
 </script>
 </body>
 </html>
