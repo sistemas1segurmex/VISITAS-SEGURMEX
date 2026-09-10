@@ -11,8 +11,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --v26-brand-1: #FFD23F;
-  --v26-brand-2: #E8A400;
+  --v26-brand-1: #E8A400;
+  --v26-brand-2: #C98800;
   --v26-brand-grad: linear-gradient(135deg, var(--v26-brand-1), var(--v26-brand-2));
   --v26-ink: #14171F;
   --v26-ink-soft: #6B7280;
@@ -30,7 +30,7 @@
   --v26-r-pill: 999px;
 
   --v26-shadow-sm: 0 2px 10px -4px rgba(20, 23, 31, 0.12);
-  --v26-shadow-brand: 0 14px 30px -10px rgba(232, 164, 0, 0.45);
+  --v26-shadow-brand: 0 14px 30px -10px rgba(201, 136, 0, 0.45);
 
   --v26-ease: cubic-bezier(.22, 1, .36, 1);
 }
