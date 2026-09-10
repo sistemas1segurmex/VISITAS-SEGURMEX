@@ -27,6 +27,7 @@ $u = requireRole('vendedor');
       </div>
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
+        <button type="button" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Ver el recorrido de nuevo" aria-label="Ayuda" id="btn-tour-ayuda"><i class="bi bi-question-lg"></i></button>
       </div>
     </div>
     <div class="v26-tabbar">
@@ -39,7 +40,7 @@ $u = requireRole('vendedor');
   </div>
 
   <div class="v26-wrap">
-    <a href="nueva_cotizacion.php" class="v26-cta">
+    <a href="nueva_cotizacion.php" class="v26-cta" data-tour="cta-cotizar">
       <span class="v26-cta-icon"><i class="bi bi-file-earmark-plus"></i></span>
       <span class="v26-cta-text">
         <strong>Nueva cotización</strong>
@@ -48,7 +49,7 @@ $u = requireRole('vendedor');
       <i class="bi bi-chevron-right chev"></i>
     </a>
 
-    <a href="solicitar_muestra.php" class="v26-cta mt-2">
+    <a href="solicitar_muestra.php" class="v26-cta mt-2" data-tour="cta-muestra">
       <span class="v26-cta-icon"><i class="bi bi-box-seam"></i></span>
       <span class="v26-cta-text">
         <strong>Solicitar muestra</strong>
@@ -57,7 +58,7 @@ $u = requireRole('vendedor');
       <i class="bi bi-chevron-right chev"></i>
     </a>
 
-    <div class="v26-seg v26-filtro-tipo" id="seg-tipo-lista">
+    <div class="v26-seg v26-filtro-tipo" id="seg-tipo-lista" data-tour="filtro-tipo">
       <button type="button" class="v26-seg-btn active" data-tipo="todo">Todo</button>
       <button type="button" class="v26-seg-btn" data-tipo="cotizaciones">Cotizaciones</button>
       <button type="button" class="v26-seg-btn" data-tipo="muestras">Muestras</button>
@@ -78,9 +79,12 @@ $u = requireRole('vendedor');
       <div class="v26-skel"></div>
       <div class="v26-skel"></div>
     </div>
+
+    <button type="button" class="v26-btn v26-btn-ghost v26-btn-block mt-3" id="btn-tour-guiado"><i class="bi bi-signpost-split"></i> Tour guiado</button>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
@@ -93,6 +97,21 @@ const ETIQUETAS = {
 
 function money(n) { return '$' + Number(n || 0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+const PASOS_TOUR_COTIZACIONES = [
+  { selector: '[data-tour="cta-cotizar"]', texto: 'Arma una cotización con las mismas condiciones y precios que usa oficina.' },
+  { selector: '[data-tour="cta-muestra"]', texto: 'Pide una muestra para un cliente o prospecto -- se procesa igual que en oficina, con autorización de Dirección.' },
+  { selector: '[data-tour="filtro-tipo"]', texto: 'Filtra entre cotizaciones y muestras, o velo todo junto.' },
+  { selector: '#lista-cotizaciones .v26-cita, #lista-cotizaciones .v26-muestra-card', texto: 'Toca cualquiera para ver el detalle o el avance.' },
+];
+const OPCIONES_TOUR_COTIZACIONES = {
+  storageKey: 'v26_tour_cotizaciones_visto',
+  saludoTitulo: 'Cotizaciones y muestras',
+  saludoTexto: 'Un par de cosas rápidas antes de que las uses.',
+  finalTexto: 'Repite este recorrido cuando quieras tocando el ícono ? de arriba.',
+};
+document.getElementById('btn-tour-ayuda').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_COTIZACIONES, OPCIONES_TOUR_COTIZACIONES));
+document.getElementById('btn-tour-guiado').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_COTIZACIONES, OPCIONES_TOUR_COTIZACIONES));
 
 // -------- Muestras: constantes de estado y helpers de fecha --------
 const ETIQUETAS_TIPO_MUESTRA = { identico: 'Idéntico', variante: 'Variante' };
@@ -275,7 +294,7 @@ async function cargarCotizacionesYMuestras() {
   actualizarContadoresMuestra();
   renderLista();
 }
-cargarCotizacionesYMuestras();
+cargarCotizacionesYMuestras().then(() => V26Tour.iniciar(PASOS_TOUR_COTIZACIONES, OPCIONES_TOUR_COTIZACIONES));
 </script>
 </body>
 </html>

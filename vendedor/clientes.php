@@ -27,6 +27,7 @@ $u = requireRole('vendedor');
       </div>
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
+        <button type="button" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Ver el recorrido de nuevo" aria-label="Ayuda" id="btn-tour-ayuda"><i class="bi bi-question-lg"></i></button>
       </div>
     </div>
     <div class="v26-tabbar">
@@ -39,7 +40,7 @@ $u = requireRole('vendedor');
   </div>
 
   <div class="v26-wrap">
-    <a href="nuevo_cliente.php" class="v26-cta">
+    <a href="nuevo_cliente.php" class="v26-cta" data-tour="cta-cliente">
       <span class="v26-cta-icon"><i class="bi bi-person-plus"></i></span>
       <span class="v26-cta-text">
         <strong>Nuevo cliente</strong>
@@ -53,12 +54,12 @@ $u = requireRole('vendedor');
     <!-- Embudo de ventas: oculto por mientras (quitar "d-none" para reactivarlo). -->
     <div class="v26-funnel-filtro d-none" id="filtro-etapa"></div>
 
-    <div class="v26-search">
+    <div class="v26-search" data-tour="buscar">
       <i class="bi bi-search"></i>
       <input type="text" id="buscar-cliente" class="v26-input" placeholder="Buscar por nombre o dirección...">
     </div>
 
-    <button type="button" class="v26-cerca-btn" id="btn-cerca">
+    <button type="button" class="v26-cerca-btn" id="btn-cerca" data-tour="cerca">
       <i class="bi bi-signpost-2"></i> Ordenar por cercanía a mí
     </button>
 
@@ -67,13 +68,31 @@ $u = requireRole('vendedor');
       <div class="v26-skel"></div>
       <div class="v26-skel"></div>
     </div>
+
+    <button type="button" class="v26-btn v26-btn-ghost v26-btn-block mt-3" id="btn-tour-guiado"><i class="bi bi-signpost-split"></i> Tour guiado</button>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 let todosLosClientes = [];
+
+const PASOS_TOUR_CLIENTES = [
+  { selector: '[data-tour="cta-cliente"]', texto: 'Agrega un cliente o prospecto nuevo a tu cartera aquí.' },
+  { selector: '[data-tour="buscar"]', texto: 'Busca por nombre o dirección en cualquier momento.' },
+  { selector: '[data-tour="cerca"]', texto: 'Ordena tu cartera por cercanía a ti para planear tu ruta.' },
+  { selector: '#lista-clientes .v26-cliente-card', texto: 'Desde cada cliente puedes llamar, mandar WhatsApp, cotizar o ver su historial.' },
+];
+const OPCIONES_TOUR_CLIENTES = {
+  storageKey: 'v26_tour_clientes_visto',
+  saludoTitulo: 'Así se organiza tu cartera',
+  saludoTexto: 'Un par de cosas rápidas antes de que la uses.',
+  finalTexto: 'Repite este recorrido cuando quieras tocando el ícono ? de arriba.',
+};
+document.getElementById('btn-tour-ayuda').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_CLIENTES, OPCIONES_TOUR_CLIENTES));
+document.getElementById('btn-tour-guiado').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_CLIENTES, OPCIONES_TOUR_CLIENTES));
 let miPosicion = null; // {lat, lng}, solo si el vendedor aceptó compartirla en esta pantalla
 let etapaFiltro = 'todos';
 
@@ -263,7 +282,7 @@ document.getElementById('btn-cerca').addEventListener('click', function () {
   );
 });
 
-cargarClientes();
+cargarClientes().then(() => V26Tour.iniciar(PASOS_TOUR_CLIENTES, OPCIONES_TOUR_CLIENTES));
 </script>
 </body>
 </html>
