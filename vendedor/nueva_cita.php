@@ -29,6 +29,7 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaPrellenada)) $fechaPrellenada = '
       </div>
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
+        <button type="button" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Ver el recorrido de nuevo" aria-label="Ayuda" id="btn-tour-ayuda"><i class="bi bi-question-lg"></i></button>
       </div>
     </div>
   </div>
@@ -36,37 +37,76 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaPrellenada)) $fechaPrellenada = '
   <div class="v26-wrap">
     <div class="v26-card">
       <form id="form-cita">
-        <div class="v26-field">
+        <div class="v26-field" data-tour="cliente">
           <label>Cliente</label>
           <select name="cliente_id" id="select-cliente" class="v26-select" required>
             <option value="">Cargando clientes...</option>
           </select>
           <div class="form-text mt-1" style="font-size:.76rem;">¿No está en la lista? <a href="nuevo_cliente.php">Regístralo primero</a>.</div>
         </div>
-        <div class="v26-field">
-          <label>Fecha y hora de la visita</label>
-          <input type="datetime-local" name="fecha_hora" id="input-fecha-hora" class="v26-input" required>
+
+        <div class="v26-direccion-info" id="direccion-info" data-tour="direccion">
+          <i class="bi bi-geo-alt-fill"></i>
+          <span>Vas a visitar: <strong id="direccion-texto"></strong></span>
         </div>
-        <div class="v26-field">
+
+        <div class="v26-field" data-tour="fechahora">
+          <label>Fecha y hora de la visita</label>
+          <div class="v26-fila-2">
+            <input type="date" name="fecha" id="input-fecha" class="v26-input" required>
+            <input type="time" name="hora" id="input-hora" class="v26-input" required>
+          </div>
+        </div>
+        <div class="v26-field" data-tour="notas">
           <label>Notas (opcional)</label>
           <textarea name="notas" class="v26-textarea" rows="2"></textarea>
         </div>
         <div id="msg-cita"></div>
-        <button type="submit" class="v26-btn v26-btn-primary v26-btn-block">Guardar cita</button>
+        <button type="submit" class="v26-btn v26-btn-primary v26-btn-block" data-tour="guardar">Guardar cita</button>
       </form>
     </div>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 // No se pueden agendar citas en fechas pasadas.
 const hoyISO = new Date().toISOString().slice(0, 10);
-const inputFecha = document.getElementById('input-fecha-hora');
-inputFecha.min = hoyISO + 'T00:00';
+const inputFecha = document.getElementById('input-fecha');
+const inputHora = document.getElementById('input-hora');
+inputFecha.min = hoyISO;
 const fechaPrellenada = <?= json_encode($fechaPrellenada) ?>;
-if (fechaPrellenada) inputFecha.value = fechaPrellenada + 'T09:00';
+if (fechaPrellenada) { inputFecha.value = fechaPrellenada; inputHora.value = '09:00'; }
+
+const PASOS_TOUR_NUEVA_CITA = [
+  { selector: '[data-tour="cliente"]', texto: 'Elige el cliente que vas a visitar.' },
+  { selector: '[data-tour="direccion"].show', texto: 'Aquí ves la dirección para confirmar que es el lugar correcto -- ya no hace falta buscarla en el desplegable.' },
+  { selector: '[data-tour="fechahora"]', texto: 'Elige el día y la hora en la que planeas llegar.' },
+  { selector: '[data-tour="notas"]', texto: 'Agrega cualquier detalle que quieras recordar de esta visita.' },
+  { selector: '[data-tour="guardar"]', texto: 'Guarda para agendarla en tu calendario.' },
+];
+const OPCIONES_TOUR_NUEVA_CITA = {
+  storageKey: 'v26_tour_nueva_cita_visto',
+  saludoTitulo: 'Así se agenda una cita',
+  saludoTexto: 'Un par de cosas rápidas antes de que la uses.',
+  finalTexto: 'Repite este recorrido cuando quieras tocando el ícono ? de arriba.',
+};
+document.getElementById('btn-tour-ayuda').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_NUEVA_CITA, OPCIONES_TOUR_NUEVA_CITA));
+
+// La dirección solo aparece como dato informativo (no editable) una vez que
+// se elige un cliente -- ya no se ve concatenada dentro del propio select.
+const selCliente = document.getElementById('select-cliente');
+const direccionInfo = document.getElementById('direccion-info');
+const direccionTexto = document.getElementById('direccion-texto');
+function actualizarDireccion() {
+  const op = selCliente.options[selCliente.selectedIndex];
+  const dir = op ? op.dataset.dir : '';
+  if (dir) { direccionTexto.textContent = dir; direccionInfo.classList.add('show'); }
+  else { direccionInfo.classList.remove('show'); }
+}
+selCliente.addEventListener('change', actualizarDireccion);
 
 async function cargarSelectClientes() {
   const sel = document.getElementById('select-cliente');
@@ -77,15 +117,17 @@ async function cargarSelectClientes() {
     return;
   }
   sel.innerHTML = '<option value="">Selecciona un cliente</option>' +
-    data.clientes.map(c => `<option value="${c.id}">${c.nombre} — ${c.direccion}</option>`).join('');
+    data.clientes.map(c => `<option value="${c.id}" data-dir="${c.direccion.replace(/"/g, '&quot;')}">${c.nombre}</option>`).join('');
 }
-cargarSelectClientes();
+
+cargarSelectClientes().then(() => V26Tour.iniciar(PASOS_TOUR_NUEVA_CITA, OPCIONES_TOUR_NUEVA_CITA));
 
 document.getElementById('form-cita').addEventListener('submit', async (e) => {
   e.preventDefault();
   const msg = document.getElementById('msg-cita');
   msg.innerHTML = '';
   const fd = new FormData(e.target);
+  fd.set('fecha_hora', `${inputFecha.value}T${inputHora.value}`);
   const res = await fetch('../api/citas.php', { method: 'POST', body: fd });
   const data = await res.json();
   if (data.ok) {

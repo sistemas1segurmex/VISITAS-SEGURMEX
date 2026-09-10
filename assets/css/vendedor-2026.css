@@ -244,6 +244,23 @@
   box-shadow: 0 0 0 4px rgba(255, 210, 63, .15);
 }
 
+/* Dos campos lado a lado en una misma fila (ej. fecha + hora). */
+.v26-fila-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* Dato informativo (no editable) debajo de un campo -- ej. la dirección del
+   cliente elegido en "Nueva cita", para confirmar el lugar sin tener que
+   buscarla dentro del propio select. */
+.v26-direccion-info {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: rgba(20,23,31,.04); border-radius: var(--v26-r-md);
+  padding: 0 12px; margin: 0; font-size: .82rem; color: var(--v26-ink-soft);
+  max-height: 0; opacity: 0; overflow: hidden;
+  transition: max-height .25s var(--v26-ease), opacity .2s var(--v26-ease), margin .25s var(--v26-ease), padding .25s var(--v26-ease);
+}
+.v26-direccion-info.show { max-height: 80px; opacity: 1; padding: 10px 12px; margin: -6px 0 16px; }
+.v26-direccion-info i { color: var(--v26-brand-2); margin-top: 1px; }
+.v26-direccion-info strong { color: var(--v26-ink); font-weight: 700; }
+
 /* ---------- CTA destacada (ej. Programar visita) ---------- */
 .v26-cta {
   display: flex; align-items: center; gap: 14px;
