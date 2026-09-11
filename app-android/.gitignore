@@ -1,0 +1,10 @@
+node_modules/
+
+# NUNCA subir la keystore de firma ni el archivo con sus contraseñas --
+# es lo único que garantiza que las futuras actualizaciones se instalen
+# "encima" de la app sin desinstalar. Se respalda aparte, fuera de git
+# (ver README.md de esta carpeta).
+keystore/
+*.jks
+*.keystore
+keystore.properties

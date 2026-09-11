@@ -1,0 +1,18 @@
+{
+  "name": "visitas-app-android",
+  "version": "1.0.0",
+  "description": "Envoltorio Android (Capacitor) de Visitas -- carga en vivo sgmx.com.mx/visitas, ver README.md",
+  "scripts": {
+    "build-icon": "node build-icon.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2"
+  }
+}

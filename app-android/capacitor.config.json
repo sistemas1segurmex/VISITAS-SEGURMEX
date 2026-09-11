@@ -1,0 +1,13 @@
+{
+  "appId": "com.segurmex.visitas",
+  "appName": "Visitas",
+  "webDir": "www",
+  "server": {
+    "url": "https://sgmx.com.mx/visitas/",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
