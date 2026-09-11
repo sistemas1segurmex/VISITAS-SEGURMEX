@@ -77,10 +77,29 @@ try {
     $ext    = image_type_to_extension($infoFoto[2], false) ?: 'jpg';
     $nombreArchivo = 'usuario_' . $nuevoId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     $destinoDir = __DIR__ . '/../uploads/usuarios';
-    if (!is_dir($destinoDir)) mkdir($destinoDir, 0775, true);
-    if (!move_uploaded_file($_FILES['foto']['tmp_name'], $destinoDir . '/' . $nombreArchivo)) {
+    if (!is_dir($destinoDir)) @mkdir($destinoDir, 0775, true);
+    $destino = $destinoDir . '/' . $nombreArchivo;
+
+    // Mismo respaldo que api/checkin.php: en el navegador del celular
+    // move_uploaded_file() a veces no basta (permisos, PHP-FPM, etc.), así
+    // que se intenta copy() y por último leer/escribir el archivo a mano
+    // antes de darse por vencido -- y si aun así falla, se dice por qué en
+    // vez de un genérico "no se pudo".
+    $guardado = @move_uploaded_file($_FILES['foto']['tmp_name'], $destino);
+    if (!$guardado) {
+        $guardado = @copy($_FILES['foto']['tmp_name'], $destino);
+    }
+    if (!$guardado && is_readable($_FILES['foto']['tmp_name'])) {
+        $contenido = @file_get_contents($_FILES['foto']['tmp_name']);
+        if ($contenido !== false) {
+            $guardado = (@file_put_contents($destino, $contenido) !== false);
+        }
+    }
+    if (!$guardado) {
         $db->rollBack();
-        jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la foto'], 500);
+        $lastErr = error_get_last();
+        $msgErr = !empty($lastErr['message']) ? ' (' . $lastErr['message'] . ')' : '';
+        jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la foto en el servidor' . $msgErr], 500);
     }
     $db->prepare('UPDATE usuarios SET foto_path = ? WHERE id = ?')
        ->execute(['uploads/usuarios/' . $nombreArchivo, $nuevoId]);
