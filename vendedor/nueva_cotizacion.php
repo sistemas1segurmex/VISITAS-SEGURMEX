@@ -76,25 +76,30 @@ $prospeccionPrellenada  = (int)($_GET['prospeccion_id'] ?? 0);
       <form id="form-cotizacion">
         <div class="v26-field">
           <label>Cliente</label>
-          <select name="cliente_id" id="select-cliente" class="v26-select" required>
-            <option value="">Cargando clientes...</option>
-          </select>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <select name="cliente_id" id="select-cliente" class="v26-select" style="flex:1;" required>
+              <option value="">Cargando clientes...</option>
+            </select>
+            <span class="v26-pill" id="badge-etapa-cliente" style="display:none; flex:none;"></span>
+          </div>
           <div class="form-text mt-1" style="font-size:.76rem;">¿No está en la lista? <a href="nuevo_cliente.php">Regístralo primero</a>.</div>
         </div>
 
-        <div class="v26-field">
-          <label>Tipo de lista</label>
-          <div class="v26-seg" id="seg-tipo-lista">
-            <button type="button" class="v26-seg-btn active" data-valor="industria">Industria</button>
-            <button type="button" class="v26-seg-btn" data-valor="distribuidor">Distribuidor</button>
+        <div class="v26-fila-2">
+          <div class="v26-field">
+            <label>Tipo de lista</label>
+            <div class="v26-seg" id="seg-tipo-lista">
+              <button type="button" class="v26-seg-btn active" data-valor="industria">Industria</button>
+              <button type="button" class="v26-seg-btn" data-valor="distribuidor">Distribuidor</button>
+            </div>
           </div>
-        </div>
 
-        <div class="v26-field">
-          <label>Pronto pago</label>
-          <div class="v26-seg" id="seg-pronto-pago">
-            <button type="button" class="v26-seg-btn" data-valor="0">No</button>
-            <button type="button" class="v26-seg-btn" data-valor="1">Sí aplica</button>
+          <div class="v26-field">
+            <label>Pronto pago</label>
+            <div class="v26-seg" id="seg-pronto-pago">
+              <button type="button" class="v26-seg-btn" data-valor="0">No</button>
+              <button type="button" class="v26-seg-btn" data-valor="1">Sí aplica</button>
+            </div>
           </div>
         </div>
 
@@ -231,6 +236,19 @@ async function cargarConfig() {
   });
 }
 
+function actualizarBadgeEtapa() {
+  const sel = document.getElementById('select-cliente');
+  const badge = document.getElementById('badge-etapa-cliente');
+  const op = sel.options[sel.selectedIndex];
+  const etapa = op ? op.dataset.etapa : '';
+  if (!etapa) { badge.style.display = 'none'; return; }
+  const esCliente = etapa === 'convertido';
+  badge.className = 'v26-pill ' + (esCliente ? 'v26-pill--etapa-convertido' : 'v26-pill--etapa-prospecto_agregado');
+  badge.textContent = esCliente ? 'Cliente' : 'Prospecto';
+  badge.style.display = 'inline-flex';
+}
+document.getElementById('select-cliente').addEventListener('change', actualizarBadgeEtapa);
+
 async function cargarSelectClientes() {
   const sel = document.getElementById('select-cliente');
   const res = await fetch('../api/clientes.php');
@@ -240,7 +258,8 @@ async function cargarSelectClientes() {
     return;
   }
   sel.innerHTML = '<option value="">Selecciona un cliente</option>' +
-    data.clientes.map(c => `<option value="${c.id}" ${CLIENTE_PRELLENADO === c.id ? 'selected' : ''}>${escHtml(c.nombre)} — ${escHtml(c.direccion)}</option>`).join('');
+    data.clientes.map(c => `<option value="${c.id}" data-etapa="${escHtml(c.etapa || '')}" ${CLIENTE_PRELLENADO === c.id ? 'selected' : ''}>${escHtml(c.nombre)}</option>`).join('');
+  actualizarBadgeEtapa();
 }
 
 function recalcularTodo() {
