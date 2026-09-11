@@ -1,4 +1,6 @@
 <?php
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
@@ -106,17 +108,26 @@ $siguienteTipo = (!$estadoResuelto && !$esFuturo) ? (!$tieneEntrada ? 'entrada' 
         </div>
         <div class="mb-3">
           <label class="v26-field label" style="display:block;font-size:.78rem;font-weight:700;color:var(--v26-ink-soft);margin-bottom:6px;">Foto de evidencia (se toma aquí mismo, en el lugar de la visita)</label>
-          <div class="v26-camera">
+          <div class="v26-camera" id="v26-camera-container">
             <video id="video-camara" autoplay playsinline muted></video>
-            <img id="preview-foto" class="d-none">
+            <img id="preview-foto" class="d-none" alt="Evidencia">
+            <div id="camara-placeholder" class="v26-camera-placeholder d-none">
+              <i class="bi bi-camera-fill"></i>
+              <span>Toca aquí para tomar foto con la cámara del celular</span>
+            </div>
             <div class="frame"></div>
             <div class="v26-shutter-wrap">
-              <button type="button" id="btn-tomar-foto" class="v26-shutter" disabled></button>
-              <button type="button" id="btn-repetir-foto" class="v26-retake d-none"><i class="bi bi-arrow-counterclockwise"></i></button>
+              <button type="button" id="btn-tomar-foto" class="v26-shutter" disabled title="Tomar foto"></button>
+              <button type="button" id="btn-repetir-foto" class="v26-retake d-none" title="Repetir foto"><i class="bi bi-arrow-counterclockwise"></i></button>
             </div>
           </div>
           <canvas id="canvas-foto" class="d-none"></canvas>
           <div id="estado-camara" class="small text-muted mt-2">Activando la cámara...</div>
+
+          <input type="file" id="input-archivo-foto" accept="image/*" capture="environment" class="d-none">
+          <button type="button" id="btn-abrir-archivo" class="v26-btn v26-btn-ghost v26-btn-block mt-2" style="font-size:.82rem;">
+            <i class="bi bi-camera me-1"></i> <span id="txt-btn-archivo">Tomar con cámara del celular / Subir foto</span>
+          </button>
         </div>
 
         <?php if ($siguienteTipo === 'salida'): ?>
@@ -173,13 +184,17 @@ if (tipo && 'geolocation' in navigator) {
     (pos) => {
       lat = pos.coords.latitude;
       lng = pos.coords.longitude;
-      estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill"></i> Ubicación obtenida (precisión ±${Math.round(pos.coords.accuracy)} m)`;
+      estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(pos.coords.accuracy)} m)`;
       revisarListoParaEnviar();
     },
-    () => {
-      estadoGps.innerHTML = '⚠️ No se pudo obtener tu ubicación. Activa el GPS y los permisos de ubicación del navegador.';
+    (err) => {
+      let msg = '⚠️ No se pudo obtener tu ubicación. Activa el GPS y los permisos de ubicación del navegador.';
+      if (err.code === 1) msg = '⚠️ Permiso de ubicación denegado en el navegador.';
+      else if (err.code === 2) msg = '⚠️ Posición GPS no disponible.';
+      else if (err.code === 3) msg = '⚠️ Tiempo de espera agotado al obtener GPS.';
+      estadoGps.innerHTML = msg;
     },
-    { enableHighAccuracy: true, timeout: 20000 }
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
   );
 } else if (tipo) {
   estadoGps.innerHTML = 'Tu navegador no soporta geolocalización.';
@@ -197,30 +212,149 @@ function revisarListoParaEnviar() {
   }
 }
 
-// --- Cámara en vivo ---
+// --- Manejo de Cámara y Fotos ---
 const video          = document.getElementById('video-camara');
-const preview         = document.getElementById('preview-foto');
-const canvas          = document.getElementById('canvas-foto');
-const estadoCamara     = document.getElementById('estado-camara');
-const btnTomarFoto     = document.getElementById('btn-tomar-foto');
-const btnRepetirFoto   = document.getElementById('btn-repetir-foto');
+const preview        = document.getElementById('preview-foto');
+const canvas         = document.getElementById('canvas-foto');
+const estadoCamara    = document.getElementById('estado-camara');
+const btnTomarFoto    = document.getElementById('btn-tomar-foto');
+const btnRepetirFoto  = document.getElementById('btn-repetir-foto');
+const placeholder     = document.getElementById('camara-placeholder');
+const inputArchivo    = document.getElementById('input-archivo-foto');
+const btnAbrirArchivo = document.getElementById('btn-abrir-archivo');
+const txtBtnArchivo   = document.getElementById('txt-btn-archivo');
+
+// Conversión de respaldo DataURI a Blob
+function dataURItoBlob(dataURI) {
+  const byteString = atob(dataURI.split(',')[1]);
+  const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([ab], { type: mimeString });
+}
+
+// Redimensionar imagen a máximo 1024px para garantizar carga ultrarrápida y peso ligero (~100-200 KB)
+function procesarYGuardarBlob(origen, anchoOriginal, altoOriginal) {
+  const maxDim = 1024;
+  let w = anchoOriginal || 640;
+  let h = altoOriginal || 480;
+
+  if (w > maxDim || h > maxDim) {
+    if (w > h) {
+      h = Math.round((h * maxDim) / w);
+      w = maxDim;
+    } else {
+      w = Math.round((w * maxDim) / h);
+      h = maxDim;
+    }
+  }
+
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(origen, 0, 0, w, h);
+
+  const finalizarConBlob = (blob) => {
+    fotoBlob = blob;
+    try {
+      preview.src = URL.createObjectURL(blob);
+    } catch(err) {
+      preview.src = canvas.toDataURL('image/jpeg', 0.82);
+    }
+    preview.classList.remove('d-none');
+    video.classList.add('d-none');
+    if (placeholder) placeholder.classList.add('d-none');
+    if (btnTomarFoto) btnTomarFoto.classList.add('d-none');
+    if (btnRepetirFoto) btnRepetirFoto.classList.remove('d-none');
+    const kb = Math.round(blob.size / 1024);
+    estadoCamara.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill"></i> Foto lista (${kb} KB).</span>`;
+    revisarListoParaEnviar();
+  };
+
+  try {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        finalizarConBlob(blob);
+      } else {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        finalizarConBlob(dataURItoBlob(dataUrl));
+      }
+    }, 'image/jpeg', 0.82);
+  } catch (err) {
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    finalizarConBlob(dataURItoBlob(dataUrl));
+  }
+}
+
+function procesarArchivoSeleccionado(file) {
+  if (!file) return;
+  estadoCamara.innerHTML = '<span class="text-primary"><i class="bi bi-hourglass-split"></i> Procesando foto...</span>';
+
+  const blobUrl = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(blobUrl);
+    procesarYGuardarBlob(img, img.naturalWidth || img.width, img.naturalHeight || img.height);
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(blobUrl);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img2 = new Image();
+      img2.onload = () => {
+        procesarYGuardarBlob(img2, img2.naturalWidth || img2.width, img2.naturalHeight || img2.height);
+      };
+      img2.onerror = () => {
+        estadoCamara.innerHTML = '<span class="text-danger">⚠️ Formato no compatible. Por favor toma otra foto.</span>';
+      };
+      img2.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+  img.src = blobUrl;
+}
 
 async function iniciarCamara() {
   if (!tipo) return;
-  if (!('mediaDevices' in navigator) || !navigator.mediaDevices.getUserMedia) {
-    estadoCamara.innerHTML = '⚠️ Tu navegador no soporta acceso a la cámara.';
+
+  const esContextoSeguro = window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  
+  if (!esContextoSeguro || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    // Si no está en HTTPS o el navegador no soporta getUserMedia directo
+    if (placeholder) placeholder.classList.remove('d-none');
+    if (video) video.classList.add('d-none');
+    if (btnTomarFoto) btnTomarFoto.classList.add('d-none');
+    if (btnAbrirArchivo) {
+      btnAbrirArchivo.classList.remove('v26-btn-ghost');
+      btnAbrirArchivo.classList.add('v26-btn-primary');
+    }
+    if (txtBtnArchivo) txtBtnArchivo.textContent = 'Tomar foto con cámara del celular';
+    estadoCamara.innerHTML = '<span class="text-muted">Toca el recuadro o el botón de abajo para tomar la foto con tu celular.</span>';
     return;
   }
+
   try {
     streamCamara = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' },
+      video: { facingMode: { ideal: 'environment' } },
       audio: false,
     });
     video.srcObject = streamCamara;
+    video.play().catch(() => {});
     estadoCamara.textContent = 'Encuadra la evidencia y presiona el botón.';
     if (btnTomarFoto) btnTomarFoto.disabled = false;
   } catch (e) {
-    estadoCamara.innerHTML = '⚠️ No se pudo acceder a la cámara. Revisa los permisos del navegador y vuelve a intentar.';
+    if (placeholder) placeholder.classList.remove('d-none');
+    if (video) video.classList.add('d-none');
+    if (btnTomarFoto) btnTomarFoto.classList.add('d-none');
+    if (btnAbrirArchivo) {
+      btnAbrirArchivo.classList.remove('v26-btn-ghost');
+      btnAbrirArchivo.classList.add('v26-btn-primary');
+    }
+    if (txtBtnArchivo) txtBtnArchivo.textContent = 'Tomar foto con cámara del celular';
+    estadoCamara.innerHTML = '<span class="text-muted">No se pudo activar la cámara web. Usa el botón de abajo para tomar la foto con tu celular.</span>';
   }
 }
 
@@ -228,29 +362,46 @@ if (btnTomarFoto) {
   btnTomarFoto.addEventListener('click', () => {
     const w = video.videoWidth || 640;
     const h = video.videoHeight || 480;
-    canvas.width = w;
-    canvas.height = h;
-    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
-    canvas.toBlob((blob) => {
-      fotoBlob = blob;
-      preview.src = URL.createObjectURL(blob);
-      preview.classList.remove('d-none');
-      video.classList.add('d-none');
-      btnTomarFoto.classList.add('d-none');
-      btnRepetirFoto.classList.remove('d-none');
-      revisarListoParaEnviar();
-    }, 'image/jpeg', 0.85);
+    procesarYGuardarBlob(video, w, h);
   });
 }
 
 if (btnRepetirFoto) {
   btnRepetirFoto.addEventListener('click', () => {
     fotoBlob = null;
+    if (inputArchivo) inputArchivo.value = '';
     preview.classList.add('d-none');
-    video.classList.remove('d-none');
     btnRepetirFoto.classList.add('d-none');
-    btnTomarFoto.classList.remove('d-none');
+
+    if (streamCamara && streamCamara.active) {
+      video.classList.remove('d-none');
+      btnTomarFoto.classList.remove('d-none');
+      estadoCamara.textContent = 'Encuadra la evidencia y presiona el botón.';
+    } else {
+      if (placeholder) placeholder.classList.remove('d-none');
+      estadoCamara.innerHTML = '<span class="text-muted">Toca el recuadro o el botón para tomar la foto con tu celular.</span>';
+    }
     revisarListoParaEnviar();
+  });
+}
+
+if (inputArchivo) {
+  inputArchivo.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) {
+      procesarArchivoSeleccionado(e.target.files[0]);
+    }
+  });
+}
+
+if (btnAbrirArchivo) {
+  btnAbrirArchivo.addEventListener('click', () => {
+    if (inputArchivo) inputArchivo.click();
+  });
+}
+
+if (placeholder) {
+  placeholder.addEventListener('click', () => {
+    if (inputArchivo) inputArchivo.click();
   });
 }
 

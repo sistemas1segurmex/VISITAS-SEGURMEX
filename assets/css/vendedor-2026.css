@@ -342,10 +342,19 @@
 .v26-camera {
   position: relative; border-radius: var(--v26-r-xl); overflow: hidden;
   background: #0b0d12; aspect-ratio: 4/3; box-shadow: var(--v26-shadow-md);
+  display: flex; align-items: center; justify-content: center;
 }
 .v26-camera video, .v26-camera img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .v26-camera .frame { position: absolute; inset: 14px; border: 2px dashed rgba(255,255,255,.35); border-radius: calc(var(--v26-r-xl) - 8px); pointer-events: none; }
-.v26-shutter-wrap { position: absolute; left: 0; right: 0; bottom: 16px; display: flex; justify-content: center; gap: 14px; }
+.v26-camera-placeholder {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: rgba(255,255,255,.75); gap: 10px; cursor: pointer; text-align: center; padding: 20px; z-index: 2;
+  transition: background .2s ease;
+}
+.v26-camera-placeholder:hover { background: rgba(255,255,255,.05); }
+.v26-camera-placeholder i { font-size: 2.8rem; color: #fff; }
+.v26-camera-placeholder span { font-size: .88rem; font-weight: 600; }
+.v26-shutter-wrap { position: absolute; left: 0; right: 0; bottom: 16px; display: flex; justify-content: center; gap: 14px; z-index: 5; }
 .v26-shutter {
   width: 66px; height: 66px; border-radius: 50%; background: #fff; border: 4px solid rgba(255,255,255,.5);
   box-shadow: 0 6px 20px rgba(0,0,0,.35); transition: transform .15s var(--v26-ease);
@@ -353,7 +362,7 @@
 .v26-shutter:active { transform: scale(.9); }
 .v26-shutter:disabled { opacity: .4; }
 .v26-retake {
-  width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,.45); color: #fff; border: none;
+  width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,.65); color: #fff; border: none;
   display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
 }
 

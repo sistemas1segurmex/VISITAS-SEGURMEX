@@ -67,6 +67,11 @@ if ($cita['cliente_lat'] !== null && $cita['cliente_lng'] !== null) {
 }
 
 $fotoPath = null;
+$destinoDir = __DIR__ . '/../uploads/checkins';
+if (!is_dir($destinoDir)) {
+    @mkdir($destinoDir, 0777, true);
+}
+
 if (!empty($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
     $tmp  = $_FILES['foto']['tmp_name'];
     $info = @getimagesize($tmp);
@@ -75,14 +80,53 @@ if (!empty($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
     }
     $ext    = image_type_to_extension($info[2], false) ?: 'jpg';
     $nombre = 'checkin_' . $citaId . '_' . $tipo . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-    $destinoDir = __DIR__ . '/../uploads/checkins';
-    if (!is_dir($destinoDir)) mkdir($destinoDir, 0775, true);
     $destino = $destinoDir . '/' . $nombre;
-    if (!move_uploaded_file($tmp, $destino)) {
-        jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la foto'], 500);
+
+    $guardado = @move_uploaded_file($tmp, $destino);
+    if (!$guardado) {
+        $guardado = @copy($tmp, $destino);
+    }
+    if (!$guardado && is_readable($tmp)) {
+        $contenido = @file_get_contents($tmp);
+        if ($contenido !== false) {
+            $guardado = (@file_put_contents($destino, $contenido) !== false);
+        }
+    }
+    if (!$guardado) {
+        $lastErr = error_get_last();
+        $msgErr = !empty($lastErr['message']) ? ' (' . $lastErr['message'] . ')' : '';
+        jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la foto en el servidor' . $msgErr], 500);
+    }
+    $fotoPath = 'uploads/checkins/' . $nombre;
+} elseif (!empty($_POST['foto_base64'])) {
+    $base64Data = $_POST['foto_base64'];
+    $ext = 'jpg';
+    if (preg_match('/^data:image\/(\w+);base64,/', $base64Data, $type)) {
+        $base64Data = substr($base64Data, strpos($base64Data, ',') + 1);
+        $tipoMime = strtolower($type[1]);
+        if (in_array($tipoMime, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true)) {
+            $ext = $tipoMime === 'jpeg' ? 'jpg' : $tipoMime;
+        }
+    }
+    $decoded = base64_decode($base64Data);
+    if ($decoded === false) {
+        jsonResponse(['ok' => false, 'error' => 'Error al decodificar la imagen'], 400);
+    }
+    $nombre = 'checkin_' . $citaId . '_' . $tipo . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $destino = $destinoDir . '/' . $nombre;
+    if (@file_put_contents($destino, $decoded) === false) {
+        jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la foto en el servidor'], 500);
     }
     $fotoPath = 'uploads/checkins/' . $nombre;
 } elseif (!$noShow) {
+    if (isset($_FILES['foto']['error']) && $_FILES['foto']['error'] !== UPLOAD_ERR_NO_FILE) {
+        $err = $_FILES['foto']['error'];
+        if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
+            jsonResponse(['ok' => false, 'error' => 'La foto es demasiado pesada para el servidor.'], 400);
+        } else {
+            jsonResponse(['ok' => false, 'error' => 'Error al recibir la foto (código ' . $err . ')'], 400);
+        }
+    }
     jsonResponse(['ok' => false, 'error' => 'Toma la foto de evidencia'], 400);
 }
 
