@@ -1,5 +1,6 @@
 # Credenciales — nunca subir
 .env
+includes/firebase-service-account.json
 
 # Fotos de evidencia subidas por los vendedores (datos reales, no código)
 uploads/checkins/*

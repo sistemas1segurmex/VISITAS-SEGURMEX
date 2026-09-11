@@ -125,6 +125,7 @@ async function cargarCitas(dia = 'hoy') {
       return;
     }
     renderStatsInicio(data.citas);
+    programarRecordatoriosLocales(data.citas);
     if (esManana) {
       const resumen = document.getElementById('resumen-pendientes');
       if (resumen) resumen.innerHTML = '';
@@ -224,6 +225,8 @@ document.addEventListener('click', (e) => {
 // Envía la ubicación actual al servidor (tracking en vivo mientras la app
 // esté abierta en el navegador del vendedor).
 function iniciarTrackingPeriodico(intervaloMs = 30000) {
+  registrarPushNativo(); // no-op fuera de la app nativa -- ver más abajo
+
   if (!('geolocation' in navigator)) return;
 
   const enviar = () => {
@@ -453,4 +456,82 @@ function v26SheetEtapa(cliente) {
     btnGuardar.addEventListener('click', onGuardar);
     backdrop.addEventListener('click', onBackdropClick);
   });
+}
+
+// ---------------------------------------------------------------------
+// Notificaciones nativas -- solo existen dentro de la app Android (ver
+// app-android/README.md). Abierta en un navegador normal, esAppNativa()
+// corta de inmediato y estas funciones no hacen nada.
+// ---------------------------------------------------------------------
+
+function esAppNativa() {
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+}
+
+let permisoNotificacionesPedido = false;
+async function asegurarPermisoNotificaciones() {
+  if (!esAppNativa() || permisoNotificacionesPedido) return;
+  permisoNotificacionesPedido = true;
+  try { await Capacitor.Plugins.LocalNotifications.requestPermissions(); } catch (e) {}
+}
+
+// --- Recordatorio local: "tu cita es en 15 minutos" -- lo programa el
+// propio celular, sigue funcionando aunque la app esté cerrada porque es
+// una alarma del sistema operativo, no un proceso corriendo. ---
+const MINUTOS_ANTES_RECORDATORIO_CITA = 15;
+
+async function programarRecordatoriosLocales(citas) {
+  if (!esAppNativa() || !Array.isArray(citas)) return;
+  await asegurarPermisoNotificaciones();
+  const LN = Capacitor.Plugins.LocalNotifications;
+  try {
+    // Se cancelan y se vuelven a programar en cada carga de "Mis visitas"
+    // -- así nunca quedan duplicados ni un recordatorio de una cita que
+    // cambió de hora o se canceló.
+    await LN.cancel({ notifications: citas.map(c => ({ id: c.id })) });
+
+    const ahora = Date.now();
+    const notifs = [];
+    citas.filter(c => c.estado === 'pendiente').forEach(c => {
+      const horaCita = new Date(c.fecha_hora.replace(' ', 'T')).getTime();
+      const disparo = horaCita - MINUTOS_ANTES_RECORDATORIO_CITA * 60000;
+      if (disparo > ahora) {
+        notifs.push({
+          id: c.id,
+          title: 'Cita próxima',
+          body: `Tu cita con ${c.cliente_nombre} es en ${MINUTOS_ANTES_RECORDATORIO_CITA} minutos.`,
+          schedule: { at: new Date(disparo) },
+        });
+      }
+    });
+    if (notifs.length) await LN.schedule({ notifications: notifs });
+  } catch (e) {
+    console.warn('No se pudieron programar los recordatorios locales', e);
+  }
+}
+
+// --- Push: registra este celular para avisos que manda el servidor (ej.
+// "se te olvidó cerrar una visita") -- ver api/push_registrar_token.php +
+// api/cron_recordatorios.php + includes/fcm.php. ---
+let pushYaRegistrado = false;
+async function registrarPushNativo() {
+  if (!esAppNativa() || pushYaRegistrado) return;
+  pushYaRegistrado = true;
+  await asegurarPermisoNotificaciones();
+  const PN = Capacitor.Plugins.PushNotifications;
+  try {
+    const permiso = await PN.requestPermissions();
+    if (permiso.receive !== 'granted') return;
+    PN.addListener('registration', async (token) => {
+      try {
+        const fd = new FormData();
+        fd.append('token', token.value);
+        await fetch('../api/push_registrar_token.php', { method: 'POST', body: fd });
+      } catch (e) { /* se reintenta solo la próxima vez que abra la app */ }
+    });
+    PN.addListener('registrationError', (err) => console.warn('Error registrando push', err));
+    await PN.register();
+  } catch (e) {
+    console.warn('No se pudo registrar para notificaciones push', e);
+  }
 }
