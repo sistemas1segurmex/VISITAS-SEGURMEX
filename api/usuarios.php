@@ -47,9 +47,21 @@ function subirFotoUsuario(int $usuarioId): ?string {
     $ext    = image_type_to_extension($info[2], false) ?: 'jpg';
     $nombre = 'usuario_' . $usuarioId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     $destinoDir = __DIR__ . '/../uploads/usuarios';
-    if (!is_dir($destinoDir)) mkdir($destinoDir, 0775, true);
-    if (!move_uploaded_file($tmp, $destinoDir . '/' . $nombre)) {
-        jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la foto'], 500);
+    if (!is_dir($destinoDir)) @mkdir($destinoDir, 0775, true);
+    $destino = $destinoDir . '/' . $nombre;
+
+    // Mismo respaldo que api/checkin.php y api/registro_vendedor.php:
+    // move_uploaded_file() a veces no basta (permisos, PHP-FPM, etc.).
+    $guardado = @move_uploaded_file($tmp, $destino);
+    if (!$guardado) $guardado = @copy($tmp, $destino);
+    if (!$guardado && is_readable($tmp)) {
+        $contenido = @file_get_contents($tmp);
+        if ($contenido !== false) $guardado = (@file_put_contents($destino, $contenido) !== false);
+    }
+    if (!$guardado) {
+        $lastErr = error_get_last();
+        $msgErr = !empty($lastErr['message']) ? ' (' . $lastErr['message'] . ')' : '';
+        jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la foto en el servidor' . $msgErr], 500);
     }
     return 'uploads/usuarios/' . $nombre;
 }
