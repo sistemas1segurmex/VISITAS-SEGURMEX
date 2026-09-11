@@ -86,6 +86,7 @@ $u = requireRole('admin');
     </div>
     <div class="v26-topbar-right">
       <span class="v26-user"><?= htmlspecialchars($u['nombre']) ?></span>
+      <a href="../logout.php" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Cerrar sesión" aria-label="Salir"><i class="bi bi-box-arrow-right"></i></a>
     </div>
   </div>
 </div>
