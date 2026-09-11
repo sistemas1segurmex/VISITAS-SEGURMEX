@@ -60,13 +60,33 @@ function tocarSesionActual(PDO $db): void {
     }
 }
 
-/** Libera el lugar de esta sesión al cerrar sesión explícitamente. */
-function cerrarSesionActual(PDO $db): void {
+/** Libera el lugar de esta sesión al cerrar sesión explícitamente. Si se
+ *  conoce el usuario, se exige también como filtro (defensa extra: nunca
+ *  borra por error la fila de otro usuario si algún día session_id
+ *  dejara de ser único por sí solo). */
+function cerrarSesionActual(PDO $db, ?int $usuarioId = null): void {
     try {
-        $stmt = $db->prepare('DELETE FROM usuarios_sesiones WHERE session_id = ?');
-        $stmt->execute([session_id()]);
+        $sid = session_id();
+        if (!$sid) return;
+        if ($usuarioId !== null) {
+            $stmt = $db->prepare('DELETE FROM usuarios_sesiones WHERE session_id = ? AND usuario_id = ?');
+            $stmt->execute([$sid, $usuarioId]);
+        } else {
+            $stmt = $db->prepare('DELETE FROM usuarios_sesiones WHERE session_id = ?');
+            $stmt->execute([$sid]);
+        }
     } catch (Throwable $e) {
         error_log('[VISITAS] cerrarSesionActual: ' . $e->getMessage());
+    }
+}
+
+/** Cierra todas las sesiones activas de un usuario (para forzar nuevo login). */
+function cerrarTodasLasSesionesDelUsuario(PDO $db, int $usuarioId): void {
+    try {
+        $stmt = $db->prepare('DELETE FROM usuarios_sesiones WHERE usuario_id = ?');
+        $stmt->execute([$usuarioId]);
+    } catch (Throwable $e) {
+        error_log('[VISITAS] cerrarTodasLasSesionesDelUsuario: ' . $e->getMessage());
     }
 }
 

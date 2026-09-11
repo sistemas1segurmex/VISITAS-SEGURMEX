@@ -31,6 +31,7 @@ $hoy = date('Y-m-d');
     <div class="v26-topbar-right">
       <a href="usuarios.php" class="v26-btn-chip"><i class="bi bi-people"></i> Vendedores</a>
       <span class="v26-user"><?= htmlspecialchars($u['nombre']) ?></span>
+      <a href="../logout.php" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Cerrar sesión" aria-label="Salir"><i class="bi bi-box-arrow-right"></i></a>
     </div>
   </div>
 </div>

@@ -9,27 +9,36 @@ if (currentUser()) {
 }
 
 $error = null;
+$puedeForzar = false;
+$emailIngresado = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $pass  = $_POST['password'] ?? '';
+    $forzar = !empty($_POST['forzar_login']);
+    $emailIngresado = $email;
+
     $db = getDB();
     $stmt = $db->prepare('SELECT * FROM usuarios WHERE email = ? AND activo = 1');
     $stmt->execute([$email]);
     $u = $stmt->fetch();
     if ($u && password_verify($pass, $u['password_hash'])) {
-        // Límite de sesiones concurrentes (SESION_MAX_ACTIVAS, ver
-        // includes/helpers.php): se regenera el id de sesión ANTES de contar
-        // para que este intento de login siempre cuente como una sesión
-        // nueva propia, nunca reutilice el conteo de una sesión anterior ya
-        // cerrada en este mismo navegador.
         session_regenerate_id(true);
-        if (contarSesionesActivas($db, $u['id']) >= SESION_MAX_ACTIVAS) {
-            $error = 'Ya tienes ' . SESION_MAX_ACTIVAS . ' sesiones activas en otros dispositivos o navegadores. Cierra sesión en uno de ellos para poder entrar aquí.';
+
+        if ($forzar) {
+            // El usuario confirmó explícitamente cerrar las sesiones anteriores
+            cerrarTodasLasSesionesDelUsuario($db, (int)$u['id']);
+        }
+
+        $activas = contarSesionesActivas($db, (int)$u['id']);
+        if ($activas >= SESION_MAX_ACTIVAS) {
+            $error = 'Ya tienes ' . SESION_MAX_ACTIVAS . ' sesiones activas en otros dispositivos o navegadores.';
+            $puedeForzar = true;
         } else {
             $_SESSION['usuario_id']     = $u['id'];
             $_SESSION['usuario_nombre'] = $u['nombre'];
             $_SESSION['usuario_rol']    = $u['rol'];
-            registrarSesion($db, $u['id'], session_id());
+            registrarSesion($db, (int)$u['id'], session_id());
             header('Location: ' . ($u['rol'] === 'admin' ? 'admin/index.php' : 'vendedor/index.php'));
             exit;
         }
@@ -380,13 +389,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <p class="vlg-sub">Acceso al sistema · 2026</p>
 
     <?php if ($error): ?>
-      <div class="vlg-error"><i class="bi bi-exclamation-triangle-fill"></i><span><?= htmlspecialchars($error) ?></span></div>
+      <div class="vlg-error">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <div style="flex:1;">
+          <div><?= htmlspecialchars($error) ?></div>
+          <?php if ($puedeForzar): ?>
+            <div style="font-size:.72rem;margin-top:6px;opacity:.85;">Por seguridad no guardamos tu contraseña -- vuelve a escribirla y presiona el botón.</div>
+            <button type="submit" form="vlg-form" name="forzar_login" value="1" class="v26-btn v26-btn-ghost mt-2" style="font-size:.76rem;font-weight:700;padding:6px 12px;border-radius:10px;background:#fff;border:1px solid #b91c3c;color:#b91c3c;cursor:pointer;display:inline-flex;align-items:center;gap:6px;width:100%;justify-content:center;">
+              <i class="bi bi-box-arrow-in-right"></i> Cerrar otras sesiones y entrar aquí
+            </button>
+          <?php endif; ?>
+        </div>
+      </div>
     <?php endif; ?>
 
     <form method="post" id="vlg-form">
       <div class="vlg-field">
         <i class="bi bi-envelope-fill vlg-icon-left"></i>
-        <input type="email" id="vlg-email" name="email" placeholder=" " required autofocus>
+        <input type="email" id="vlg-email" name="email" value="<?= htmlspecialchars($emailIngresado) ?>" placeholder=" " required autofocus>
         <label for="vlg-email">Correo electrónico</label>
       </div>
       <div class="vlg-field">
@@ -440,6 +460,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   const vlgToggle = document.getElementById('vlg-toggle');
   const vlgPass = document.getElementById('vlg-pass');
+  <?php if ($puedeForzar): ?>
+  // El campo de contraseña nunca se rellena de vuelta (por seguridad), así
+  // que si el usuario va a usar "Cerrar otras sesiones y entrar aquí" hay
+  // que ponerle el cursor listo para que la vuelva a escribir.
+  vlgPass.focus();
+  <?php endif; ?>
   vlgToggle.addEventListener('click', () => {
     const showing = vlgPass.type === 'text';
     vlgPass.type = showing ? 'password' : 'text';
