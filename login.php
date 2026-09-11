@@ -374,6 +374,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   @media (prefers-reduced-motion: reduce) {
     .vlg-orb, .vlg-card::before, .vlg-logo-wrap img, .vlg-card h1, .vlg-btn::after { animation: none !important; }
   }
+
+  /* En móvil, tsParticles + los blur animados saturan el hilo principal en
+     Safari/WebKit y provocan lag al escribir. Se desactivan ahí. */
+  @media (max-width: 768px) {
+    #vlg-particles { display: none; }
+    .vlg-orb { animation: none; filter: blur(60px); }
+    .vlg-card::before { animation: none; }
+  }
 </style>
 </head>
 <body class="vlg">
@@ -433,7 +441,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 <script>
   // Fondo de partículas suaves en los colores de marca (degrada con elegancia si el CDN falla)
-  if (window.tsParticles) {
+  // Se omite en móvil: en Safari/Chrome de iOS el canvas animado compite por el
+  // hilo principal y provoca lag notable al escribir en los campos.
+  if (window.tsParticles && window.matchMedia('(min-width: 769px)').matches) {
     tsParticles.load('vlg-particles', {
       fpsLimit: 60,
       particles: {
