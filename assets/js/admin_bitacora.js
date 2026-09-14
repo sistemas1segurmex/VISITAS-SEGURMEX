@@ -86,19 +86,26 @@ window.addEventListener('resize', () => posicionarSlider(document.querySelector(
 // Filtro de vendedor (mismo combo para las dos pestañas, se llena una vez)
 // ---------------------------------------------------------------------
 async function cargarVendedoresFiltro() {
-  const res = await fetch('../api/usuarios.php');
-  const data = await res.json();
-  if (!data.ok) return;
-  const vendedores = data.usuarios.filter(u => u.rol === 'vendedor');
-  const opciones = vendedores.map(v => `<option value="${v.id}">${v.nombre}</option>`).join('');
-  document.getElementById('filtro-cambios-vendedor').insertAdjacentHTML('beforeend', opciones);
-  document.getElementById('filtro-accesos-vendedor').insertAdjacentHTML('beforeend', opciones);
+  try {
+    const res = await fetch('../api/usuarios.php');
+    const data = await res.json();
+    if (!data.ok) return;
+    const vendedores = data.usuarios.filter(u => u.rol === 'vendedor');
+    const opciones = vendedores.map(v => `<option value="${v.id}">${v.nombre}</option>`).join('');
+    document.getElementById('filtro-cambios-vendedor').insertAdjacentHTML('beforeend', opciones);
+    document.getElementById('filtro-accesos-vendedor').insertAdjacentHTML('beforeend', opciones);
+  } catch (e) {
+    // No bloquea el resto de la pantalla -- sin este combo poblado solo se
+    // pierde el filtro por vendedor, las dos pestañas igual deben cargar.
+    console.error('[Bitácora] cargarVendedoresFiltro:', e);
+  }
 }
 
 // ---------------------------------------------------------------------
 // Stats de arriba
 // ---------------------------------------------------------------------
 async function cargarResumen() {
+  try {
   const res = await fetch('../api/admin_bitacora.php?accion=resumen');
   const data = await res.json();
   if (!data.ok) return;
@@ -106,6 +113,9 @@ async function cargarResumen() {
   animarNumero(document.getElementById('stat-altas-7d'), data.altas_7d);
   animarNumero(document.getElementById('stat-ediciones-7d'), data.ediciones_7d);
   animarNumero(document.getElementById('stat-bajas-mes'), data.bajas_mes);
+  } catch (e) {
+    console.error('[Bitácora] cargarResumen:', e);
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -175,10 +185,15 @@ async function cargarCambios() {
   });
   const cont = document.getElementById('lista-cambios');
   cont.innerHTML = '<p class="text-muted small">Cargando...</p>';
-  const res = await fetch('../api/admin_bitacora.php?' + params.toString());
-  const data = await res.json();
-  if (!data.ok) { cont.innerHTML = `<p class="text-danger small">${data.error}</p>`; return; }
-  renderCambios(data.cambios);
+  try {
+    const res = await fetch('../api/admin_bitacora.php?' + params.toString());
+    const data = await res.json();
+    if (!data.ok) { cont.innerHTML = `<p class="text-danger small">${data.error}</p>`; return; }
+    renderCambios(data.cambios);
+  } catch (e) {
+    console.error('[Bitácora] cargarCambios:', e);
+    cont.innerHTML = '<p class="text-danger small">No se pudo cargar (revisa la consola).</p>';
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -232,10 +247,15 @@ async function cargarAccesos() {
   });
   const cont = document.getElementById('tabla-accesos-body');
   cont.innerHTML = '<tr><td colspan="5" class="text-muted small">Cargando...</td></tr>';
-  const res = await fetch('../api/admin_bitacora.php?' + params.toString());
-  const data = await res.json();
-  if (!data.ok) { cont.innerHTML = `<tr><td colspan="5" class="text-danger small">${data.error}</td></tr>`; return; }
-  renderAccesos(data.accesos);
+  try {
+    const res = await fetch('../api/admin_bitacora.php?' + params.toString());
+    const data = await res.json();
+    if (!data.ok) { cont.innerHTML = `<tr><td colspan="5" class="text-danger small">${data.error}</td></tr>`; return; }
+    renderAccesos(data.accesos);
+  } catch (e) {
+    console.error('[Bitácora] cargarAccesos:', e);
+    cont.innerHTML = '<tr><td colspan="5" class="text-danger small">No se pudo cargar (revisa la consola).</td></tr>';
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -257,10 +277,11 @@ document.getElementById('buscar-accesos').addEventListener('input', () => {
   timerBuscarAccesos = setTimeout(cargarAccesos, 300);
 });
 
-(async function iniciar() {
-  posicionarSlider(document.querySelector('#filtro-tab .opt.active'));
-  await cargarVendedoresFiltro();
-  cargarResumen();
-  cargarCambios();
-  cargarAccesos();
-})();
+// Las 4 cargas son independientes a propósito -- si una falla (por ejemplo
+// el combo de vendedores) las otras tres deben renderizar igual, no
+// quedarse en "Cargando..." por una promesa encadenada que nunca resuelve.
+posicionarSlider(document.querySelector('#filtro-tab .opt.active'));
+cargarVendedoresFiltro();
+cargarResumen();
+cargarCambios();
+cargarAccesos();
