@@ -93,13 +93,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     position: relative;
   }
 
-  #vlg-particles {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: auto;
-  }
-
   .vlg-orb {
     position: absolute;
     border-radius: 50%;
@@ -375,17 +368,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .vlg-orb, .vlg-card::before, .vlg-logo-wrap img, .vlg-card h1, .vlg-btn::after { animation: none !important; }
   }
 
-  /* En móvil, tsParticles + los blur animados saturan el hilo principal en
-     Safari/WebKit y provocan lag al escribir. Se desactivan ahí. */
+  /* En móvil, los blur animados saturan el hilo principal en Safari/WebKit
+     y provocan lag al escribir. Se desactivan ahí. */
   @media (max-width: 768px) {
-    #vlg-particles { display: none; }
     .vlg-orb { animation: none; filter: blur(60px); }
     .vlg-card::before { animation: none; }
   }
 </style>
 </head>
 <body class="vlg">
-  <div id="vlg-particles"></div>
   <div class="vlg-orb vlg-orb-1"></div>
   <div class="vlg-orb vlg-orb-2"></div>
   <div class="vlg-orb vlg-orb-3"></div>
@@ -438,38 +429,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
 
 <script>
-  // En móvil ni siquiera se descargan tsParticles/GSAP -- antes se cargaban
-  // siempre y solo se apagaban por CSS/JS, así que el celular igual pagaba
-  // el costo de red y de parsear ~150 KB de JS para un efecto que de todos
-  // modos no se usaba ahí. El resto del código ya revisa `window.gsap` /
-  // `window.tsParticles` antes de usarlos, así que no cargarlos en móvil no
-  // rompe nada -- simplemente no hay pop de ícono ni efecto magnético del
-  // botón, que de cualquier forma no aplican bien a pantallas táctiles.
+  // Las partículas de fondo (tsParticles) se quitaron por completo -- pesaban
+  // ~130 KB y hacían más lento el login en todas las pantallas, no solo en
+  // móvil. GSAP se sigue cargando (solo en pantallas de escritorio, donde
+  // aplican el efecto magnético del botón y el rebote del ojito de la
+  // contraseña) sin descargarlo en móvil, donde esos efectos no aportan.
   if (window.matchMedia('(min-width: 769px)').matches) {
-    const scriptParticles = document.createElement('script');
-    scriptParticles.src = 'https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js';
-    scriptParticles.onload = () => {
-      if (!window.tsParticles) return;
-      tsParticles.load('vlg-particles', {
-        fpsLimit: 60,
-        particles: {
-          number: { value: 46, density: { enable: true, area: 900 } },
-          color: { value: ['#FFD23F', '#E8A400', '#4F46E5'] },
-          shape: { type: 'circle' },
-          opacity: { value: { min: 0.15, max: 0.45 } },
-          size: { value: { min: 1, max: 4 } },
-          links: { enable: true, distance: 130, color: '#FFD23F', opacity: 0.12, width: 1 },
-          move: { enable: true, speed: 0.7, direction: 'none', random: true, outModes: { default: 'out' } }
-        },
-        interactivity: {
-          events: { onHover: { enable: true, mode: 'repulse' }, resize: true },
-          modes: { repulse: { distance: 90, duration: 0.4 } }
-        },
-        detectRetina: true
-      });
-    };
-    document.body.appendChild(scriptParticles);
-
     const scriptGsap = document.createElement('script');
     scriptGsap.src = 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js';
     document.body.appendChild(scriptGsap);
