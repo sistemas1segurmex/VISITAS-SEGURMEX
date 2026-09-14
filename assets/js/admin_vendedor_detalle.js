@@ -52,6 +52,23 @@ function ultimaConexionTexto(fechaUtc) {
   return `Última conexión: ${fecha}, ${hora} (hace ${diffDias} días)`;
 }
 
+// Igual que ultimaConexionTexto pero para clientes.etapa_actualizada_en --
+// dice desde cuándo lleva un cliente/prospecto en su etapa actual (Opción B:
+// no hay historial de etapas todavía, solo la fecha del último cambio).
+function tiempoEnEtapaTexto(fechaUtc) {
+  if (!fechaUtc) return '';
+  const d = new Date(String(fechaUtc).replace(' ', 'T') + 'Z');
+  if (isNaN(d.getTime())) return '';
+  const diffDias = Math.floor((Date.now() - d.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDias <= 0) return 'desde hoy';
+  if (diffDias === 1) return 'desde ayer';
+  if (diffDias < 30) return `desde hace ${diffDias} días`;
+  const meses = Math.floor(diffDias / 30);
+  if (meses < 12) return `desde hace ${meses} mes${meses > 1 ? 'es' : ''}`;
+  const fecha = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `desde ${fecha}`;
+}
+
 function animarNumero(el, valorFinal) {
   if (!el) return;
   const inicio = parseInt(el.dataset.valor || '0', 10);
@@ -238,8 +255,9 @@ function tarjetaCliente(c, i) {
           <div class="v26-user-correo"><i class="bi bi-geo-alt"></i> ${c.direccion || 'Sin dirección'}</div>
         </div>
       </div>
-      <div class="v26-user-meta d-none">
+      <div class="v26-user-meta">
         ${pillEtapaAdmin(c.etapa)}
+        ${c.etapa_actualizada_en ? `<span class="v26-user-region">${tiempoEnEtapaTexto(c.etapa_actualizada_en)}</span>` : ''}
       </div>
       <div class="v26-user-meta">
         ${pillInteresAdmin(c.ultimo_interes)}
