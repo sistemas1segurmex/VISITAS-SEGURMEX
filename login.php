@@ -54,8 +54,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Control de Visitas — Iniciar sesión</title>
 <link rel="icon" type="image/png" href="assets/img/Favv-Segu.png">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="assets/css/style.css">
 <style>
@@ -368,11 +370,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .vlg-orb, .vlg-card::before, .vlg-logo-wrap img, .vlg-card h1, .vlg-btn::after { animation: none !important; }
   }
 
-  /* En móvil, los blur animados saturan el hilo principal en Safari/WebKit
-     y provocan lag al escribir. Se desactivan ahí. */
+  /* En móvil se apagan TODAS las animaciones continuas y el backdrop-filter
+     de la tarjeta. El backdrop-filter es el más caro de todos: el navegador
+     tiene que re-difuminar lo que hay detrás de la tarjeta cada vez que algo
+     cambia dentro de ella (por ejemplo, cada tecla que se escribe), y eso es
+     justo lo que se siente como "tarda en reaccionar" al usar los campos.
+     Se sustituye por un blanco casi sólido -- se ve prácticamente igual pero
+     ya no exige recalcular ese difuminado en cada repintado. */
   @media (max-width: 768px) {
     .vlg-orb { animation: none; filter: blur(60px); }
     .vlg-card::before { animation: none; }
+    .vlg-card {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      background: rgba(255, 255, 255, .94);
+    }
+    .vlg-card h1 { animation: none; }
+    .vlg-btn::after { animation: none; }
+    .vlg-logo-wrap img { animation: none; }
   }
 </style>
 </head>
