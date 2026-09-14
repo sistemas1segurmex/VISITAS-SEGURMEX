@@ -11,19 +11,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // registro_vendedor.php). Combinado con activo=0 en el frontend, marca
     // "pendiente de aprobar" -- distinto de una cuenta real que un admin
     // desactivó a propósito.
-    // conectado: sesión viva ahorita mismo (ver usuarios_sesiones e
-    // includes/auth.php), NO lo mismo que "activo" (que es si la cuenta está
-    // habilitada o no) -- antes el punto verde de la tarjeta reflejaba
-    // "activo" y por eso se veía en verde aunque el usuario llevara horas
-    // sin conectarse.
+    // conectado: sigue con una sesión abierta que no se ha cerrado
+    // explícitamente (ver usuarios.ultima_actividad_en, actualizado en cada
+    // request autenticado por tocarSesionActual() y limpiado al hacer
+    // logout, en includes/helpers.php), NO lo mismo que "activo" (que es si
+    // la cuenta está habilitada o no). La ventana es amplia (12 h) a
+    // propósito: solo para dejar de mostrarlo en verde si de plano lleva
+    // mucho sin usar la app, no para exigir actividad de los últimos minutos
+    // (un vendedor con el celular en reposo un rato sigue "conectado").
     $stmt = $db->query(
         "SELECT u.id, u.nombre, u.email, u.rol, u.telefono, u.estado_operacion, u.activo, u.created_at, u.foto_path,
                 EXISTS(SELECT 1 FROM invitaciones_vendedor iv WHERE iv.usuario_creado_id = u.id) AS es_autoregistro,
-                EXISTS(
-                    SELECT 1 FROM usuarios_sesiones s
-                    WHERE s.usuario_id = u.id
-                      AND s.ultima_actividad >= NOW() - INTERVAL '" . SESION_VENTANA_INACTIVIDAD_MIN . " minutes'
-                ) AS conectado
+                (u.ultima_actividad_en IS NOT NULL
+                    AND u.ultima_actividad_en >= NOW() - INTERVAL '" . CONECTADO_VENTANA_HORAS . " hours') AS conectado
          FROM usuarios u ORDER BY u.rol, u.nombre"
     );
     jsonResponse(['ok' => true, 'usuarios' => $stmt->fetchAll()]);
