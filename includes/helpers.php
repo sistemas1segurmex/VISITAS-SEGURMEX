@@ -451,8 +451,15 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
     } elseif ($prospeccion) {
         $activa    = !$prospeccion['hora_fin'] && $fecha === $hoyFecha;
         $categoria = $activa ? 'prospeccion_activa' : 'prospeccion';
-        $detalle   = substr($prospeccion['hora_inicio'], 11, 5)
-                   . ($prospeccion['hora_fin'] ? '–' . substr($prospeccion['hora_fin'], 11, 5) : ' (en curso)');
+        // hora_inicio/hora_fin son CURRENT_TIMESTAMP en UTC (sesión forzada,
+        // ver includes/db.php) -- antes se tomaban con substr() tal cual,
+        // mostrando la hora UTC cruda en vez de la de México (6h adelantada).
+        // Mismo patrón de conversión que ya usa detectarParadasDia() arriba.
+        $horaInicioMx = (new DateTime($prospeccion['hora_inicio'], $utc))->setTimezone($tzMx)->format('H:i');
+        $horaFinMx    = $prospeccion['hora_fin']
+            ? (new DateTime($prospeccion['hora_fin'], $utc))->setTimezone($tzMx)->format('H:i')
+            : null;
+        $detalle   = $horaInicioMx . ($horaFinMx ? '–' . $horaFinMx : ' (en curso)');
     } elseif (count($clientes) > 0) {
         $categoria = 'cliente';
         $detalle   = count($clientes) . ' cliente(s) nuevo(s)';
