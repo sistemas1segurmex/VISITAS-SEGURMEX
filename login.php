@@ -101,24 +101,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     filter: blur(90px);
     pointer-events: none;
     z-index: 0;
-    animation: vlg-float 13s ease-in-out infinite alternate;
   }
-  .vlg-orb-1 { width: 420px; height: 420px; background: rgba(255, 210, 63,.35); top: -140px; left: -110px; animation-delay: 0s; }
-  .vlg-orb-2 { width: 380px; height: 380px; background: rgba(79,70,229,.25); bottom: -150px; right: -110px; animation-delay: 2s; }
-  .vlg-orb-3 { width: 260px; height: 260px; background: rgba(232, 164, 0,.22); bottom: 12%; left: 6%; animation-delay: 4s; }
-  @keyframes vlg-float {
-    0%   { transform: translate(0, 0) scale(1); }
-    100% { transform: translate(30px, -22px) scale(1.1); }
-  }
+  .vlg-orb-1 { width: 420px; height: 420px; background: rgba(255, 210, 63,.35); top: -140px; left: -110px; }
+  .vlg-orb-2 { width: 380px; height: 380px; background: rgba(79,70,229,.25); bottom: -150px; right: -110px; }
+  .vlg-orb-3 { width: 260px; height: 260px; background: rgba(232, 164, 0,.22); bottom: 12%; left: 6%; }
 
   .vlg-card {
     position: relative;
     z-index: 2;
     width: 100%;
     max-width: 410px;
-    background: rgba(255, 255, 255, 0.72);
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    background: rgba(255, 255, 255, .94);
     border: 1px solid rgba(255,255,255,.6);
     border-radius: 28px;
     padding: 40px 34px 30px;
@@ -126,27 +119,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     opacity: 0;
     animation: vlg-rise .7s cubic-bezier(.22,1,.36,1) .05s both;
   }
-  /* Borde animado tipo "aurora" que gira alrededor de la tarjeta */
+  /* Borde tipo "aurora" alrededor de la tarjeta -- ya no gira: el
+     backdrop-filter y las animaciones continuas (este borde, el brillo del
+     título, el destello del botón, el vaivén del logo) eran lo que hacía
+     que el login tardara en reaccionar al escribir, así que se dejan
+     estáticos en TODAS las pantallas, no solo en móvil. */
   .vlg-card::before {
     content: '';
     position: absolute;
     inset: -1.5px;
     border-radius: 30px;
     padding: 1.5px;
-    background: conic-gradient(from var(--vlg-angle, 0deg), var(--vlg-brand-1), var(--vlg-indigo), var(--vlg-brand-2), var(--vlg-brand-1));
+    background: conic-gradient(from 0deg, var(--vlg-brand-1), var(--vlg-indigo), var(--vlg-brand-2), var(--vlg-brand-1));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     opacity: .55;
     z-index: -1;
-    animation: vlg-spin-border 6s linear infinite;
   }
-  @property --vlg-angle {
-    syntax: '<angle>';
-    initial-value: 0deg;
-    inherits: false;
-  }
-  @keyframes vlg-spin-border { to { --vlg-angle: 360deg; } }
 
   @keyframes vlg-rise {
     from { opacity: 0; transform: translateY(22px) scale(.96); }
@@ -162,11 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     height: 46px;
     width: auto;
     display: block;
-    animation: vlg-bob 4s ease-in-out infinite;
-  }
-  @keyframes vlg-bob {
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    50%      { transform: translateY(-6px) rotate(-1.5deg); }
   }
 
   .vlg-card h1 {
@@ -181,10 +166,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    animation: vlg-shine 5s linear infinite;
-  }
-  @keyframes vlg-shine {
-    to { background-position: -220% center; }
   }
   .vlg-sub {
     text-align: center;
@@ -318,20 +299,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     opacity: 0;
     animation: vlg-rise .55s cubic-bezier(.22,1,.36,1) .34s both;
   }
-  .vlg-btn::after {
-    content: '';
-    position: absolute;
-    top: 0; left: -60%;
-    width: 40%; height: 100%;
-    background: linear-gradient(120deg, transparent, rgba(255,255,255,.55), transparent);
-    transform: skewX(-20deg);
-    animation: vlg-shine-sweep 3.2s ease-in-out infinite;
-  }
-  @keyframes vlg-shine-sweep {
-    0%   { left: -60%; }
-    45%  { left: 130%; }
-    100% { left: 130%; }
-  }
   .vlg-btn:hover { transform: translateY(-2px); box-shadow: 0 18px 36px -10px rgba(232, 164, 0, .6); }
   .vlg-btn:active { transform: scale(.97); }
   .vlg-btn:disabled { opacity: .8 !important; cursor: default; transform: none; }
@@ -367,27 +334,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .vlg-orb, .vlg-card::before, .vlg-logo-wrap img, .vlg-card h1, .vlg-btn::after { animation: none !important; }
-  }
-
-  /* En móvil se apagan TODAS las animaciones continuas y el backdrop-filter
-     de la tarjeta. El backdrop-filter es el más caro de todos: el navegador
-     tiene que re-difuminar lo que hay detrás de la tarjeta cada vez que algo
-     cambia dentro de ella (por ejemplo, cada tecla que se escribe), y eso es
-     justo lo que se siente como "tarda en reaccionar" al usar los campos.
-     Se sustituye por un blanco casi sólido -- se ve prácticamente igual pero
-     ya no exige recalcular ese difuminado en cada repintado. */
-  @media (max-width: 768px) {
-    .vlg-orb { animation: none; filter: blur(60px); }
-    .vlg-card::before { animation: none; }
-    .vlg-card {
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-      background: rgba(255, 255, 255, .94);
-    }
-    .vlg-card h1 { animation: none; }
-    .vlg-btn::after { animation: none; }
-    .vlg-logo-wrap img { animation: none; }
+    .vlg-card, .vlg-field, .vlg-btn, .vlg-trust, .vlg-error { animation: none !important; opacity: 1 !important; }
   }
 </style>
 </head>
