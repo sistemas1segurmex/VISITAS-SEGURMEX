@@ -508,6 +508,11 @@
 .v26-stat-label { font-size: .64rem; color: var(--v26-ink-soft); font-weight: 700; text-transform: uppercase; letter-spacing: .02em; margin-top: 2px; }
 .v26-stat-card--verde .v26-stat-num { color: var(--v26-green); }
 .v26-stat-card--ambar .v26-stat-num { color: var(--v26-brand-2); }
+.v26-stat-card--azul .v26-stat-num  { color: var(--v26-blue); }
+/* "Mis clientes" tiene 4 tarjetas (Clientes/Prospectos/Con GPS/Visitados) --
+   2x2 se lee mejor en pantalla angosta que 3+1. No se toca la regla base de
+   .v26-stats-row: "Inicio" (#stats-inicio) sigue con sus 3 de siempre. */
+#stats-row { grid-template-columns: repeat(2, 1fr); }
 
 /* ---------- Avatar con anillo degradado (iniciales de cliente/vendedor) ---------- */
 .v26-avatar-ring {

@@ -123,11 +123,17 @@ function soloDigitos(tel) { return (tel || '').replace(/\D/g, ''); }
 // ---------- Estadísticas de la cartera ----------
 function renderStats(lista) {
   const cont = document.getElementById('stats-row');
+  // Mismo criterio que el panel admin: "Clientes" = ya convertidos,
+  // "Prospectos" = el resto del embudo (contacto establecido, propuesta
+  // enviada, etc. -- ver ETAPAS_CLIENTE).
+  const clientes = lista.filter(c => (c.etapa || 'prospecto_agregado') === 'convertido').length;
+  const prospectos = lista.length - clientes;
   const conGps = lista.filter(c => c.lat).length;
   const inicioMes = new Date(); inicioMes.setDate(1); inicioMes.setHours(0, 0, 0, 0);
   const visitadosEsteMes = lista.filter(c => c.ultima_visita && new Date(c.ultima_visita.replace(' ', 'T')) >= inicioMes).length;
   cont.innerHTML = `
-    <div class="v26-stat-card"><div class="v26-stat-num" data-cuenta="${lista.length}">0</div><div class="v26-stat-label">Clientes</div></div>
+    <div class="v26-stat-card"><div class="v26-stat-num" data-cuenta="${clientes}">0</div><div class="v26-stat-label">Clientes</div></div>
+    <div class="v26-stat-card v26-stat-card--azul"><div class="v26-stat-num" data-cuenta="${prospectos}">0</div><div class="v26-stat-label">Prospectos</div></div>
     <div class="v26-stat-card v26-stat-card--verde"><div class="v26-stat-num" data-cuenta="${conGps}">0</div><div class="v26-stat-label">Con GPS</div></div>
     <div class="v26-stat-card v26-stat-card--ambar"><div class="v26-stat-num" data-cuenta="${visitadosEsteMes}">0</div><div class="v26-stat-label">Visitados este mes</div></div>
   `;
