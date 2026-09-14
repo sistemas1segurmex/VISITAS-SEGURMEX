@@ -437,30 +437,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <p class="vlg-foot">© <?= date('Y') ?> Segurmex — Sistema de Control de Visitas</p>
   </div>
 
-<script src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 <script>
-  // Fondo de partículas suaves en los colores de marca (degrada con elegancia si el CDN falla)
-  // Se omite en móvil: en Safari/Chrome de iOS el canvas animado compite por el
-  // hilo principal y provoca lag notable al escribir en los campos.
-  if (window.tsParticles && window.matchMedia('(min-width: 769px)').matches) {
-    tsParticles.load('vlg-particles', {
-      fpsLimit: 60,
-      particles: {
-        number: { value: 46, density: { enable: true, area: 900 } },
-        color: { value: ['#FFD23F', '#E8A400', '#4F46E5'] },
-        shape: { type: 'circle' },
-        opacity: { value: { min: 0.15, max: 0.45 } },
-        size: { value: { min: 1, max: 4 } },
-        links: { enable: true, distance: 130, color: '#FFD23F', opacity: 0.12, width: 1 },
-        move: { enable: true, speed: 0.7, direction: 'none', random: true, outModes: { default: 'out' } }
-      },
-      interactivity: {
-        events: { onHover: { enable: true, mode: 'repulse' }, resize: true },
-        modes: { repulse: { distance: 90, duration: 0.4 } }
-      },
-      detectRetina: true
-    });
+  // En móvil ni siquiera se descargan tsParticles/GSAP -- antes se cargaban
+  // siempre y solo se apagaban por CSS/JS, así que el celular igual pagaba
+  // el costo de red y de parsear ~150 KB de JS para un efecto que de todos
+  // modos no se usaba ahí. El resto del código ya revisa `window.gsap` /
+  // `window.tsParticles` antes de usarlos, así que no cargarlos en móvil no
+  // rompe nada -- simplemente no hay pop de ícono ni efecto magnético del
+  // botón, que de cualquier forma no aplican bien a pantallas táctiles.
+  if (window.matchMedia('(min-width: 769px)').matches) {
+    const scriptParticles = document.createElement('script');
+    scriptParticles.src = 'https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js';
+    scriptParticles.onload = () => {
+      if (!window.tsParticles) return;
+      tsParticles.load('vlg-particles', {
+        fpsLimit: 60,
+        particles: {
+          number: { value: 46, density: { enable: true, area: 900 } },
+          color: { value: ['#FFD23F', '#E8A400', '#4F46E5'] },
+          shape: { type: 'circle' },
+          opacity: { value: { min: 0.15, max: 0.45 } },
+          size: { value: { min: 1, max: 4 } },
+          links: { enable: true, distance: 130, color: '#FFD23F', opacity: 0.12, width: 1 },
+          move: { enable: true, speed: 0.7, direction: 'none', random: true, outModes: { default: 'out' } }
+        },
+        interactivity: {
+          events: { onHover: { enable: true, mode: 'repulse' }, resize: true },
+          modes: { repulse: { distance: 90, duration: 0.4 } }
+        },
+        detectRetina: true
+      });
+    };
+    document.body.appendChild(scriptParticles);
+
+    const scriptGsap = document.createElement('script');
+    scriptGsap.src = 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js';
+    document.body.appendChild(scriptGsap);
   }
 
   document.querySelectorAll('.vlg-field input').forEach((inp) => {
