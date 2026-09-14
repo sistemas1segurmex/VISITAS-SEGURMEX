@@ -291,7 +291,7 @@ function renderCtaProspeccion(paradas) {
     <a href="prospeccion.php" class="v26-cta">
       <span class="v26-cta-icon"><i class="bi bi-signpost-2-fill"></i></span>
       <span class="v26-cta-text">
-        <strong>Salí a buscar clientes</strong>
+        <strong>Salí a buscar prospectos</strong>
         <small>${cerradas.length > 0 ? `${cerradas.length} parada(s) registrada(s) hoy` : 'Registra tu recorrido de hoy'}</small>
       </span>
       <i class="bi bi-chevron-right chev"></i>

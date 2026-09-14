@@ -236,6 +236,7 @@ let filtroRolActivo = '';
 
 function tarjetaUsuario(u, i) {
   const activo = u.activo == 1;
+  const conectado = u.conectado == true || u.conectado == 1;
   const pendiente = u.es_autoregistro && !activo;
   const avatarContenido = u.foto_path ? `<img src="../${u.foto_path}" alt="">` : iniciales(u.nombre);
   const estiloAvatar = u.foto_path ? '' : `background:${colorAvatar(u.id)};color:#fff`;
@@ -244,7 +245,7 @@ function tarjetaUsuario(u, i) {
       <div class="v26-user-top">
         <div class="v26-avatar-ring">
           <div class="inner" style="${estiloAvatar}">${avatarContenido}</div>
-          <span class="v26-status-dot ${activo ? 'pulso' : 'off'}"></span>
+          <span class="v26-status-dot ${conectado ? 'pulso' : 'off'}" title="${conectado ? 'Conectado' : 'Desconectado'}"></span>
         </div>
         <div class="flex-grow-1" style="min-width:0">
           <div class="v26-user-nombre">${u.nombre}</div>
