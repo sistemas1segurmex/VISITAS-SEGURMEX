@@ -763,8 +763,18 @@ function resumenProspeccionRango(PDO $db, int $vendedorId, string $desde, string
         if (isset($prospeccionPorDia[$f])) {
             $p = $prospeccionPorDia[$f];
             $activa = $p['abierta'] && $f === $hoyFecha;
-            $detalle = $p['n'] > 1 ? $p['n'] . ' parada(s)' : substr($p['primera_hora_inicio'], 11, 5)
-                . ($p['ultima_hora_fin'] ? '–' . substr($p['ultima_hora_fin'], 11, 5) : ' (en curso)');
+            if ($p['n'] > 1) {
+                $detalle = $p['n'] . ' parada(s)';
+            } else {
+                // hora_inicio/hora_fin son CURRENT_TIMESTAMP en UTC (sesión forzada,
+                // ver includes/db.php) -- deben convertirse a hora de México antes
+                // de mostrarse, igual que en resumenDiaVendedor() arriba.
+                $horaInicioMx = (new DateTime($p['primera_hora_inicio'], $utc))->setTimezone($tzMx)->format('H:i');
+                $horaFinMx    = $p['ultima_hora_fin']
+                    ? (new DateTime($p['ultima_hora_fin'], $utc))->setTimezone($tzMx)->format('H:i')
+                    : null;
+                $detalle = $horaInicioMx . ($horaFinMx ? '–' . $horaFinMx : ' (en curso)');
+            }
             $cats[] = ['categoria' => $activa ? 'prospeccion_activa' : 'prospeccion', 'detalle' => $detalle];
         }
         if (!empty($clientesPorDia[$f])) {
