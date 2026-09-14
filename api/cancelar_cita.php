@@ -21,7 +21,11 @@ if (!$citaId) {
     jsonResponse(['ok' => false, 'error' => 'Cita no válida'], 400);
 }
 
-$stmt = $db->prepare('SELECT id, estado FROM citas WHERE id = ? AND vendedor_id = ?');
+$stmt = $db->prepare(
+    'SELECT c.id, c.estado, cl.nombre AS cliente_nombre FROM citas c
+     JOIN clientes cl ON cl.id = c.cliente_id
+     WHERE c.id = ? AND c.vendedor_id = ?'
+);
 $stmt->execute([$citaId, $u['id']]);
 $cita = $stmt->fetch();
 
@@ -35,5 +39,10 @@ if ($cita['estado'] !== 'pendiente') {
 
 $db->prepare('UPDATE citas SET estado = ?, motivo = ? WHERE id = ?')
    ->execute(['cancelada', $motivo !== '' ? $motivo : null, $citaId]);
+
+registrarCambio($db, $u['id'], 'cita', $citaId, 'baja', "Canceló la cita con {$cita['cliente_nombre']}", [
+    'Estado' => ['Pendiente', 'Cancelada'],
+    'Motivo' => [null, $motivo !== '' ? $motivo : null],
+]);
 
 jsonResponse(['ok' => true]);

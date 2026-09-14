@@ -20,9 +20,10 @@ if (!$id) {
     jsonResponse(['ok' => false, 'error' => 'Cliente no válido'], 400);
 }
 
-$stmt = $db->prepare('SELECT id FROM clientes WHERE id = ? AND vendedor_id = ?');
+$stmt = $db->prepare('SELECT * FROM clientes WHERE id = ? AND vendedor_id = ?');
 $stmt->execute([$id, $u['id']]);
-if (!$stmt->fetch()) {
+$antes = $stmt->fetch();
+if (!$antes) {
     jsonResponse(['ok' => false, 'error' => 'Cliente no encontrado'], 404);
 }
 
@@ -62,5 +63,21 @@ $stmt->execute([
     $codigoPostal ?: null, $estado ?: null, $municipio ?: null, $colonia ?: null, $tipoCliente, $nombreContacto ?: null,
     $id, $u['id'],
 ]);
+
+// Bitácora del admin: solo se anotan los campos que de verdad cambiaron
+// (comparados contra la fila leída antes del UPDATE), no toda la tarjeta.
+$campos = [
+    'Nombre'     => [$antes['nombre'], $nombre],
+    'Dirección'  => [$antes['direccion'], $direccion],
+    'Teléfono'   => [$antes['telefono'], $telefono],
+    'Contacto'   => [$antes['nombre_contacto'], $nombreContacto ?: null],
+];
+$diff = [];
+foreach ($campos as $etiqueta => [$antesValor, $despuesValor]) {
+    if ((string)$antesValor !== (string)$despuesValor) $diff[$etiqueta] = [$antesValor, $despuesValor];
+}
+if ($diff) {
+    registrarCambio($db, $u['id'], 'cliente', $id, 'edicion', "Editó al cliente {$nombre}", $diff);
+}
 
 jsonResponse(['ok' => true]);

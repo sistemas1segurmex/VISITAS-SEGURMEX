@@ -97,6 +97,76 @@ function jsonResponse($data, int $code = 200) {
     exit;
 }
 
+// ---------------------------------------------------------------------
+// Bitácora para el panel admin (ver supabase/migrations/
+// 20260914120000_bitacora_cambios_accesos.sql y api/admin_bitacora.php).
+// Dos tablas insert-only, separadas de usuarios_sesiones (esa se limpia
+// sola): aquí nadie borra filas, es el historial de verdad.
+// ---------------------------------------------------------------------
+
+/**
+ * Registra un evento de alta/edición/baja que hace un vendedor sobre
+ * clientes, citas, cotizaciones o muestras -- para la pestaña "Cambios" de
+ * la bitácora del admin. $cambios es opcional: un arreglo asociativo
+ * {campo: [valor_anterior, valor_nuevo]} para poder pintar el diff; se deja
+ * en NULL cuando el $resumen ya cuenta toda la historia (p.ej. una alta
+ * simple). Nunca truena el flujo del vendedor si falla -- es auditoría, no
+ * una condición de negocio.
+ */
+function registrarCambio(PDO $db, int $vendedorId, string $entidad, ?int $entidadId, string $accion, string $resumen, ?array $cambios = null): void {
+    try {
+        $stmt = $db->prepare(
+            'INSERT INTO bitacora_cambios (vendedor_id, entidad, entidad_id, accion, resumen, cambios)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $vendedorId, $entidad, $entidadId, $accion, $resumen,
+            $cambios ? json_encode($cambios, JSON_UNESCAPED_UNICODE) : null,
+        ]);
+    } catch (Throwable $e) {
+        error_log('[VISITAS] registrarCambio: ' . $e->getMessage());
+    }
+}
+
+// Mismas etiquetas que ETAPAS_CLIENTE_ADMIN en admin_vendedor_detalle.js /
+// ETAPAS_CLIENTE en vendedor.js -- duplicado a propósito (mismo criterio que
+// esos dos archivos, ver su comentario), solo para armar el texto legible
+// de la bitácora en el servidor (api/cambiar_etapa.php).
+function etiquetaEtapa(string $valor): string {
+    $etiquetas = [
+        'prospecto_agregado'   => 'Prospecto',
+        'contacto_establecido' => 'Contacto establecido',
+        'reunion_presentacion' => 'Reunión de presentación',
+        'propuesta_enviada'    => 'Propuesta enviada',
+        'convertido'           => 'Convertido',
+        'perdido'              => 'Perdido',
+    ];
+    return $etiquetas[$valor] ?? $valor;
+}
+
+/**
+ * Registra un intento de login (login.php), correcto o no, para la pestaña
+ * "Accesos" de la bitácora del admin. $usuarioId puede ser null si el
+ * correo ni siquiera existe. Este historial es permanente -- no confundir
+ * con usuarios_sesiones, que es solo "quién sigue conectado ahorita" y se
+ * borra al cerrar sesión o por inactividad.
+ */
+function registrarAcceso(PDO $db, ?int $usuarioId, string $emailIntentado, string $resultado, ?string $motivo = null): void {
+    try {
+        $stmt = $db->prepare(
+            'INSERT INTO usuarios_accesos_historial (usuario_id, email_intentado, resultado, motivo, ip, user_agent)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $usuarioId, $emailIntentado, $resultado, $motivo,
+            $_SERVER['REMOTE_ADDR'] ?? null,
+            substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255),
+        ]);
+    } catch (Throwable $e) {
+        error_log('[VISITAS] registrarAcceso: ' . $e->getMessage());
+    }
+}
+
 /**
  * Para romper el caché del navegador en CSS/JS propios: agrega ?v=<fecha de
  * modificación del archivo> a la URL, así el navegador solo vuelve a pedir

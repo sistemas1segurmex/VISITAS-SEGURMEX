@@ -61,15 +61,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         jsonResponse(['ok' => false, 'error' => 'No puedes agendar una cita en una fecha pasada'], 400);
     }
 
-    $chk = $db->prepare('SELECT id FROM clientes WHERE id = ? AND vendedor_id = ?');
+    $chk = $db->prepare('SELECT id, nombre FROM clientes WHERE id = ? AND vendedor_id = ?');
     $chk->execute([$clienteId, $u['id']]);
-    if (!$chk->fetch()) {
+    $cliente = $chk->fetch();
+    if (!$cliente) {
         jsonResponse(['ok' => false, 'error' => 'Cliente no válido'], 400);
     }
 
     $stmt = $db->prepare('INSERT INTO citas (vendedor_id, cliente_id, fecha_hora, notas) VALUES (?,?,?,?)');
     $stmt->execute([$u['id'], $clienteId, $fechaHora, $notas]);
-    jsonResponse(['ok' => true, 'id' => $db->lastInsertId()]);
+    $nuevaId = (int)$db->lastInsertId();
+    registrarCambio($db, $u['id'], 'cita', $nuevaId, 'alta', "Agendó una cita con {$cliente['nombre']}", [
+        'Fecha y hora' => [null, str_replace('T', ' ', $fechaHora)],
+    ]);
+    jsonResponse(['ok' => true, 'id' => $nuevaId]);
 }
 
 jsonResponse(['ok' => false, 'error' => 'Método no soportado'], 405);

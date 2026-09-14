@@ -32,9 +32,10 @@ if (!in_array($etapa, $ETAPAS_VALIDAS, true)) {
     jsonResponse(['ok' => false, 'error' => 'Etapa no válida'], 400);
 }
 
-$stmt = $db->prepare('SELECT id FROM clientes WHERE id = ? AND vendedor_id = ?');
+$stmt = $db->prepare('SELECT nombre, etapa FROM clientes WHERE id = ? AND vendedor_id = ?');
 $stmt->execute([$clienteId, $u['id']]);
-if (!$stmt->fetch()) {
+$cliente = $stmt->fetch();
+if (!$cliente) {
     jsonResponse(['ok' => false, 'error' => 'Cliente no encontrado'], 404);
 }
 
@@ -47,5 +48,16 @@ $db->prepare(
     'UPDATE clientes SET etapa = ?, etapa_actualizada_en = CURRENT_TIMESTAMP, etapa_perdido_motivo = ?
      WHERE id = ? AND vendedor_id = ?'
 )->execute([$etapa, $motivoPerdido, $clienteId, $u['id']]);
+
+// Bitácora del admin: "baja" cuando se marca perdido, "edición" para
+// cualquier otro movimiento del embudo (incluyendo llegar a "convertido" --
+// sigue siendo el mismo registro, no uno nuevo).
+$accionBitacora = $etapa === 'perdido' ? 'baja' : 'edicion';
+$resumenBitacora = $etapa === 'perdido'
+    ? "Marcó como perdido al cliente {$cliente['nombre']}"
+    : "Cambió de etapa al cliente {$cliente['nombre']}";
+$diff = ['Etapa' => [etiquetaEtapa($cliente['etapa']), etiquetaEtapa($etapa)]];
+if ($motivoPerdido) $diff['Motivo'] = [null, $motivoPerdido];
+registrarCambio($db, $u['id'], 'cliente', $clienteId, $accionBitacora, $resumenBitacora, $diff);
 
 jsonResponse(['ok' => true]);

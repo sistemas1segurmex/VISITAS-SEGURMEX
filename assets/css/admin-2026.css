@@ -626,4 +626,87 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 /* ---------- Modal de foto (lightbox), se ve sin salir de la pagina ---------- */
 .v26-foto-modal-dialog { max-width: 560px; }
 .v26-foto-modal-content { background: rgba(20,23,31,.94); border-radius: var(--v26-r-lg); border: none; }
+
+/* ============================================================
+   Bitácora (admin/bitacora.php): historial de cambios (altas/
+   ediciones/bajas) e historial de accesos. Reusa .v26-toolbar,
+   .v26-search-box, .v26-segmented y .v26-stat-card de arriba --
+   solo se agrega lo propio de esta pantalla: el <select> de
+   filtros, la línea de tiempo de eventos con su diff, y la tabla
+   de accesos.
+   ============================================================ */
+.v26-pill--neutro { background: rgba(107,114,128,.1); color: var(--v26-gray); }
+
+.v26-select {
+  font: inherit; font-size: .82rem; font-weight: 600; color: var(--v26-ink);
+  background: var(--v26-surface-solid); border: 1px solid var(--v26-border); border-radius: var(--v26-r-pill);
+  padding: 9px 30px 9px 16px; box-shadow: var(--v26-shadow-sm); cursor: pointer; appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" stroke="%236B7280" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>');
+  background-repeat: no-repeat; background-position: right 12px center;
+}
+
+.v26-dia-header {
+  display: flex; align-items: center; gap: 10px; margin: 22px 0 12px; color: var(--v26-ink-soft);
+  font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .07em;
+}
+.v26-dia-header::after { content: ''; flex: 1; height: 1px; background: var(--v26-border); }
+.v26-dia-header:first-child { margin-top: 0; }
+
+.v26-evento {
+  display: flex; gap: 12px; background: rgba(255,255,255,.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--v26-border); border-radius: var(--v26-r-lg); padding: 14px 16px; margin-bottom: 10px;
+  box-shadow: var(--v26-shadow-sm); position: relative; overflow: hidden;
+  animation: v26-card-in .4s var(--v26-ease) backwards;
+}
+.v26-evento::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+.v26-evento--alta::before    { background: var(--v26-green); }
+.v26-evento--edicion::before { background: var(--v26-blue); }
+.v26-evento--baja::before    { background: var(--v26-red); }
+.v26-evento-icon { width: 36px; height: 36px; border-radius: 11px; flex: none; display: flex; align-items: center; justify-content: center; }
+.v26-evento--alta .v26-evento-icon    { background: rgba(22,163,74,.12); color: var(--v26-green); }
+.v26-evento--edicion .v26-evento-icon { background: rgba(79,70,229,.12); color: var(--v26-blue); }
+.v26-evento--baja .v26-evento-icon    { background: rgba(225,29,72,.1);  color: var(--v26-red); }
+.v26-evento-body { flex: 1; min-width: 0; }
+.v26-evento-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.v26-evento-texto { font-size: .92rem; line-height: 1.45; }
+.v26-evento-hora { font-size: .72rem; color: var(--v26-ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.v26-evento-meta { display: flex; align-items: center; gap: 8px; margin-top: 7px; flex-wrap: wrap; }
+
+.v26-toggle-detalle {
+  background: none; border: none; cursor: pointer; font: inherit; font-size: .74rem; font-weight: 700;
+  color: var(--v26-blue); display: inline-flex; align-items: center; gap: 4px; padding: 3px 0;
+}
+.v26-toggle-detalle i { transition: transform .2s var(--v26-ease); }
+.v26-evento.abierto .v26-toggle-detalle i { transform: rotate(180deg); }
+.v26-detalle-diff { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--v26-border); font-size: .82rem; color: var(--v26-ink-soft); }
+.v26-evento.abierto .v26-detalle-diff { display: block; }
+.v26-diff-fila { display: flex; align-items: center; gap: 8px; padding: 4px 0; flex-wrap: wrap; }
+.v26-diff-fila b { color: var(--v26-ink); font-weight: 700; min-width: 96px; }
+.v26-diff-antes  { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; text-decoration: line-through; color: var(--v26-red); background: rgba(225,29,72,.1); padding: 2px 7px; border-radius: 6px; }
+.v26-diff-flecha { color: var(--v26-ink-soft); }
+.v26-diff-despues{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; color: var(--v26-green); background: rgba(22,163,74,.12); padding: 2px 7px; border-radius: 6px; }
+
+/* ---------- Tabla de accesos ---------- */
+.v26-tabla-wrap { overflow-x: auto; border: 1px solid var(--v26-border); border-radius: var(--v26-r-lg); box-shadow: var(--v26-shadow-sm); background: var(--v26-surface-solid); }
+table.v26-tabla-accesos { width: 100%; border-collapse: collapse; min-width: 720px; }
+table.v26-tabla-accesos th {
+  text-align: left; font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--v26-ink-soft); padding: 12px 16px; border-bottom: 1px solid var(--v26-border); white-space: nowrap;
+}
+table.v26-tabla-accesos td { padding: 12px 16px; border-bottom: 1px solid var(--v26-border); font-size: .85rem; vertical-align: middle; }
+table.v26-tabla-accesos tr:last-child td { border-bottom: none; }
+table.v26-tabla-accesos tr.fallido { background: rgba(225,29,72,.06); }
+.v26-vendedor-cel { display: flex; align-items: center; gap: 9px; }
+.v26-vendedor-cel .avatar { width: 30px; height: 30px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .72rem; }
+.v26-vendedor-sub { font-size: .72rem; color: var(--v26-ink-soft); }
+.v26-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; color: var(--v26-ink-soft); }
+.v26-pill-resultado { display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 700; padding: 4px 10px; border-radius: var(--v26-r-pill); }
+.v26-pill-resultado.ok { background: rgba(22,163,74,.12); color: var(--v26-green); }
+.v26-pill-resultado.no { background: rgba(225,29,72,.1);  color: var(--v26-red); }
+.v26-flag-sospecha {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-size: .64rem; font-weight: 800;
+  color: var(--v26-red); background: rgba(225,29,72,.1); padding: 2px 7px; border-radius: var(--v26-r-pill); text-transform: uppercase; letter-spacing: .03em;
+}
+.v26-duracion-activa { color: var(--v26-green); font-weight: 700; }
+.v26-sin-resultados { text-align: center; padding: 30px 0; color: var(--v26-ink-soft); }
 .v26-foto-modal-img { max-width: 100%; max-height: 70vh; border-radius: var(--v26-r-md); }
