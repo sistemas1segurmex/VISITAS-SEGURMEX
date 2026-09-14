@@ -23,6 +23,17 @@ function iniciales(nombre) {
 const PALETA_AVATAR = ['#4F46E5', '#F5A623', '#16A34A', '#E11D48', '#0EA5E9', '#9333EA', '#D97706', '#0891B2'];
 function colorAvatar(id) { return PALETA_AVATAR[id % PALETA_AVATAR.length]; }
 
+// Convierte "YYYY-MM-DD HH:MM:SS" en UTC (así la devuelve Postgres con la
+// sesión forzada a UTC, ver includes/db.php) a "HH:MM" en hora local. Para
+// cualquier timestamp que venga de CURRENT_TIMESTAMP/NOW() -- NO para
+// fecha_hora de citas, que se guarda tal cual la escribió el vendedor en su
+// hora local (ver nueva_cita.php) y no debe convertirse dos veces.
+function horaLocalDesdeUTC(fechaUtc) {
+  const d = new Date(String(fechaUtc).replace(' ', 'T') + 'Z');
+  if (isNaN(d.getTime())) return String(fechaUtc).slice(11, 16);
+  return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+}
+
 // Convierte "YYYY-MM-DD HH:MM:SS" en UTC (así se guarda tracking_ubicaciones,
 // ver includes/db.php) a un texto relativo tipo "hace 12 min" / "ayer 6:45pm",
 // para poder decir dónde estuvo un vendedor aunque ya no esté activo ahorita.
@@ -570,8 +581,13 @@ function renderDiaDetalle(data) {
   }
 
   if (data.prospeccion) {
-    const ini = String(data.prospeccion.hora_inicio).slice(11, 16);
-    const fin = data.prospeccion.hora_fin ? String(data.prospeccion.hora_fin).slice(11, 16) : null;
+    // hora_inicio/hora_fin salen de CURRENT_TIMESTAMP en Postgres con la
+    // sesion forzada a UTC (ver includes/db.php) -- hay que convertirlas a
+    // hora local igual que en ultimaConexionTexto(), no tomar el texto tal
+    // cual con slice() como se hacia antes (eso mostraba la hora UTC directo,
+    // 6 horas adelantada de la hora real en México).
+    const ini = horaLocalDesdeUTC(data.prospeccion.hora_inicio);
+    const fin = data.prospeccion.hora_fin ? horaLocalDesdeUTC(data.prospeccion.hora_fin) : null;
     partes.push(`
       <h6 class="mt-4 mb-2">Jornada de prospección</h6>
       <div class="v26-prosp-banner v26-prosp-banner--prospeccion">
