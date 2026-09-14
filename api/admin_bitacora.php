@@ -84,7 +84,7 @@ if ($accion === 'cambios') {
 
     if ($vendedorId) { $where[] = 'bc.vendedor_id = ?'; $params[] = $vendedorId; }
     if (in_array($tipoAccion, ['alta', 'edicion', 'baja'], true)) { $where[] = 'bc.accion = ?'; $params[] = $tipoAccion; }
-    if (in_array($entidad, ['cliente', 'cita', 'cotizacion', 'muestra'], true)) { $where[] = 'bc.entidad = ?'; $params[] = $entidad; }
+    if (in_array($entidad, ['cliente', 'cita', 'cotizacion', 'muestra', 'prospeccion'], true)) { $where[] = 'bc.entidad = ?'; $params[] = $entidad; }
     if ($q !== '') { $where[] = '(bc.resumen ILIKE ? OR u.nombre ILIKE ?)'; $params[] = "%$q%"; $params[] = "%$q%"; }
     if ($dias = filtroDias()) { $where[] = "bc.creado_en >= NOW() - $dias"; }
 

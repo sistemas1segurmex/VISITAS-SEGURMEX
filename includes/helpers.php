@@ -479,9 +479,12 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
     $stmt->execute([$vendedorId, $fecha]);
     $citas = $stmt->fetchAll();
 
-    $stmt = $db->prepare('SELECT fecha, hora_inicio, hora_fin FROM prospecciones WHERE vendedor_id = ? AND fecha = ?');
+    // Puede haber varias paradas de prospección el mismo día (ver migración
+    // 20260914130000_prospecciones_paradas.sql) -- se traen todas, ordenadas
+    // por hora, para el detalle del día en el admin.
+    $stmt = $db->prepare('SELECT * FROM prospecciones WHERE vendedor_id = ? AND fecha = ? ORDER BY hora_inicio ASC');
     $stmt->execute([$vendedorId, $fecha]);
-    $prospeccion = $stmt->fetch() ?: null;
+    $paradasProspeccion = $stmt->fetchAll();
 
     $stmt = $db->prepare(
         'SELECT id, nombre, direccion, created_at FROM clientes
@@ -518,18 +521,23 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
     if (count($citas) > 0) {
         $categoria = 'cita';
         $detalle   = count($citas) . ' cita(s)';
-    } elseif ($prospeccion) {
-        $activa    = !$prospeccion['hora_fin'] && $fecha === $hoyFecha;
+    } elseif (count($paradasProspeccion) > 0) {
+        $activa    = !empty(array_filter($paradasProspeccion, fn($p) => !$p['hora_fin'])) && $fecha === $hoyFecha;
         $categoria = $activa ? 'prospeccion_activa' : 'prospeccion';
-        // hora_inicio/hora_fin son CURRENT_TIMESTAMP en UTC (sesión forzada,
-        // ver includes/db.php) -- antes se tomaban con substr() tal cual,
-        // mostrando la hora UTC cruda en vez de la de México (6h adelantada).
-        // Mismo patrón de conversión que ya usa detectarParadasDia() arriba.
-        $horaInicioMx = (new DateTime($prospeccion['hora_inicio'], $utc))->setTimezone($tzMx)->format('H:i');
-        $horaFinMx    = $prospeccion['hora_fin']
-            ? (new DateTime($prospeccion['hora_fin'], $utc))->setTimezone($tzMx)->format('H:i')
-            : null;
-        $detalle   = $horaInicioMx . ($horaFinMx ? '–' . $horaFinMx : ' (en curso)');
+        if (count($paradasProspeccion) > 1) {
+            $detalle = count($paradasProspeccion) . ' parada(s)';
+        } else {
+            // hora_inicio/hora_fin son CURRENT_TIMESTAMP en UTC (sesión forzada,
+            // ver includes/db.php) -- antes se tomaban con substr() tal cual,
+            // mostrando la hora UTC cruda en vez de la de México (6h adelantada).
+            // Mismo patrón de conversión que ya usa detectarParadasDia() arriba.
+            $p = $paradasProspeccion[0];
+            $horaInicioMx = (new DateTime($p['hora_inicio'], $utc))->setTimezone($tzMx)->format('H:i');
+            $horaFinMx    = $p['hora_fin']
+                ? (new DateTime($p['hora_fin'], $utc))->setTimezone($tzMx)->format('H:i')
+                : null;
+            $detalle = $horaInicioMx . ($horaFinMx ? '–' . $horaFinMx : ' (en curso)');
+        }
     } elseif (count($clientes) > 0) {
         $categoria = 'cliente';
         $detalle   = count($clientes) . ' cliente(s) nuevo(s)';
@@ -546,7 +554,7 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
         'categoria'   => $categoria,
         'detalle'     => $detalle,
         'citas'       => $citas,
-        'prospeccion' => $prospeccion,
+        'prospecciones' => $paradasProspeccion,
         'clientes'    => $clientes,
         'ubicaciones' => ['total' => (int)$ubic['n'], 'primera' => $ubic['primera'], 'ultima' => $ubic['ultima'], 'lugar' => $lugarDia],
         'paradas'     => $paradas,
@@ -676,10 +684,21 @@ function resumenProspeccionRango(PDO $db, int $vendedorId, string $desde, string
     $stmt->execute([$vendedorId, $desde, $finFecha]);
     foreach ($stmt->fetchAll() as $r) { $citasPorDia[$r['dia']] = (int)$r['n']; }
 
+    // Ahora puede haber VARIAS paradas el mismo día (ver migración
+    // 20260914130000_prospecciones_paradas.sql) -- se agrupan por fecha:
+    // cuántas hay, la más antigua (para la hora que se muestra) y si alguna
+    // sigue abierta (sin hora_fin).
     $prospeccionPorDia = [];
-    $stmt = $db->prepare('SELECT fecha, hora_inicio, hora_fin FROM prospecciones WHERE vendedor_id = ? AND fecha BETWEEN ? AND ?');
+    $stmt = $db->prepare('SELECT fecha, hora_inicio, hora_fin FROM prospecciones WHERE vendedor_id = ? AND fecha BETWEEN ? AND ? ORDER BY hora_inicio ASC');
     $stmt->execute([$vendedorId, $desde, $finFecha]);
-    foreach ($stmt->fetchAll() as $r) { $prospeccionPorDia[$r['fecha']] = $r; }
+    foreach ($stmt->fetchAll() as $r) {
+        if (!isset($prospeccionPorDia[$r['fecha']])) {
+            $prospeccionPorDia[$r['fecha']] = ['n' => 0, 'primera_hora_inicio' => $r['hora_inicio'], 'ultima_hora_fin' => $r['hora_fin'], 'abierta' => false];
+        }
+        $prospeccionPorDia[$r['fecha']]['n']++;
+        $prospeccionPorDia[$r['fecha']]['ultima_hora_fin'] = $r['hora_fin'];
+        if (!$r['hora_fin']) $prospeccionPorDia[$r['fecha']]['abierta'] = true;
+    }
 
     $clientesPorDia = [];
     $stmt = $db->prepare(
@@ -743,9 +762,10 @@ function resumenProspeccionRango(PDO $db, int $vendedorId, string $desde, string
         }
         if (isset($prospeccionPorDia[$f])) {
             $p = $prospeccionPorDia[$f];
-            $activa = !$p['hora_fin'] && $f === $hoyFecha;
-            $rango  = substr($p['hora_inicio'], 11, 5) . ($p['hora_fin'] ? '–' . substr($p['hora_fin'], 11, 5) : ' (en curso)');
-            $cats[] = ['categoria' => $activa ? 'prospeccion_activa' : 'prospeccion', 'detalle' => $rango];
+            $activa = $p['abierta'] && $f === $hoyFecha;
+            $detalle = $p['n'] > 1 ? $p['n'] . ' parada(s)' : substr($p['primera_hora_inicio'], 11, 5)
+                . ($p['ultima_hora_fin'] ? '–' . substr($p['ultima_hora_fin'], 11, 5) : ' (en curso)');
+            $cats[] = ['categoria' => $activa ? 'prospeccion_activa' : 'prospeccion', 'detalle' => $detalle];
         }
         if (!empty($clientesPorDia[$f])) {
             $cats[] = ['categoria' => 'cliente', 'detalle' => $clientesPorDia[$f] . ' cliente(s) nuevo(s)'];

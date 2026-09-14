@@ -10,6 +10,10 @@ uploads/checkins/*
 uploads/usuarios/*
 !uploads/usuarios/.gitkeep
 
+# Fotos de evidencia de paradas de prospección (datos reales, no código)
+uploads/prospecciones/*
+!uploads/prospecciones/.gitkeep
+
 # Caché de geocodificación (nombreLugarGPS en includes/helpers.php) — datos
 # generados en tiempo de ejecución, no código.
 uploads/cache/*

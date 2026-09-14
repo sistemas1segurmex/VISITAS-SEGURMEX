@@ -589,7 +589,7 @@ function renderMapaParadas(paradas) {
 // prospección, clientes nuevos y GPS), no solo la categoría del día.
 function renderDiaDetalle(data) {
   const c = CATEGORIAS_PROSPECCION[data.categoria] || CATEGORIAS_PROSPECCION.sin_actividad;
-  const hayAlgo = data.citas.length || data.prospeccion || data.clientes.length || data.ubicaciones.total > 0;
+  const hayAlgo = data.citas.length || data.prospecciones.length || data.clientes.length || data.ubicaciones.total > 0;
   const partes = [];
 
   partes.push(`
@@ -603,20 +603,27 @@ function renderDiaDetalle(data) {
     partes.push(`<div class="v26-citas-list">${data.citas.map(tarjetaCita).join('')}</div>`);
   }
 
-  if (data.prospeccion) {
+  if (data.prospecciones.length) {
     // hora_inicio/hora_fin salen de CURRENT_TIMESTAMP en Postgres con la
     // sesion forzada a UTC (ver includes/db.php) -- hay que convertirlas a
     // hora local igual que en ultimaConexionTexto(), no tomar el texto tal
     // cual con slice() como se hacia antes (eso mostraba la hora UTC directo,
-    // 6 horas adelantada de la hora real en México).
-    const ini = horaLocalDesdeUTC(data.prospeccion.hora_inicio);
-    const fin = data.prospeccion.hora_fin ? horaLocalDesdeUTC(data.prospeccion.hora_fin) : null;
-    partes.push(`
-      <h6 class="mt-4 mb-2">Jornada de prospección</h6>
-      <div class="v26-prosp-banner v26-prosp-banner--prospeccion">
+    // 6 horas adelantada de la hora real en México). Ahora puede haber
+    // varias paradas el mismo día (persona/empresa + foto/GPS de entrada y
+    // salida, ver vendedor/prospeccion.php), cada una con su propia tarjeta.
+    partes.push(`<h6 class="mt-4 mb-2">Paradas de prospección (${data.prospecciones.length})</h6>`);
+    partes.push(data.prospecciones.map(p => {
+      const ini = horaLocalDesdeUTC(p.hora_inicio);
+      const fin = p.hora_fin ? horaLocalDesdeUTC(p.hora_fin) : null;
+      return `
+      <div class="v26-prosp-banner v26-prosp-banner--prospeccion mb-2">
         <i class="bi bi-signpost-2-fill"></i>
-        <span>${ini}${fin ? ' – ' + fin : ' (sin cerrar todavía)'}</span>
-      </div>`);
+        <span>
+          <strong>${p.nombre || 'Sin nombre'}</strong>${p.direccion ? ' — ' + p.direccion : ''}<br>
+          ${ini}${fin ? ' – ' + fin : ' (sin cerrar todavía)'} ${pillInteresAdmin(p.interes)}
+        </span>
+      </div>`;
+    }).join(''));
   }
 
   if (data.clientes.length) {

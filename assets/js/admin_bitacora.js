@@ -53,6 +53,7 @@ const ENTIDAD_INFO = {
   cita:       { icono: 'bi-calendar-event',    label: 'Cita' },
   cotizacion: { icono: 'bi-file-earmark-text', label: 'Cotización' },
   muestra:    { icono: 'bi-box-seam',          label: 'Muestra' },
+  prospeccion:{ icono: 'bi-signpost-2-fill',   label: 'Prospección' },
 };
 const ACCION_INFO = {
   alta:    { clase: 'alta',    icono: 'bi-plus-lg' },

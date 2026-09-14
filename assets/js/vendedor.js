@@ -259,75 +259,43 @@ async function cargarEstadoProspeccion() {
   try {
     const res = await fetch('../api/prospeccion.php');
     const data = await res.json();
-    if (data.ok) renderCtaProspeccion(data.prospeccion);
+    if (data.ok) renderCtaProspeccion(data.paradas || []);
   } catch (e) {
     // Silencioso: no bloqueamos el resto de la pantalla por esto.
   }
 }
 
-function renderCtaProspeccion(prospeccion) {
+// Cada parada ahora es su propia pantalla (persona/empresa, dirección, foto
+// y GPS de entrada/salida -- ver vendedor/prospeccion.php), así que aquí en
+// Inicio solo se decide qué tarjeta mostrar según el estado del día.
+function renderCtaProspeccion(paradas) {
   const cont = document.getElementById('cta-prospeccion');
   if (!cont) return;
 
-  if (!prospeccion) {
-    cont.innerHTML = `
-      <button type="button" id="btn-iniciar-prospeccion" class="v26-cta" style="border:none;width:100%;cursor:pointer;">
-        <span class="v26-cta-icon"><i class="bi bi-signpost-2-fill"></i></span>
-        <span class="v26-cta-text">
-          <strong>Salí a buscar clientes</strong>
-          <small>Marca tu jornada de prospección de hoy</small>
-        </span>
-        <i class="bi bi-chevron-right chev"></i>
-      </button>`;
-    document.getElementById('btn-iniciar-prospeccion').addEventListener('click', iniciarProspeccion);
-    return;
-  }
+  const abierta = paradas.find(p => !p.hora_fin);
+  const cerradas = paradas.filter(p => p.hora_fin);
 
-  if (!prospeccion.hora_fin) {
+  if (abierta) {
     cont.innerHTML = `
-      <div class="v26-banner v26-banner--ok">
+      <a href="prospeccion.php" class="v26-banner v26-banner--ok" style="text-decoration:none;display:flex;">
         <i class="bi bi-signpost-2-fill icon"></i>
         <div class="txt">
-          <strong>En prospección desde las ${horaCorta(prospeccion.hora_inicio)}</strong>
-          <p>Cada cliente nuevo que registres hoy cuenta como evidencia de tu recorrido.</p>
+          <strong>En prospección: ${abierta.nombre}</strong>
+          <p>Desde las ${horaCorta(abierta.hora_inicio)} · toca para registrar tu salida</p>
         </div>
-      </div>
-      <button type="button" id="btn-finalizar-prospeccion" class="v26-btn v26-btn-ghost v26-btn-block mb-3">
-        Finalizar jornada de prospección
-      </button>`;
-    document.getElementById('btn-finalizar-prospeccion').addEventListener('click', finalizarProspeccion);
+      </a>`;
     return;
   }
 
   cont.innerHTML = `
-    <div class="v26-banner v26-banner--ok">
-      <i class="bi bi-check-circle-fill icon"></i>
-      <div class="txt"><p>Jornada de prospección registrada hoy (${horaCorta(prospeccion.hora_inicio)} – ${horaCorta(prospeccion.hora_fin)}).</p></div>
-    </div>`;
-}
-
-async function iniciarProspeccion() {
-  const fd = new FormData();
-  fd.append('action', 'iniciar');
-  try {
-    const res = await fetch('../api/prospeccion.php', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (data.ok) renderCtaProspeccion(data.prospeccion);
-    else alert(data.error || 'No se pudo registrar tu jornada.');
-  } catch (e) {
-    alert('Error de conexión. Intenta de nuevo.');
-  }
-}
-
-async function finalizarProspeccion() {
-  const fd = new FormData();
-  fd.append('action', 'finalizar');
-  try {
-    await fetch('../api/prospeccion.php', { method: 'POST', body: fd });
-    cargarEstadoProspeccion();
-  } catch (e) {
-    alert('Error de conexión. Intenta de nuevo.');
-  }
+    <a href="prospeccion.php" class="v26-cta">
+      <span class="v26-cta-icon"><i class="bi bi-signpost-2-fill"></i></span>
+      <span class="v26-cta-text">
+        <strong>Salí a buscar clientes</strong>
+        <small>${cerradas.length > 0 ? `${cerradas.length} parada(s) registrada(s) hoy` : 'Registra tu recorrido de hoy'}</small>
+      </span>
+      <i class="bi bi-chevron-right chev"></i>
+    </a>`;
 }
 
 // ---------------------------------------------------------------------
