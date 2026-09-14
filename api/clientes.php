@@ -69,7 +69,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $codigoPostal ?: null, $estado ?: null, $municipio ?: null, $colonia ?: null,
         $etapaInicial, $tipoCliente, $nombreContacto ?: null,
     ]);
-    jsonResponse(['ok' => true, 'id' => $db->lastInsertId()]);
+    $nuevoId = (int)$db->lastInsertId();
+    registrarCambio($db, $u['id'], 'cliente', $nuevoId, 'alta', "Dio de alta al cliente {$nombre}", [
+        'Etapa inicial' => [null, etiquetaEtapa($etapaInicial)],
+    ]);
+    jsonResponse(['ok' => true, 'id' => $nuevoId]);
 }
 
 jsonResponse(['ok' => false, 'error' => 'Método no soportado'], 405);

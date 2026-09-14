@@ -105,6 +105,12 @@ try {
            ->execute([(int)$data['id_cliente_erp'], $clienteId]);
     }
 
+    if ($data['ok'] ?? false) {
+        $folio = $data['folio'] ?? null;
+        registrarCambio($db, $u['id'], 'muestra', $data['id'] ?? null, 'alta',
+            $folio ? "Solicitó la muestra {$folio} para {$cliente['nombre']}" : "Solicitó una muestra para {$cliente['nombre']}");
+    }
+
     jsonResponse($data);
 } catch (Throwable $e) {
     error_log('[VISITAS] muestra_solicitar: ' . $e->getMessage());

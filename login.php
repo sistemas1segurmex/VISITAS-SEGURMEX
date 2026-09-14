@@ -34,16 +34,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($activas >= SESION_MAX_ACTIVAS) {
             $error = 'Ya tienes ' . SESION_MAX_ACTIVAS . ' sesiones activas en otros dispositivos o navegadores.';
             $puedeForzar = true;
+            registrarAcceso($db, (int)$u['id'], $email, 'bloqueado_limite', $error);
         } else {
             $_SESSION['usuario_id']     = $u['id'];
             $_SESSION['usuario_nombre'] = $u['nombre'];
             $_SESSION['usuario_rol']    = $u['rol'];
             registrarSesion($db, (int)$u['id'], session_id());
+            registrarAcceso($db, (int)$u['id'], $email, 'correcto');
             header('Location: ' . ($u['rol'] === 'admin' ? 'admin/index.php' : 'vendedor/index.php'));
             exit;
         }
     } else {
         $error = 'Correo o contraseña incorrectos.';
+        registrarAcceso($db, $u ? (int)$u['id'] : null, $email, 'fallido', $u ? 'Contraseña incorrecta' : 'Correo no encontrado o inactivo');
     }
 }
 ?>

@@ -37,7 +37,7 @@ if ($noShow && $motivo === '') {
 }
 
 $stmt = $db->prepare(
-    'SELECT c.*, cl.lat AS cliente_lat, cl.lng AS cliente_lng
+    'SELECT c.*, cl.lat AS cliente_lat, cl.lng AS cliente_lng, cl.nombre AS cliente_nombre
      FROM citas c JOIN clientes cl ON cl.id = c.cliente_id
      WHERE c.id = ? AND c.vendedor_id = ?'
 );
@@ -138,12 +138,20 @@ $stmt->execute([$citaId, $tipo, $lat, $lng, $distancia, $fotoPath, $verificado])
 if ($noShow) {
     $nuevoEstado = 'no_realizada';
     $db->prepare('UPDATE citas SET estado = ?, motivo = ? WHERE id = ?')->execute([$nuevoEstado, $motivo, $citaId]);
+    registrarCambio($db, $u['id'], 'cita', $citaId, 'baja', "Reportó que {$cita['cliente_nombre']} no llegó a la cita", [
+        'Estado' => [$cita['estado'], 'No realizada'],
+        'Motivo' => [null, $motivo],
+    ]);
 } elseif ($tipo === 'salida') {
     // Solo al cerrar la visita (salida) tiene sentido preguntar el interés:
     // ya se tuvo la conversación completa con el cliente.
     $nuevoEstado = 'completada';
     $db->prepare('UPDATE citas SET estado = ?, interes = ? WHERE id = ?')
        ->execute([$nuevoEstado, $interes ?: null, $citaId]);
+    registrarCambio($db, $u['id'], 'cita', $citaId, 'edicion', "Cerró la visita a {$cita['cliente_nombre']}", [
+        'Estado'   => [$cita['estado'], 'Completada'],
+        'Interés'  => [null, $interes ?: null],
+    ]);
 } else {
     $nuevoEstado = 'en_curso';
     $db->prepare('UPDATE citas SET estado = ? WHERE id = ?')->execute([$nuevoEstado, $citaId]);

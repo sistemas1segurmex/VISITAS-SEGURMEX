@@ -179,6 +179,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             registrarActividadSeguimientoErp($idVendedorErp, 'prospecto_nuevo', $idProspecto, null);
         }
 
+        // El detalle completo (líneas, cambios de estado) ya vive en
+        // cotizacion_historial del ERP -- aquí solo se anota el alta para
+        // que aparezca junto con clientes/citas en la bitácora del admin.
+        registrarCambio($db, $u['id'], 'cotizacion', $newId, 'alta', "Generó la cotización {$folio} para {$clienteVisitas['nombre']}", [
+            'Total' => [null, money($total)],
+        ]);
+
         jsonResponse(['ok' => true, 'id' => $newId, 'folio' => $folio]);
     } catch (Throwable $e) {
         if ($dbErp->inTransaction()) $dbErp->rollBack();
