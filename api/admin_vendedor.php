@@ -28,9 +28,17 @@ if (!$vendedor) {
 }
 
 if ($accion === 'resumen') {
-    $stmt = $db->prepare('SELECT COUNT(*) FROM clientes WHERE vendedor_id = ?');
+    // "Clientes" = ya convertidos (mismo filtro que la pestaña Clientes en
+    // admin_vendedor_detalle.js); "Prospectos" = el resto del embudo, mismo
+    // filtro que usa la pestaña Prospectos -- así los números de arriba
+    // siempre cuadran con lo que se ve en cada pestaña.
+    $stmt = $db->prepare("SELECT COUNT(*) FROM clientes WHERE vendedor_id = ? AND etapa = 'convertido'");
     $stmt->execute([$vendedorId]);
     $totalClientes = (int)$stmt->fetchColumn();
+
+    $stmt = $db->prepare("SELECT COUNT(*) FROM clientes WHERE vendedor_id = ? AND etapa != 'convertido'");
+    $stmt->execute([$vendedorId]);
+    $totalProspectos = (int)$stmt->fetchColumn();
 
     $stmt = $db->prepare('SELECT COUNT(*) FROM citas WHERE vendedor_id = ? AND fecha_hora >= NOW()');
     $stmt->execute([$vendedorId]);
@@ -58,6 +66,7 @@ if ($accion === 'resumen') {
         'ok' => true,
         'vendedor' => $vendedor,
         'total_clientes' => $totalClientes,
+        'total_prospectos' => $totalProspectos,
         'total_citas' => $totalCitas,
         'proximas_citas' => $proximas,
         'checkins_verificados' => $verificadas,

@@ -153,6 +153,7 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 .v26-stat-card--verde::after  { background: linear-gradient(135deg, #16A34A, #4ADE80); }
 .v26-stat-card--azul::after   { background: linear-gradient(135deg, #4F46E5, #38BDF8); }
 .v26-stat-card--morado::after { background: linear-gradient(135deg, #9333EA, #C084FC); }
+.v26-stat-card--cian::after   { background: linear-gradient(135deg, #0EA5E9, #38BDF8); }
 .v26-stat-icon {
   width: 42px; height: 42px; border-radius: 12px; flex: none; font-size: 1.1rem;
   display: flex; align-items: center; justify-content: center; color: #fff;
@@ -161,6 +162,7 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 .v26-stat-card--verde .v26-stat-icon  { background: linear-gradient(135deg, #16A34A, #4ADE80); }
 .v26-stat-card--azul .v26-stat-icon   { background: linear-gradient(135deg, #4F46E5, #38BDF8); }
 .v26-stat-card--morado .v26-stat-icon { background: linear-gradient(135deg, #9333EA, #C084FC); }
+.v26-stat-card--cian .v26-stat-icon   { background: linear-gradient(135deg, #0EA5E9, #38BDF8); }
 .v26-stat-num { font-size: 1.6rem; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .v26-stat-label { font-size: .7rem; color: var(--v26-ink-soft); font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
 

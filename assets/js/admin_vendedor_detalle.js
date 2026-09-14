@@ -110,7 +110,11 @@ async function cargarResumen() {
     <div class="v26-stats-row mb-3">
       <div class="v26-stat-card">
         <div class="v26-stat-icon"><i class="bi bi-person-lines-fill"></i></div>
-        <div><div class="v26-stat-num" id="stat-clientes" data-valor="0">0</div><div class="v26-stat-label">Clientes registrados</div></div>
+        <div><div class="v26-stat-num" id="stat-clientes" data-valor="0">0</div><div class="v26-stat-label">Clientes</div></div>
+      </div>
+      <div class="v26-stat-card v26-stat-card--cian">
+        <div class="v26-stat-icon"><i class="bi bi-person-plus-fill"></i></div>
+        <div><div class="v26-stat-num" id="stat-prospectos" data-valor="0">0</div><div class="v26-stat-label">Prospectos</div></div>
       </div>
       <div class="v26-stat-card v26-stat-card--azul">
         <div class="v26-stat-icon"><i class="bi bi-calendar3"></i></div>
@@ -127,6 +131,7 @@ async function cargarResumen() {
     </div>
   `;
   animarNumero(document.getElementById('stat-clientes'), data.total_clientes);
+  animarNumero(document.getElementById('stat-prospectos'), data.total_prospectos);
   animarNumero(document.getElementById('stat-citas'), data.total_citas);
   animarNumero(document.getElementById('stat-proximas'), data.proximas_citas);
   animarNumero(document.getElementById('stat-checkins'), data.checkins_verificados);
