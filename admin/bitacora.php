@@ -73,6 +73,7 @@ $u = requireRole('admin');
         <option value="cita">Citas</option>
         <option value="cotizacion">Cotizaciones</option>
         <option value="muestra">Muestras</option>
+        <option value="prospeccion">Prospección</option>
       </select>
       <select class="v26-select" id="filtro-cambios-dias">
         <option value="7">Últimos 7 días</option>
