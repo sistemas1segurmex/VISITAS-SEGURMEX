@@ -41,6 +41,7 @@ $u = requireRole('vendedor');
       <a href="clientes.php"><i class="bi bi-people-fill"></i>Clientes</a>
       <a href="cotizaciones.php"><i class="bi bi-file-earmark-text-fill"></i>Cotizar</a>
       <a href="reporte.php"><i class="bi bi-bar-chart-fill"></i>Reporte</a>
+      <a href="mis_paradas.php"><i class="bi bi-signpost-2-fill"></i>Paradas</a>
     </div>
   </div>
 
