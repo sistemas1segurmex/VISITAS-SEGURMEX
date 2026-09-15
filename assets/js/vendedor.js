@@ -229,16 +229,29 @@ function iniciarTrackingPeriodico(intervaloMs = 30000) {
 
   if (!('geolocation' in navigator)) return;
 
+  // Margen máximo (ms) para aceptar una posición como "de ahorita" -- el GPS
+  // del celular a veces regresa una posición en caché/vieja cuando no logra
+  // una señal fresca rápido (dentro de un edificio, en movimiento, la app en
+  // segundo plano). pos.timestamp es la hora REAL en que se capturó esa
+  // coordenada (no la de cuándo llega la respuesta) -- si viene más vieja
+  // que esto, se descarta en vez de mandarla como si fuera la ubicación
+  // actual. Antes se guardaba con la hora del envío (CURRENT_TIMESTAMP del
+  // servidor), no la del GPS, creando saltos imposibles en el mapa del
+  // recorrido (ej. Guadalajara a León en menos de una hora).
+  const MAX_ANTIGUEDAD_POSICION_MS = 2 * 60 * 1000;
+
   const enviar = () => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        const antiguedadMs = Date.now() - pos.timestamp;
+        if (antiguedadMs > MAX_ANTIGUEDAD_POSICION_MS) return; // posición vieja/caché -- se descarta
         const fd = new FormData();
         fd.append('lat', pos.coords.latitude);
         fd.append('lng', pos.coords.longitude);
         fetch('../api/tracking.php', { method: 'POST', body: fd }).catch(() => {});
       },
       () => {},
-      { enableHighAccuracy: true, timeout: 15000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
