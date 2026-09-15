@@ -31,7 +31,7 @@ function colorAvatar(id) { return PALETA_AVATAR[id % PALETA_AVATAR.length]; }
 function horaLocalDesdeUTC(fechaUtc) {
   const d = new Date(String(fechaUtc).replace(' ', 'T') + 'Z');
   if (isNaN(d.getTime())) return String(fechaUtc).slice(11, 16);
-  return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Mexico_City' });
 }
 
 // Convierte "YYYY-MM-DD HH:MM:SS" en UTC (así se guarda tracking_ubicaciones,
@@ -42,13 +42,13 @@ function ultimaConexionTexto(fechaUtc) {
   const d = new Date(String(fechaUtc).replace(' ', 'T') + 'Z');
   if (isNaN(d.getTime())) return 'Sin ubicación registrada todavía';
   const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
-  const hora = d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
+  const hora = d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Mexico_City' });
   if (diffMin < 2) return 'Última conexión: justo ahora';
   if (diffMin < 60) return `Última conexión: hace ${diffMin} min`;
   if (diffMin < 24 * 60) return `Última conexión: hace ${Math.floor(diffMin / 60)} h (${hora})`;
   const diffDias = Math.floor(diffMin / (24 * 60));
   if (diffDias === 1) return `Última conexión: ayer ${hora}`;
-  const fecha = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+  const fecha = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' });
   return `Última conexión: ${fecha}, ${hora} (hace ${diffDias} días)`;
 }
 
@@ -71,7 +71,7 @@ function tiempoEnEtapaTexto(fechaUtc) {
   if (diffDias < 30) return `desde hace ${diffDias} días`;
   const meses = Math.floor(diffDias / 30);
   if (meses < 12) return `desde hace ${meses} mes${meses > 1 ? 'es' : ''}`;
-  const fecha = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+  const fecha = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Mexico_City' });
   return `desde ${fecha}`;
 }
 
@@ -159,8 +159,13 @@ function partesFecha(fechaHora) {
 function partesFechaUTC(fechaUtc) {
   const d = new Date(String(fechaUtc).replace(' ', 'T') + 'Z');
   if (isNaN(d.getTime())) return { dia: '--', mes: '', hora: fechaUtc };
-  const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-  return { dia: String(d.getDate()).padStart(2, '0'), mes: MESES_CORTOS[d.getMonth()] || '', hora };
+  const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Mexico_City' });
+  // d.getDate()/getMonth() leen el día/mes en la zona del DISPOSITIVO, no la
+  // de México -- cerca de medianoche podían no coincidir con "hora" (esa sí
+  // forzada a México arriba). Se sacan con Intl en la misma zona explícita.
+  const diaNum = Number(d.toLocaleString('en-US', { day: 'numeric', timeZone: 'America/Mexico_City' }));
+  const mesIdx = Number(d.toLocaleString('en-US', { month: 'numeric', timeZone: 'America/Mexico_City' })) - 1;
+  return { dia: String(diaNum).padStart(2, '0'), mes: MESES_CORTOS[mesIdx] || '', hora };
 }
 
 function escapeAttr(s) {

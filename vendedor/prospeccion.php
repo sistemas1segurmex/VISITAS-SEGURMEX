@@ -416,7 +416,7 @@ async function cargarEstado() {
     const banner = document.getElementById('banner-parada-abierta');
     banner.classList.remove('d-none');
     document.getElementById('txt-parada-nombre').textContent = `En prospección: ${abierta.nombre}`;
-    document.getElementById('txt-parada-detalle').textContent = `Desde las ${horaCorta(abierta.hora_inicio)}${abierta.direccion ? ' · ' + abierta.direccion : ''}`;
+    document.getElementById('txt-parada-detalle').textContent = `Desde las ${horaCortaUTC(abierta.hora_inicio)}${abierta.direccion ? ' · ' + abierta.direccion : ''}`;
   } else {
     modo = 'entrada';
   }
@@ -433,7 +433,7 @@ async function cargarEstado() {
         <div class="info">
           <div class="nombre">${p.nombre}</div>
           ${p.direccion ? `<div class="direccion">${p.direccion}</div>` : ''}
-          <div class="meta">${horaCorta(p.hora_inicio)} – ${horaCorta(p.hora_fin)}</div>
+          <div class="meta">${horaCortaUTC(p.hora_inicio)} – ${horaCortaUTC(p.hora_fin)}</div>
         </div>
       </div>`).join('');
   }

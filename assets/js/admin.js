@@ -183,7 +183,7 @@ function horaSoloUTC(fechaStr) {
   if (!fechaStr) return '';
   const iso = String(fechaStr).replace(' ', 'T') + (String(fechaStr).endsWith('Z') ? '' : 'Z');
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? fechaStr : d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
+  return isNaN(d.getTime()) ? fechaStr : d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Mexico_City' });
 }
 
 // Calle+colonia exacta de un punto, bajo demanda (nunca de entrada para
