@@ -182,10 +182,13 @@ async function dibujarRutasDia() {
         const esInicio = idx === 0;
         const esFin = idx === r.puntos.length - 1;
         const destacado = esInicio || esFin;
-        const etiqueta = esInicio ? 'Inicio del día' : esFin ? 'Última posición' : `Punto ${idx + 1} de ${r.puntos.length}`;
+        // Los puntos intermedios solo llevan vendedor + hora -- "Punto X de
+        // Y" (posición cruda entre las señales GPS del día) no le dice nada
+        // útil a quien lo ve, se quitó.
+        const etiqueta = esInicio ? 'Inicio del día' : esFin ? 'Última posición' : null;
         const tooltip = `
           <span class="vendedor"><i class="bi bi-signpost-2-fill"></i> ${nombreVendedor}</span>
-          <span class="detalle">${horaSoloUTC(p.fecha_hora)} — <span class="${destacado ? 'destacado' : ''}">${etiqueta}</span></span>`;
+          <span class="detalle">${horaSoloUTC(p.fecha_hora)}${etiqueta ? ` — <span class="destacado">${etiqueta}</span>` : ''}</span>`;
         L.circleMarker([p.lat, p.lng], {
           radius: destacado ? 7 : 3,
           color: '#fff',
