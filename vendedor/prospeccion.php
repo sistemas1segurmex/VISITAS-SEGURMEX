@@ -305,6 +305,11 @@ async function iniciarCamara() {
     video.play().catch(() => {});
     estadoCamara.textContent = 'Encuadra la evidencia y presiona el botón.';
     if (btnTomarFoto) btnTomarFoto.disabled = false;
+    // Con la cámara en vivo funcionando, se quita la opción de subir una
+    // foto ya existente -- la evidencia debe tomarse ahí mismo, no vale
+    // subir una foto vieja del celular. Solo reaparece como respaldo real
+    // si la cámara en vivo falla (ver el catch de abajo).
+    if (btnAbrirArchivo) btnAbrirArchivo.classList.add('d-none');
   } catch (e) {
     if (placeholder) placeholder.classList.remove('d-none');
     if (video) video.classList.add('d-none');
