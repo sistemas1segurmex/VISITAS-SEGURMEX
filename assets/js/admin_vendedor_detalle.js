@@ -59,7 +59,13 @@ function tiempoEnEtapaTexto(fechaUtc) {
   if (!fechaUtc) return '';
   const d = new Date(String(fechaUtc).replace(' ', 'T') + 'Z');
   if (isNaN(d.getTime())) return '';
-  const diffDias = Math.floor((Date.now() - d.getTime()) / (24 * 60 * 60 * 1000));
+  // Comparación por DÍA DE CALENDARIO local, no por bloques de 24h --
+  // "ayer a las 11pm" y "hoy a las 8am" son menos de 24h de diferencia pero
+  // sí son días distintos. Mismo criterio que diaEtiqueta() en
+  // admin_bitacora.js (ese ya lo hacía bien).
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const diaEvento = new Date(d); diaEvento.setHours(0, 0, 0, 0);
+  const diffDias = Math.round((hoy.getTime() - diaEvento.getTime()) / (24 * 60 * 60 * 1000));
   if (diffDias <= 0) return 'desde hoy';
   if (diffDias === 1) return 'desde ayer';
   if (diffDias < 30) return `desde hace ${diffDias} días`;
