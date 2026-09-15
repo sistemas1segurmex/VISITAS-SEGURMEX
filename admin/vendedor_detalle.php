@@ -68,6 +68,7 @@ if (!$vendedorId) {
     <button class="opt" id="tab-clientes" data-bs-toggle="tab" data-bs-target="#panel-clientes" type="button" role="tab">Clientes</button>
     <button class="opt" id="tab-prospectos" data-bs-toggle="tab" data-bs-target="#panel-prospectos" type="button" role="tab">Prospectos</button>
     <button class="opt" id="tab-prospeccion" data-bs-toggle="tab" data-bs-target="#panel-prospeccion" type="button" role="tab">Actividades</button>
+    <button class="opt" id="tab-paradas" data-bs-toggle="tab" data-bs-target="#panel-paradas" type="button" role="tab">Paradas</button>
   </div>
 
   <div class="tab-content v26-panel-glass p-3">
@@ -99,6 +100,10 @@ if (!$vendedorId) {
         </div>
       </div>
       <div id="contenido-prospeccion"><p class="text-muted small">Cargando...</p></div>
+    </div>
+    <div class="tab-pane fade" id="panel-paradas">
+      <p class="text-muted small mb-3">Cada visita espontánea que el vendedor registró desde "Salí a buscar clientes" (persona/empresa, dirección, foto y GPS de entrada/salida).</p>
+      <div class="v26-citas-list" id="lista-paradas-vendedor"><p class="text-muted small px-2">Cargando...</p></div>
     </div>
   </div>
 </div>

@@ -115,6 +115,17 @@ if ($accion === 'clientes') {
     jsonResponse(['ok' => true, 'clientes' => $stmt->fetchAll()]);
 }
 
+if ($accion === 'prospeccion_paradas') {
+    // Lista plana de todas las paradas de prospección del vendedor (persona/
+    // empresa, dirección, foto+GPS de entrada/salida, interés) -- distinto
+    // de "prospeccion"/"prospeccion_dia" de abajo, que arman el calendario/
+    // línea de tiempo de actividad. Aquí es solo el historial, más parecido
+    // a "citas_todas".
+    $stmt = $db->prepare('SELECT * FROM prospecciones WHERE vendedor_id = ? ORDER BY hora_inicio DESC LIMIT 200');
+    $stmt->execute([$vendedorId]);
+    jsonResponse(['ok' => true, 'paradas' => $stmt->fetchAll()]);
+}
+
 if ($accion === 'prospeccion') {
     $vista = $_GET['vista'] ?? 'mes';
 
