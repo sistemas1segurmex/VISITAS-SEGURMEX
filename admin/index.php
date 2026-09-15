@@ -54,9 +54,14 @@ $hoy = date('Y-m-d');
     <div class="col-lg-8">
       <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
             <h6 class="mb-0">Ubicación en vivo de los vendedores</h6>
-            <span id="resumen-vendedores" class="text-muted small"></span>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <select id="filtro-vendedor-mapa" class="form-select form-select-sm" style="width:auto;min-width:170px">
+                <option value="0">Todos los vendedores</option>
+              </select>
+              <span id="resumen-vendedores" class="text-muted small"></span>
+            </div>
           </div>
           <div id="mapa-wrap">
             <div id="mapa"></div>
