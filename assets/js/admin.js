@@ -239,6 +239,11 @@ function agruparPuntosCercanos(puntos) {
 // ── Líneas de recorrido del día seleccionado ──────────────────────────────
 async function dibujarRutasDia() {
   const fecha = document.getElementById('filtro-fecha')?.value || new Date().toISOString().slice(0, 10);
+  // Si se está viendo el día de hoy, el pin en vivo del vendedor (arriba,
+  // marcadoresVendedores) ya está parado casi exacto donde termina la ruta
+  // -- se veían 2 puntos encimados en el mismo lugar. Para días pasados sí
+  // tiene caso marcar "Última posición" (el pin en vivo está en otro lado).
+  const esHoy = fecha === new Date().toISOString().slice(0, 10);
   try {
     const res = await fetch('../api/ruta_dia.php?fecha=' + fecha);
     const data = await res.json();
@@ -265,6 +270,10 @@ async function dibujarRutasDia() {
       grupos.forEach((g, idx) => {
         const esInicio = idx === 0;
         const esFin = idx === grupos.length - 1;
+        // Si es el único grupo del día (el vendedor no se ha movido de un
+        // lugar) igual se muestra -- "Inicio del día" no es redundante con
+        // el pin en vivo, que no dice desde cuándo está ahí.
+        if (esFin && esHoy && !esInicio) return; // ese lugar ya lo marca el pin en vivo de arriba
         const destacado = esInicio || esFin;
         const esRango = g.fin !== g.inicio;
         const etiqueta = esInicio ? 'Inicio del día' : esFin ? 'Última posición' : null;
