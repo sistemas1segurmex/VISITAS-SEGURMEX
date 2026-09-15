@@ -101,6 +101,11 @@ body { background: #F5F6F8; font-family: system-ui, -apple-system, "Segoe UI", s
 .visitas-ruta-tooltip .vendedor { font-weight: 800; display: flex; align-items: center; gap: 5px; }
 .visitas-ruta-tooltip .detalle { color: rgba(255,255,255,.78); display: block; margin-top: 1px; }
 .visitas-ruta-tooltip .destacado { color: #FFD23F; font-weight: 700; }
+.visitas-ruta-tooltip .direccion {
+  display: flex; align-items: center; gap: 4px; margin-top: 3px; padding-top: 3px;
+  border-top: 1px solid rgba(255,255,255,.15); color: rgba(255,255,255,.92);
+}
+.visitas-ruta-tooltip .direccion.cargando { color: rgba(255,255,255,.55); font-style: italic; }
 
 /* ── Popups del mapa con el estilo de la marca ──────────────────── */
 .leaflet-popup-content-wrapper { border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.15); }

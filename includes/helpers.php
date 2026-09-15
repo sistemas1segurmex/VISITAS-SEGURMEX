@@ -308,6 +308,88 @@ function consultarNominatim(float $lat, float $lng): ?string {
     }
 }
 
+// ---------------------------------------------------------------------
+// Calle + colonia exacta a partir de GPS -- a diferencia de nombreLugarGPS()
+// (nivel ciudad, se llama de entrada para TODOS los puntos del mapa en
+// vivo), esta es a propósito BAJO DEMANDA: solo se llama una vez por punto,
+// cuando el admin pasa el cursor sobre él en el recorrido del día (ver
+// api/geocodificar_punto.php), nunca de golpe para los 200+ puntos de una
+// ruta -- Nominatim prohíbe geocodificar en bloque/automatizado.
+//
+// Caché aparte (archivo distinto), redondeada a ~11 m (5 decimales) en vez
+// de ~1 km: a nivel calle, dos puntos a 1 km pueden ser colonias distintas.
+// ---------------------------------------------------------------------
+define('GEOCODE_DIRECCION_CACHE_PATH', __DIR__ . '/../uploads/cache/geocode_direccion.json');
+
+function direccionExactaGPS(float $lat, float $lng): ?string {
+    $clave = round($lat, 5) . ',' . round($lng, 5);
+
+    $dir = dirname(GEOCODE_DIRECCION_CACHE_PATH);
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+
+    $fp = @fopen(GEOCODE_DIRECCION_CACHE_PATH, 'c+');
+    $cache = [];
+    if ($fp) {
+        flock($fp, LOCK_EX);
+        $contenido = stream_get_contents($fp);
+        $cache = $contenido ? (json_decode($contenido, true) ?: []) : [];
+
+        if (isset($cache[$clave])) {
+            $vigenciaSegundos = $cache[$clave]['direccion'] === null ? GEOCODE_CACHE_FALLO_SEGUNDOS : GEOCODE_CACHE_DIAS * 86400;
+            if ((time() - $cache[$clave]['ts']) < $vigenciaSegundos) {
+                $direccion = $cache[$clave]['direccion'];
+                flock($fp, LOCK_UN);
+                fclose($fp);
+                return $direccion;
+            }
+        }
+    }
+
+    $direccion = consultarNominatimDireccion($lat, $lng);
+
+    if ($fp) {
+        $cache[$clave] = ['direccion' => $direccion, 'ts' => time()];
+        ftruncate($fp, 0);
+        rewind($fp);
+        fwrite($fp, json_encode($cache, JSON_UNESCAPED_UNICODE));
+        fflush($fp);
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+
+    return $direccion;
+}
+
+/** Llamada real a Nominatim a nivel calle (zoom alto), para direccionExactaGPS(). */
+function consultarNominatimDireccion(float $lat, float $lng): ?string {
+    try {
+        $url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1'
+             . '&lat=' . urlencode((string)$lat) . '&lon=' . urlencode((string)$lng);
+        $ctx = stream_context_create(['http' => [
+            'method' => 'GET',
+            'header' => "User-Agent: VisitasSegurmex/1.0 (sistemas@segurmex.com.mx)\r\n",
+            'timeout' => 2.5,
+        ]]);
+        $resp = @file_get_contents($url, false, $ctx);
+        if (!$resp) return null;
+        $addr = json_decode($resp, true)['address'] ?? [];
+
+        $calle = $addr['road'] ?? null;
+        if ($calle && !empty($addr['house_number'])) $calle .= ' ' . $addr['house_number'];
+        $colonia = $addr['suburb'] ?? $addr['neighbourhood'] ?? $addr['residential'] ?? null;
+
+        $partes = array_filter([$calle, $colonia]);
+        if ($partes) return implode(', ', $partes);
+
+        // Sin calle/colonia identificable (zona rural, carretera) -- se
+        // regresa al menos la ciudad para no dejar el tooltip vacío.
+        return $addr['city'] ?? $addr['town'] ?? $addr['municipality'] ?? null;
+    } catch (Throwable $e) {
+        error_log('[VISITAS] consultarNominatimDireccion: ' . $e->getMessage());
+        return null;
+    }
+}
+
 /**
  * Distancia en metros entre dos coordenadas GPS (fórmula de Haversine).
  */

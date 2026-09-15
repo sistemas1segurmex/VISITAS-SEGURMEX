@@ -156,6 +156,25 @@ function horaSoloUTC(fechaStr) {
   return isNaN(d.getTime()) ? fechaStr : d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
 }
 
+// Calle+colonia exacta de un punto, bajo demanda (nunca de entrada para
+// toda la ruta -- ver api/geocodificar_punto.php). Caché en memoria del
+// navegador aparte de la caché en disco del servidor: un mismo punto que se
+// vuelve a pasar el cursor en esta sesión no vuelve a pedirse.
+const direccionesCache = {};
+function claveGeocode(lat, lng) { return `${lat.toFixed(5)},${lng.toFixed(5)}`; }
+async function obtenerDireccionPunto(lat, lng) {
+  const clave = claveGeocode(lat, lng);
+  if (clave in direccionesCache) return direccionesCache[clave];
+  try {
+    const res = await fetch(`../api/geocodificar_punto.php?lat=${lat}&lng=${lng}`);
+    const data = await res.json();
+    direccionesCache[clave] = data.ok ? data.direccion : null;
+  } catch (e) {
+    direccionesCache[clave] = null;
+  }
+  return direccionesCache[clave];
+}
+
 // ── Líneas de recorrido del día seleccionado ──────────────────────────────
 async function dibujarRutasDia() {
   const fecha = document.getElementById('filtro-fecha')?.value || new Date().toISOString().slice(0, 10);
@@ -186,19 +205,39 @@ async function dibujarRutasDia() {
         // Y" (posición cruda entre las señales GPS del día) no le dice nada
         // útil a quien lo ve, se quitó.
         const etiqueta = esInicio ? 'Inicio del día' : esFin ? 'Última posición' : null;
-        const tooltip = `
+        const tooltipBase = `
           <span class="vendedor"><i class="bi bi-signpost-2-fill"></i> ${nombreVendedor}</span>
           <span class="detalle">${horaSoloUTC(p.fecha_hora)}${etiqueta ? ` — <span class="destacado">${etiqueta}</span>` : ''}</span>`;
-        L.circleMarker([p.lat, p.lng], {
+        const punto = L.circleMarker([p.lat, p.lng], {
           radius: destacado ? 7 : 3,
           color: '#fff',
           weight: destacado ? 2 : 1,
           fillColor: color,
           fillOpacity: destacado ? 1 : 0.7,
         })
-          .bindTooltip(tooltip, { direction: 'top', offset: [0, -6], className: 'visitas-ruta-tooltip' })
+          .bindTooltip(tooltipBase, { direction: 'top', offset: [0, -6], className: 'visitas-ruta-tooltip' })
           .on('click', function () { mapa.flyTo(this.getLatLng(), 16, { duration: 1.1 }); })
           .addTo(capaRutas);
+
+        // Calle/colonia exacta solo al pasar el cursor -- con un pequeño
+        // retraso (que se cancela si el cursor ya se fue) para no disparar
+        // una consulta por cada punto que el mouse solo atraviesa de paso.
+        const claveCache = claveGeocode(p.lat, p.lng);
+        let timerDireccion = null;
+        punto.on('mouseover', () => {
+          if (claveCache in direccionesCache) {
+            if (direccionesCache[claveCache]) {
+              punto.setTooltipContent(tooltipBase + `<span class="direccion"><i class="bi bi-geo-alt-fill"></i> ${direccionesCache[claveCache]}</span>`);
+            }
+            return;
+          }
+          timerDireccion = setTimeout(async () => {
+            punto.setTooltipContent(tooltipBase + '<span class="direccion cargando">Buscando dirección…</span>');
+            const direccion = await obtenerDireccionPunto(p.lat, p.lng);
+            punto.setTooltipContent(direccion ? tooltipBase + `<span class="direccion"><i class="bi bi-geo-alt-fill"></i> ${direccion}</span>` : tooltipBase);
+          }, 350);
+        });
+        punto.on('mouseout', () => clearTimeout(timerDireccion));
       });
     });
   } catch (e) { /* silencioso */ }
