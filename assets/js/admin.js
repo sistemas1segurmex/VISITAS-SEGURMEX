@@ -175,6 +175,37 @@ async function obtenerDireccionPunto(lat, lng) {
   return direccionesCache[clave];
 }
 
+// Distancia en metros entre dos coordenadas (Haversine) -- para agrupar
+// puntos del recorrido que están casi en el mismo lugar (ver abajo).
+function distanciaMetrosMapa(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Cuando el vendedor se queda parado en un lugar, el tracking sigue mandando
+// un punto cada ~30s -- en un par de horas eso son cientos de puntos
+// encimados casi en el mismo lugar, ilegible en el mapa. Se agrupan los
+// puntos consecutivos que están a menos de 20 m del último ya agrupado: la
+// LÍNEA sigue dibujando el trazo completo (sin perder precisión), pero solo
+// se pone un marcador visible por grupo, con el rango de horas completo de
+// esa parada en vez de un punto por cada ping individual.
+const DISTANCIA_MIN_NUEVO_MARCADOR_M = 20;
+function agruparPuntosCercanos(puntos) {
+  const grupos = [];
+  puntos.forEach(p => {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && distanciaMetrosMapa(ultimo.lat, ultimo.lng, p.lat, p.lng) < DISTANCIA_MIN_NUEVO_MARCADOR_M) {
+      ultimo.fin = p;
+    } else {
+      grupos.push({ lat: p.lat, lng: p.lng, inicio: p, fin: p });
+    }
+  });
+  return grupos;
+}
+
 // ── Líneas de recorrido del día seleccionado ──────────────────────────────
 async function dibujarRutasDia() {
   const fecha = document.getElementById('filtro-fecha')?.value || new Date().toISOString().slice(0, 10);
@@ -190,30 +221,32 @@ async function dibujarRutasDia() {
       const latlngs = r.puntos.map(p => [p.lat, p.lng]);
       L.polyline(latlngs, { color, weight: 3, opacity: 0.65, lineJoin: 'round' }).addTo(capaRutas);
 
-      // Un punto por cada posición del recorrido (mismo dato que ya traía
-      // ruta_dia.php, antes se descartaba la hora al armar solo la línea) --
-      // inicio y última posición más grandes para verlos de un vistazo, los
-      // intermedios chicos para no saturar el mapa. Todos responden con su
-      // hora al pasar el cursor y hacen el mismo zoom animado que el pin en
-      // vivo del vendedor si se les da clic.
+      // Un marcador por grupo de posiciones cercanas (no por cada ping
+      // crudo) -- inicio y última posición del día más grandes para verlos
+      // de un vistazo, las paradas intermedias con su rango de horas
+      // completo, los pasos rápidos chicos. Todos responden con su hora al
+      // pasar el cursor y hacen el mismo zoom animado que el pin en vivo del
+      // vendedor si se les da clic.
       const nombreVendedor = nombresVendedores[r.vendedor_id] || 'Vendedor';
-      r.puntos.forEach((p, idx) => {
+      const grupos = agruparPuntosCercanos(r.puntos);
+      grupos.forEach((g, idx) => {
         const esInicio = idx === 0;
-        const esFin = idx === r.puntos.length - 1;
+        const esFin = idx === grupos.length - 1;
         const destacado = esInicio || esFin;
-        // Los puntos intermedios solo llevan vendedor + hora -- "Punto X de
-        // Y" (posición cruda entre las señales GPS del día) no le dice nada
-        // útil a quien lo ve, se quitó.
+        const esRango = g.fin !== g.inicio;
         const etiqueta = esInicio ? 'Inicio del día' : esFin ? 'Última posición' : null;
+        const horaTexto = esRango
+          ? `${horaSoloUTC(g.inicio.fecha_hora)} – ${horaSoloUTC(g.fin.fecha_hora)}`
+          : horaSoloUTC(g.inicio.fecha_hora);
         const tooltipBase = `
           <span class="vendedor"><i class="bi bi-signpost-2-fill"></i> ${nombreVendedor}</span>
-          <span class="detalle">${horaSoloUTC(p.fecha_hora)}${etiqueta ? ` — <span class="destacado">${etiqueta}</span>` : ''}</span>`;
-        const punto = L.circleMarker([p.lat, p.lng], {
-          radius: destacado ? 7 : 3,
+          <span class="detalle">${horaTexto}${etiqueta ? ` — <span class="destacado">${etiqueta}</span>` : ''}</span>`;
+        const punto = L.circleMarker([g.lat, g.lng], {
+          radius: destacado ? 7 : (esRango ? 5 : 3),
           color: '#fff',
           weight: destacado ? 2 : 1,
           fillColor: color,
-          fillOpacity: destacado ? 1 : 0.7,
+          fillOpacity: destacado ? 1 : 0.75,
         })
           .bindTooltip(tooltipBase, { direction: 'top', offset: [0, -6], className: 'visitas-ruta-tooltip' })
           .on('click', function () { mapa.flyTo(this.getLatLng(), 16, { duration: 1.1 }); })
@@ -222,7 +255,7 @@ async function dibujarRutasDia() {
         // Calle/colonia exacta solo al pasar el cursor -- con un pequeño
         // retraso (que se cancela si el cursor ya se fue) para no disparar
         // una consulta por cada punto que el mouse solo atraviesa de paso.
-        const claveCache = claveGeocode(p.lat, p.lng);
+        const claveCache = claveGeocode(g.lat, g.lng);
         let timerDireccion = null;
         punto.on('mouseover', () => {
           if (claveCache in direccionesCache) {
@@ -233,7 +266,7 @@ async function dibujarRutasDia() {
           }
           timerDireccion = setTimeout(async () => {
             punto.setTooltipContent(tooltipBase + '<span class="direccion cargando">Buscando dirección…</span>');
-            const direccion = await obtenerDireccionPunto(p.lat, p.lng);
+            const direccion = await obtenerDireccionPunto(g.lat, g.lng);
             punto.setTooltipContent(direccion ? tooltipBase + `<span class="direccion"><i class="bi bi-geo-alt-fill"></i> ${direccion}</span>` : tooltipBase);
           }, 350);
         });
