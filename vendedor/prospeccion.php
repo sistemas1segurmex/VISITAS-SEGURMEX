@@ -166,6 +166,7 @@ function iniciarGps() {
       lng = pos.coords.longitude;
       estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(pos.coords.accuracy)} m)`;
       revisarListoParaEnviar();
+      autocompletarDireccion();
     },
     (err) => {
       let msg = '⚠️ No se pudo obtener tu ubicación. Activa el GPS y los permisos de ubicación del navegador.';
@@ -176,6 +177,24 @@ function iniciarGps() {
     },
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
   );
+}
+
+// Sugiere la dirección en cuanto llega el GPS, usando el mismo endpoint que
+// ya usa el mapa del admin (api/geocodificar_punto.php) -- nunca pisa lo que
+// el vendedor ya haya escrito a mano, y si falla (sin internet, Nominatim
+// caído) el campo se queda vacío como siempre, se sigue pudiendo escribir.
+async function autocompletarDireccion() {
+  const campo = document.getElementById('direccion-parada');
+  const formNuevaParada = document.getElementById('form-nueva-parada');
+  if (!campo || !formNuevaParada || formNuevaParada.classList.contains('d-none')) return;
+  if (campo.value.trim() !== '') return;
+  try {
+    const res = await fetch(`../api/geocodificar_punto.php?lat=${lat}&lng=${lng}`);
+    const data = await res.json();
+    if (data.ok && data.direccion && campo.value.trim() === '') campo.value = data.direccion;
+  } catch (e) {
+    // silencioso -- el campo se queda vacío, se escribe a mano
+  }
 }
 
 function revisarListoParaEnviar() {
