@@ -143,6 +143,17 @@ async function actualizarUbicaciones() {
   } catch (e) { /* silencioso: se reintenta en el próximo ciclo */ }
 }
 
+// Solo la hora (sin fecha) de un timestamp UTC de tracking_ubicaciones, para
+// las etiquetas de cada punto del recorrido -- formatearFechaUTC
+// (fecha_utils.js) trae fecha completa, aquí basta la hora porque el
+// recorrido ya está filtrado a un solo día con el selector de fecha.
+function horaSoloUTC(fechaStr) {
+  if (!fechaStr) return '';
+  const iso = String(fechaStr).replace(' ', 'T') + (String(fechaStr).endsWith('Z') ? '' : 'Z');
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? fechaStr : d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
+}
+
 // ── Líneas de recorrido del día seleccionado ──────────────────────────────
 async function dibujarRutasDia() {
   const fecha = document.getElementById('filtro-fecha')?.value || new Date().toISOString().slice(0, 10);
@@ -157,6 +168,29 @@ async function dibujarRutasDia() {
       const color = PALETA_RUTAS[i % PALETA_RUTAS.length];
       const latlngs = r.puntos.map(p => [p.lat, p.lng]);
       L.polyline(latlngs, { color, weight: 3, opacity: 0.65, lineJoin: 'round' }).addTo(capaRutas);
+
+      // Un punto por cada posición del recorrido (mismo dato que ya traía
+      // ruta_dia.php, antes se descartaba la hora al armar solo la línea) --
+      // inicio y última posición más grandes para verlos de un vistazo, los
+      // intermedios chicos para no saturar el mapa. Todos responden con su
+      // hora al pasar el cursor.
+      r.puntos.forEach((p, idx) => {
+        const esInicio = idx === 0;
+        const esFin = idx === r.puntos.length - 1;
+        const destacado = esInicio || esFin;
+        L.circleMarker([p.lat, p.lng], {
+          radius: destacado ? 7 : 3,
+          color: '#fff',
+          weight: destacado ? 2 : 1,
+          fillColor: color,
+          fillOpacity: destacado ? 1 : 0.7,
+        })
+          .bindTooltip(
+            `${esInicio ? 'Inicio del día · ' : esFin ? 'Última posición · ' : ''}${horaSoloUTC(p.fecha_hora)}`,
+            { direction: 'top', offset: [0, -6], className: 'visitas-tooltip-limpio' }
+          )
+          .addTo(capaRutas);
+      });
     });
   } catch (e) { /* silencioso */ }
 }
