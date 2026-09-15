@@ -152,6 +152,17 @@ function partesFecha(fechaHora) {
   return { dia: String(d.getDate()).padStart(2, '0'), mes: MESES_CORTOS[d.getMonth()] || '', hora };
 }
 
+// Igual que partesFecha() pero para timestamps en UTC (CURRENT_TIMESTAMP de
+// Postgres, como prospecciones.hora_inicio) -- citas.fecha_hora en cambio ya
+// viene en local, no debe pasar por aquí. Mismo criterio que
+// horaLocalDesdeUTC() más abajo.
+function partesFechaUTC(fechaUtc) {
+  const d = new Date(String(fechaUtc).replace(' ', 'T') + 'Z');
+  if (isNaN(d.getTime())) return { dia: '--', mes: '', hora: fechaUtc };
+  const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  return { dia: String(d.getDate()).padStart(2, '0'), mes: MESES_CORTOS[d.getMonth()] || '', hora };
+}
+
 function escapeAttr(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
@@ -171,6 +182,24 @@ function fotosCita(c) {
   const partes = [];
   if (c.foto_entrada_id) partes.push(botonFoto(c.foto_entrada_id, 'Entrada', c.cliente_nombre));
   if (c.foto_salida_id) partes.push(botonFoto(c.foto_salida_id, 'Salida', c.cliente_nombre));
+  return partes.length ? `<div class="v26-foto-group">${partes.join('')}</div>` : '<span class="v26-foto-vacio">Sin fotos</span>';
+}
+
+// Mismo patrón que botonFoto()/fotosCita() de arriba, pero para las fotos de
+// una parada de prospección (api/foto.php?parada_id=X&tipo=entrada|salida
+// en vez de ?checkin_id=X -- ver vendedor/prospeccion.php).
+function botonFotoParada(paradaId, tipo, etiqueta, nombre) {
+  const url = `../api/foto.php?parada_id=${paradaId}&tipo=${tipo}`;
+  const titulo = `Foto de ${etiqueta.toLowerCase()} — ${nombre || ''}`;
+  return `<button type="button" class="v26-foto-thumb" data-foto-url="${url}" data-foto-titulo="${escapeAttr(titulo)}" title="Ver foto de ${etiqueta.toLowerCase()}">
+    <img src="${url}" alt="${etiqueta}" loading="lazy">
+    <span class="v26-foto-tag">${etiqueta}</span>
+  </button>`;
+}
+function fotosParada(p) {
+  const partes = [];
+  if (p.foto_entrada_path) partes.push(botonFotoParada(p.id, 'entrada', 'Entrada', p.nombre));
+  if (p.foto_salida_path) partes.push(botonFotoParada(p.id, 'salida', 'Salida', p.nombre));
   return partes.length ? `<div class="v26-foto-group">${partes.join('')}</div>` : '<span class="v26-foto-vacio">Sin fotos</span>';
 }
 
@@ -223,6 +252,44 @@ async function cargarCitas(accion, contenedorId) {
   if (!data.ok) { cont.innerHTML = `<p class="text-danger small px-2">${data.error}</p>`; return; }
   if (data.citas.length === 0) { cont.innerHTML = '<p class="text-muted small px-2">Sin citas.</p>'; return; }
   cont.innerHTML = data.citas.map(tarjetaCita).join('');
+}
+
+// Pestaña "Paradas": historial de visitas espontáneas registradas desde
+// vendedor/prospeccion.php -- mismo estilo de tarjeta que tarjetaCita(),
+// adaptado (aquí no hay "estado" fijo, sino abierta/cerrada + interés).
+function tarjetaParada(p) {
+  const f = partesFechaUTC(p.hora_inicio);
+  const horaFin = p.hora_fin ? partesFechaUTC(p.hora_fin).hora : null;
+  return `
+    <div class="v26-cita-card">
+      <div class="v26-cita-fecha">
+        <span class="dia">${f.dia}</span>
+        <span class="mes">${f.mes}</span>
+        <span class="hora">${f.hora}</span>
+      </div>
+      <div class="v26-cita-info">
+        <div class="cliente"><i class="bi ${p.tipo === 'persona' ? 'bi-person' : 'bi-building'}"></i> ${p.nombre || 'Sin nombre'}</div>
+        <div class="direccion"><i class="bi bi-geo-alt"></i> ${p.direccion || 'Sin dirección'}</div>
+      </div>
+      <div class="v26-cita-estado">
+        <span class="v26-pill v26-pill--${horaFin ? 'completada' : 'en_curso'}">${horaFin ? `Cerrada · ${horaFin}` : 'En curso'}</span>
+        ${pillInteresAdmin(p.interes)}
+      </div>
+      <div class="v26-cita-fotos">
+        ${fotosParada(p)}
+      </div>
+    </div>
+  `;
+}
+
+async function cargarParadas() {
+  const cont = document.getElementById('lista-paradas-vendedor');
+  cont.innerHTML = '<p class="text-muted small px-2">Cargando...</p>';
+  const res = await fetch(`../api/admin_vendedor.php?vendedor_id=${vendedorId}&accion=prospeccion_paradas`);
+  const data = await res.json();
+  if (!data.ok) { cont.innerHTML = `<p class="text-danger small px-2">${data.error}</p>`; return; }
+  if (data.paradas.length === 0) { cont.innerHTML = '<p class="text-muted small px-2">Este vendedor no ha registrado paradas de prospección todavía.</p>'; return; }
+  cont.innerHTML = data.paradas.map(tarjetaParada).join('');
 }
 
 // Misma lista de etapas/interés que ETAPAS_CLIENTE/INTERES_CLIENTE en
@@ -744,3 +811,4 @@ document.getElementById('tab-todas').addEventListener('shown.bs.tab', () => carg
 document.getElementById('tab-clientes').addEventListener('shown.bs.tab', () => cargarClientes(), { once: true });
 document.getElementById('tab-prospectos').addEventListener('shown.bs.tab', () => cargarProspectos(), { once: true });
 document.getElementById('tab-prospeccion').addEventListener('shown.bs.tab', () => cargarVistaProspeccionActual(), { once: true });
+document.getElementById('tab-paradas').addEventListener('shown.bs.tab', () => cargarParadas(), { once: true });
