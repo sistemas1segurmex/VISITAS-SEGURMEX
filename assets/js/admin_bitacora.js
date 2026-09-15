@@ -28,7 +28,7 @@ function aFechaLocal(fechaUtc) {
 }
 function horaBonita(fechaUtc) {
   const d = aFechaLocal(fechaUtc);
-  return d ? d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' }) : '';
+  return d ? d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Mexico_City' }) : '';
 }
 function diaEtiqueta(fechaUtc) {
   const d = aFechaLocal(fechaUtc);
@@ -38,7 +38,7 @@ function diaEtiqueta(fechaUtc) {
   const diaEvento = new Date(d); diaEvento.setHours(0, 0, 0, 0);
   if (diaEvento.getTime() === hoy.getTime()) return 'Hoy';
   if (diaEvento.getTime() === ayer.getTime()) return 'Ayer';
-  return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: diaEvento.getFullYear() !== hoy.getFullYear() ? 'numeric' : undefined });
+  return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: diaEvento.getFullYear() !== hoy.getFullYear() ? 'numeric' : undefined, timeZone: 'America/Mexico_City' });
 }
 
 const PALETA_AVATAR = ['#4F46E5', '#F5A623', '#16A34A', '#E11D48', '#0EA5E9', '#9333EA', '#D97706', '#0891B2'];

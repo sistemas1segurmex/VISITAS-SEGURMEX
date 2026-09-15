@@ -142,10 +142,13 @@ document.getElementById('form-invitar').addEventListener('submit', async (e) => 
     invitacionActual = { id: data.id, link };
 
     document.getElementById('invitar-link').value = link;
-    const fecha = new Date(String(data.expira_en).replace(' ', 'T'));
+    // expira_en sale de NOW() + intervalo (Postgres, sesión forzada a UTC,
+    // ver includes/db.php) -- hay que agregarle 'Z' y forzar la zona de
+    // México al mostrarla, si no se ve corrida.
+    const fecha = new Date(String(data.expira_en).replace(' ', 'T') + 'Z');
     document.getElementById('invitar-vence-txt').textContent = 'Vence el ' +
-      fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) + ', ' +
-      fecha.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
+      fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' }) + ', ' +
+      fecha.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Mexico_City' });
 
     // El formulario se queda visible junto con el resultado (no se oculta)
     // -- así se puede cambiar el correo/vigencia y generar otro sin cerrar

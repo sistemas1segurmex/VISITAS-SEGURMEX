@@ -20,10 +20,26 @@ function badgeVerificado(cita) {
     : '<span class="v26-pill v26-pill--noverificado">Fuera de zona</span>';
 }
 
+// citas.fecha_hora es la hora que el vendedor capturó directamente en local
+// (nunca pasa por UTC) -- se muestra tal cual, sin convertir. NO usar esta
+// función con timestamps que sí sean UTC (prospecciones.hora_inicio/fin,
+// tracking, checkins...): para esos usar horaCortaUTC() de abajo.
 function horaCorta(fechaHora) {
   const d = new Date(fechaHora.replace(' ', 'T'));
   if (isNaN(d)) return fechaHora;
   return d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
+}
+
+// Para timestamps guardados en UTC (CURRENT_TIMESTAMP de Postgres, como
+// prospecciones.hora_inicio/hora_fin) -- a diferencia de horaCorta() de
+// arriba, esta sí convierte, y fuerza la zona de México explícita para que
+// se vea igual sin importar en qué zona horaria esté configurado el celular
+// de quien lo ve.
+function horaCortaUTC(fechaUtc) {
+  if (!fechaUtc) return '';
+  const d = new Date(String(fechaUtc).replace(' ', 'T') + 'Z');
+  if (isNaN(d.getTime())) return fechaUtc;
+  return d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Mexico_City' });
 }
 
 function skeletonCitas(n = 3) {
@@ -294,7 +310,7 @@ function renderCtaProspeccion(paradas) {
         <i class="bi bi-signpost-2-fill icon"></i>
         <div class="txt">
           <strong>En prospección: ${abierta.nombre}</strong>
-          <p>Desde las ${horaCorta(abierta.hora_inicio)} · toca para registrar tu salida</p>
+          <p>Desde las ${horaCortaUTC(abierta.hora_inicio)} · toca para registrar tu salida</p>
         </div>
       </a>`;
     return;
