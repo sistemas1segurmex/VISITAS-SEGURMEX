@@ -3,6 +3,7 @@
 let mapa, marcadoresVendedores = {}, tooltipsVendedores = {};
 let capaRutas = null;               // L.layerGroup con las polylines del día
 const PALETA_RUTAS = ['#4F46E5', '#F5A623', '#16A34A', '#E11D48', '#0EA5E9', '#9333EA', '#D97706'];
+const nombresVendedores = {};       // vendedor_id -> nombre, para las etiquetas del recorrido
 
 function initMapa() {
   mapa = L.map('mapa', { zoomControl: true }).setView([23.6345, -102.5528], 5);
@@ -59,6 +60,7 @@ async function actualizarUbicaciones() {
     let enLineaCount = 0, perdidaCount = 0;
 
     data.ubicaciones.forEach(u => {
+      nombresVendedores[u.vendedor_id] = u.nombre;
       if (u.lat === null || u.lng === null) {
         sinUbicacion.push(u.nombre);
         return;
@@ -173,11 +175,17 @@ async function dibujarRutasDia() {
       // ruta_dia.php, antes se descartaba la hora al armar solo la línea) --
       // inicio y última posición más grandes para verlos de un vistazo, los
       // intermedios chicos para no saturar el mapa. Todos responden con su
-      // hora al pasar el cursor.
+      // hora al pasar el cursor y hacen el mismo zoom animado que el pin en
+      // vivo del vendedor si se les da clic.
+      const nombreVendedor = nombresVendedores[r.vendedor_id] || 'Vendedor';
       r.puntos.forEach((p, idx) => {
         const esInicio = idx === 0;
         const esFin = idx === r.puntos.length - 1;
         const destacado = esInicio || esFin;
+        const etiqueta = esInicio ? 'Inicio del día' : esFin ? 'Última posición' : `Punto ${idx + 1} de ${r.puntos.length}`;
+        const tooltip = `
+          <span class="vendedor"><i class="bi bi-signpost-2-fill"></i> ${nombreVendedor}</span>
+          <span class="detalle">${horaSoloUTC(p.fecha_hora)} — <span class="${destacado ? 'destacado' : ''}">${etiqueta}</span></span>`;
         L.circleMarker([p.lat, p.lng], {
           radius: destacado ? 7 : 3,
           color: '#fff',
@@ -185,10 +193,8 @@ async function dibujarRutasDia() {
           fillColor: color,
           fillOpacity: destacado ? 1 : 0.7,
         })
-          .bindTooltip(
-            `${esInicio ? 'Inicio del día · ' : esFin ? 'Última posición · ' : ''}${horaSoloUTC(p.fecha_hora)}`,
-            { direction: 'top', offset: [0, -6], className: 'visitas-tooltip-limpio' }
-          )
+          .bindTooltip(tooltip, { direction: 'top', offset: [0, -6], className: 'visitas-ruta-tooltip' })
+          .on('click', function () { mapa.flyTo(this.getLatLng(), 16, { duration: 1.1 }); })
           .addTo(capaRutas);
       });
     });
