@@ -41,7 +41,7 @@ $u = requireRole('vendedor');
   <div class="v26-header">
     <div class="v26-topbar">
       <div class="v26-topbar-left">
-        <a href="index.php" class="v26-back" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
+        <a href="index.php" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis visitas" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
           <div class="hi">Control de visitas</div>
           <div class="name">Mis paradas de hoy</div>
@@ -50,6 +50,14 @@ $u = requireRole('vendedor');
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
       </div>
+    </div>
+    <div class="v26-tabbar">
+      <a href="index.php"><i class="bi bi-house-fill"></i>Inicio</a>
+      <a href="calendario.php"><i class="bi bi-calendar3"></i>Calendario</a>
+      <a href="clientes.php"><i class="bi bi-people-fill"></i>Clientes</a>
+      <a href="cotizaciones.php"><i class="bi bi-file-earmark-text-fill"></i>Cotizar</a>
+      <a href="reporte.php"><i class="bi bi-bar-chart-fill"></i>Reporte</a>
+      <a href="mis_paradas.php" class="active"><i class="bi bi-signpost-2-fill"></i>Paradas</a>
     </div>
   </div>
 
