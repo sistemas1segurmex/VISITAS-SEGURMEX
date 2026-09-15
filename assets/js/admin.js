@@ -4,6 +4,7 @@ let mapa, marcadoresVendedores = {}, tooltipsVendedores = {};
 let capaRutas = null;               // L.layerGroup con las polylines del día
 const PALETA_RUTAS = ['#4F46E5', '#F5A623', '#16A34A', '#E11D48', '#0EA5E9', '#9333EA', '#D97706'];
 const nombresVendedores = {};       // vendedor_id -> nombre, para las etiquetas del recorrido
+let filtroVendedorMapaId = 0;       // 0 = todos los vendedores
 
 function initMapa() {
   mapa = L.map('mapa', { zoomControl: true }).setView([23.6345, -102.5528], 5);
@@ -49,18 +50,47 @@ function contenidoTooltipVendedor(u) {
   return partes.join('<br>');
 }
 
+// Llena el select de "Todos los vendedores / uno en particular" una sola
+// vez (no en cada ciclo de 20s, para no perder la selección del admin a
+// medio uso). Se llama desde actualizarUbicaciones() con la lista completa.
+function poblarFiltroVendedorMapa(ubicaciones) {
+  const sel = document.getElementById('filtro-vendedor-mapa');
+  if (!sel || sel.dataset.poblado) return;
+  sel.dataset.poblado = '1';
+  const opciones = ubicaciones
+    .slice()
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+    .map(u => `<option value="${u.vendedor_id}">${u.nombre}</option>`)
+    .join('');
+  sel.insertAdjacentHTML('beforeend', opciones);
+}
+document.getElementById('filtro-vendedor-mapa')?.addEventListener('change', function () {
+  filtroVendedorMapaId = Number(this.value);
+  actualizarUbicaciones();
+  dibujarRutasDia();
+});
+
 async function actualizarUbicaciones() {
   try {
     const res = await fetch('../api/tracking.php');
     const data = await res.json();
     if (!data.ok) return;
 
+    // Nombres para el select y para las etiquetas del recorrido -- de la
+    // lista COMPLETA, antes de filtrar, así el combo siempre tiene a todos
+    // aunque ahorita se esté viendo solo a uno.
+    data.ubicaciones.forEach(u => { nombresVendedores[u.vendedor_id] = u.nombre; });
+    poblarFiltroVendedorMapa(data.ubicaciones);
+
+    const listaFiltrada = filtroVendedorMapaId === 0
+      ? data.ubicaciones
+      : data.ubicaciones.filter(u => u.vendedor_id === filtroVendedorMapaId);
+
     const vistos = new Set();
     const sinUbicacion = [];
     let enLineaCount = 0, perdidaCount = 0;
 
-    data.ubicaciones.forEach(u => {
-      nombresVendedores[u.vendedor_id] = u.nombre;
+    listaFiltrada.forEach(u => {
       if (u.lat === null || u.lng === null) {
         sinUbicacion.push(u.nombre);
         return;
@@ -125,7 +155,7 @@ async function actualizarUbicaciones() {
       }
     });
 
-    const totalConUbicacion = data.ubicaciones.length - sinUbicacion.length;
+    const totalConUbicacion = listaFiltrada.length - sinUbicacion.length;
     let resumen = `${enLineaCount} en línea de ${totalConUbicacion} con ubicación registrada`;
     if (sinUbicacion.length > 0) {
       resumen += ` · sin ubicación aún: ${sinUbicacion.join(', ')}`;
@@ -135,7 +165,7 @@ async function actualizarUbicaciones() {
     // Contadores de la leyenda del mapa: "En línea"/"Conexión perdida" son
     // los grupos especiales; "Desconectado" es el resto de vendedores
     // activos, para que los 3 números siempre sumen el total de activos.
-    const totalVendedores = data.ubicaciones.length;
+    const totalVendedores = listaFiltrada.length;
     const conteoEnLinea = document.getElementById('conteo-en-linea');
     const conteoDesconectado = document.getElementById('conteo-desconectado');
     const conteoPerdida = document.getElementById('conteo-perdida');
@@ -215,7 +245,10 @@ async function dibujarRutasDia() {
     if (!data.ok) return;
 
     capaRutas.clearLayers();
-    data.rutas.forEach((r, i) => {
+    const rutasFiltradas = filtroVendedorMapaId === 0
+      ? data.rutas
+      : data.rutas.filter(r => r.vendedor_id === filtroVendedorMapaId);
+    rutasFiltradas.forEach((r, i) => {
       if (r.puntos.length < 2) return; // no hay recorrido que dibujar con 1 solo punto
       const color = PALETA_RUTAS[i % PALETA_RUTAS.length];
       const latlngs = r.puntos.map(p => [p.lat, p.lng]);
