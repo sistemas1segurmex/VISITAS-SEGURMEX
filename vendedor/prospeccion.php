@@ -20,18 +20,6 @@ $u = requireRole('vendedor');
 <style>
   #seg-tipo-parada { display: flex; width: 100%; }
   #seg-tipo-parada .v26-seg-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
-  .v26-parada-item {
-    display: flex; gap: 10px; background: var(--v26-surface-solid); border: 1px solid var(--v26-border);
-    border-radius: var(--v26-r-md); padding: 12px 13px; box-shadow: var(--v26-shadow-sm); margin-bottom: 8px;
-  }
-  .v26-parada-item .icono {
-    width: 34px; height: 34px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center;
-    background: rgba(22,163,74,.12); color: var(--v26-green);
-  }
-  .v26-parada-item .info { flex: 1; min-width: 0; }
-  .v26-parada-item .nombre { font-weight: 700; font-size: .88rem; }
-  .v26-parada-item .direccion { font-size: .76rem; color: var(--v26-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .v26-parada-item .meta { font-size: .72rem; color: var(--v26-ink-faint); margin-top: 3px; }
 </style>
 </head>
 <body class="v26">
@@ -127,10 +115,7 @@ $u = requireRole('vendedor');
       <button id="btn-registrar" class="v26-btn v26-btn-primary v26-btn-block" disabled>Obteniendo GPS...</button>
     </div>
 
-    <div class="mt-4" id="cont-historial">
-      <h6 class="mb-2">Paradas de hoy</h6>
-      <div id="lista-paradas"><p class="text-muted small">Cargando...</p></div>
-    </div>
+    <a href="mis_paradas.php" class="v26-link-listado-paradas">Ver mis paradas de hoy <i class="bi bi-chevron-right"></i></a>
   </div>
 
 <script src="../assets/js/v26-modal.js<?= assetVer(__DIR__ . '/../assets/js/v26-modal.js') ?>"></script>
@@ -421,22 +406,6 @@ async function cargarEstado() {
     modo = 'entrada';
   }
   revisarListoParaEnviar();
-
-  const cerradas = paradas.filter(p => p.hora_fin);
-  const cont = document.getElementById('lista-paradas');
-  if (cerradas.length === 0) {
-    cont.innerHTML = '<p class="text-muted small">Aún no cierras ninguna parada hoy.</p>';
-  } else {
-    cont.innerHTML = cerradas.map(p => `
-      <div class="v26-parada-item">
-        <div class="icono"><i class="bi bi-check-circle-fill"></i></div>
-        <div class="info">
-          <div class="nombre">${p.nombre}</div>
-          ${p.direccion ? `<div class="direccion">${p.direccion}</div>` : ''}
-          <div class="meta">${horaCortaUTC(p.hora_inicio)} – ${horaCortaUTC(p.hora_fin)}</div>
-        </div>
-      </div>`).join('');
-  }
 }
 
 cargarEstado();

@@ -302,7 +302,13 @@ function renderCtaProspeccion(paradas) {
   if (!cont) return;
 
   const abierta = paradas.find(p => !p.hora_fin);
-  const cerradas = paradas.filter(p => p.hora_fin);
+
+  // Ver el listado de hoy es una pantalla aparte (mis_paradas.php) -- no se
+  // mezcla con la de registrar entrada/salida, para que revisar lo que ya
+  // llevas no te deje a medio camino de una foto/GPS a medio tomar.
+  const enlaceListado = paradas.length > 0
+    ? `<a href="mis_paradas.php" class="v26-link-listado-paradas">Ver mis ${paradas.length} parada(s) de hoy <i class="bi bi-chevron-right"></i></a>`
+    : '';
 
   if (abierta) {
     cont.innerHTML = `
@@ -312,7 +318,8 @@ function renderCtaProspeccion(paradas) {
           <strong>En prospección: ${abierta.nombre}</strong>
           <p>Desde las ${horaCortaUTC(abierta.hora_inicio)} · toca para registrar tu salida</p>
         </div>
-      </a>`;
+      </a>
+      ${enlaceListado}`;
     return;
   }
 
@@ -321,10 +328,11 @@ function renderCtaProspeccion(paradas) {
       <span class="v26-cta-icon"><i class="bi bi-signpost-2-fill"></i></span>
       <span class="v26-cta-text">
         <strong>Salí a buscar prospectos</strong>
-        <small>${cerradas.length > 0 ? `${cerradas.length} parada(s) registrada(s) hoy` : 'Registra tu recorrido de hoy'}</small>
+        <small>Registra tu recorrido de hoy</small>
       </span>
       <i class="bi bi-chevron-right chev"></i>
-    </a>`;
+    </a>
+    ${enlaceListado}`;
 }
 
 // ---------------------------------------------------------------------

@@ -464,6 +464,11 @@
   font-size: .72rem; font-weight: 700; color: var(--v26-red);
   text-decoration: underline; cursor: pointer;
 }
+.v26-link-listado-paradas {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  margin-top: 8px; padding: 8px; font-size: .78rem; font-weight: 700;
+  color: var(--v26-brand-2); text-decoration: none;
+}
 .v26-motivo { font-size: .78rem; color: var(--v26-ink-soft); font-style: italic; margin-top: 6px; }
 
 /* ---------- Modal / hoja de confirmación ---------- */
