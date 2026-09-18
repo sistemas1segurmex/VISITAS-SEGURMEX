@@ -68,10 +68,10 @@ function tiempoEnEtapaTexto(fechaUtc) {
   const diffDias = Math.round((hoy.getTime() - diaEvento.getTime()) / (24 * 60 * 60 * 1000));
   if (diffDias <= 0) return 'desde hoy';
   if (diffDias === 1) return 'desde ayer';
-  if (diffDias < 30) return `desde hace ${diffDias} días`;
-  const meses = Math.floor(diffDias / 30);
-  if (meses < 12) return `desde hace ${meses} mes${meses > 1 ? 'es' : ''}`;
-  const fecha = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Mexico_City' });
+  const mismoAnio = d.getFullYear() === new Date().getFullYear();
+  const fecha = d.toLocaleDateString('es-MX', mismoAnio
+    ? { day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' }
+    : { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Mexico_City' });
   return `desde ${fecha}`;
 }
 
