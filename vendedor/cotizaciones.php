@@ -42,23 +42,23 @@ $u = requireRole('vendedor');
   </div>
 
   <div class="v26-wrap">
-    <a href="nueva_cotizacion.php" class="v26-cta" data-tour="cta-cotizar">
+    <div class="v26-cta v26-cta--disabled" aria-disabled="true">
       <span class="v26-cta-icon"><i class="bi bi-file-earmark-plus"></i></span>
       <span class="v26-cta-text">
         <strong>Nueva cotización</strong>
-        <small>Cotiza con las mismas condiciones que oficina</small>
+        <small>No disponible por el momento</small>
       </span>
-      <i class="bi bi-chevron-right chev"></i>
-    </a>
+      <i class="bi bi-lock-fill chev"></i>
+    </div>
 
-    <a href="solicitar_muestra.php" class="v26-cta mt-2" data-tour="cta-muestra">
+    <div class="v26-cta v26-cta--disabled mt-2" aria-disabled="true">
       <span class="v26-cta-icon"><i class="bi bi-box-seam"></i></span>
       <span class="v26-cta-text">
         <strong>Solicitar muestra</strong>
-        <small>Se procesa igual que en oficina, con autorización de Dirección</small>
+        <small>No disponible por el momento</small>
       </span>
-      <i class="bi bi-chevron-right chev"></i>
-    </a>
+      <i class="bi bi-lock-fill chev"></i>
+    </div>
 
     <div class="v26-seg v26-filtro-tipo" id="seg-tipo-lista" data-tour="filtro-tipo">
       <button type="button" class="v26-seg-btn active" data-tipo="todo">Todo</button>

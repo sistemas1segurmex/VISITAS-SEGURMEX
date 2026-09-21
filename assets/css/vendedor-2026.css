@@ -280,6 +280,10 @@
 .v26-cta-text strong { display: block; font-size: .95rem; font-weight: 800; }
 .v26-cta-text small { font-size: .76rem; opacity: .92; font-weight: 600; }
 .v26-cta .chev { font-size: 1.2rem; opacity: .85; flex: none; }
+.v26-cta--disabled {
+  background: #b9b9b9; box-shadow: none; cursor: not-allowed; pointer-events: none;
+}
+.v26-cta--disabled .v26-cta-icon { background: rgba(255,255,255,.2); }
 
 /* ---------- FAB ---------- */
 .v26-fab {
