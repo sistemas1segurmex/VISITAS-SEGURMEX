@@ -10,11 +10,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireRole('vendedor');
     $lat = isset($_POST['lat']) ? (float)$_POST['lat'] : 0.0;
     $lng = isset($_POST['lng']) ? (float)$_POST['lng'] : 0.0;
+    $accuracy = isset($_POST['accuracy']) && $_POST['accuracy'] !== '' ? (float)$_POST['accuracy'] : null;
     if (!$lat || !$lng) {
         jsonResponse(['ok' => false, 'error' => 'GPS inválido'], 400);
     }
-    $db->prepare('INSERT INTO tracking_ubicaciones (vendedor_id, lat, lng) VALUES (?,?,?)')
-       ->execute([$u['id'], $lat, $lng]);
+    // Filtro también aquí (no solo en el JS del vendedor) por si llega una
+    // versión vieja de la app o alguien pega directo al endpoint: un fix sin
+    // GPS real (red/Wi-Fi/IP) trae accuracy de varios km y puede marcar al
+    // vendedor en otra ciudad aunque no se haya movido.
+    if ($accuracy !== null && $accuracy > 500) {
+        jsonResponse(['ok' => false, 'error' => 'Ubicación descartada por baja precisión'], 200);
+    }
+    $db->prepare('INSERT INTO tracking_ubicaciones (vendedor_id, lat, lng, accuracy) VALUES (?,?,?,?)')
+       ->execute([$u['id'], $lat, $lng, $accuracy]);
     jsonResponse(['ok' => true]);
 }
 
@@ -48,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
          FROM usuarios u
          LEFT JOIN LATERAL (
              SELECT lat, lng, fecha_hora FROM tracking_ubicaciones
-             WHERE vendedor_id = u.id
+             WHERE vendedor_id = u.id AND (accuracy IS NULL OR accuracy <= 500)
              ORDER BY fecha_hora DESC LIMIT 1
          ) t ON true
          LEFT JOIN LATERAL (

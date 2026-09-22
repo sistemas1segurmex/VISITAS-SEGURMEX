@@ -256,14 +256,24 @@ function iniciarTrackingPeriodico(intervaloMs = 30000) {
   // recorrido (ej. Guadalajara a León en menos de una hora).
   const MAX_ANTIGUEDAD_POSICION_MS = 2 * 60 * 1000;
 
+  // Radio máximo aceptado (metros) para la precisión del fix. Sin GPS real
+  // (ej. permiso "aproximada" en Android, o navegador de escritorio sin
+  // chip GPS) el navegador resuelve la posición por red/Wi-Fi/IP, lo cual
+  // puede regresar una coordenada a kilómetros de distancia (ej. marcar
+  // Guadalajara estando físicamente en León). Esos fixes traen accuracy muy
+  // alto, así que se descartan en vez de guardarse como si fueran válidos.
+  const MAX_PRECISION_ACEPTADA_M = 500;
+
   const enviar = () => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const antiguedadMs = Date.now() - pos.timestamp;
         if (antiguedadMs > MAX_ANTIGUEDAD_POSICION_MS) return; // posición vieja/caché -- se descarta
+        if (pos.coords.accuracy > MAX_PRECISION_ACEPTADA_M) return; // posición imprecisa (red/IP) -- se descarta
         const fd = new FormData();
         fd.append('lat', pos.coords.latitude);
         fd.append('lng', pos.coords.longitude);
+        fd.append('accuracy', pos.coords.accuracy);
         fetch('../api/tracking.php', { method: 'POST', body: fd }).catch(() => {});
       },
       () => {},
