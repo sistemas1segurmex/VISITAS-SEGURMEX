@@ -98,24 +98,27 @@ if (!$cliente) {
           <input type="text" name="nombre_contacto" class="v26-input" placeholder="¿Con quién tratas ahí?" value="<?= htmlspecialchars($cliente['nombre_contacto'] ?? '') ?>">
         </div>
 
-        <div class="v26-buscar-row">
-          <div class="v26-search">
-            <i class="bi bi-search"></i>
-            <input type="text" id="buscar-direccion" class="v26-input" placeholder="Escribe la dirección y se busca sola...">
+        <div class="v26-buscar-destacado">
+          <div class="v26-buscar-eyebrow"><i class="bi bi-stars"></i> Empieza aquí -- el resto se llena solo</div>
+          <div class="v26-buscar-row">
+            <div class="v26-search">
+              <i class="bi bi-search"></i>
+              <input type="text" id="buscar-direccion" class="v26-input" placeholder="Escribe la dirección y se busca sola...">
+            </div>
+          </div>
+          <div id="resultados-busqueda"></div>
+
+          <div class="v26-field">
+            <label>Ubicación en el mapa <span id="ubicacion-estado" class="v26-ubicacion-badge pendiente"><i class="bi bi-exclamation-circle"></i> obligatoria, aún sin marcar</span></label>
+            <div id="mapa-cliente" class="v26-map v26-map-chica"></div>
+            <div class="v26-map-float v26-tip" id="btn-mi-ubicacion" data-tip="Detecta tu posición GPS y la marca en el mapa"><i class="bi bi-crosshair"></i> Usar mi ubicación</div>
+            <input type="hidden" name="lat" id="lat">
+            <input type="hidden" name="lng" id="lng">
           </div>
         </div>
-        <div id="resultados-busqueda"></div>
 
         <div class="v26-field">
-          <label>Ubicación en el mapa <span id="ubicacion-estado" class="v26-ubicacion-badge pendiente"><i class="bi bi-exclamation-circle"></i> obligatoria, aún sin marcar</span></label>
-          <div id="mapa-cliente" class="v26-map v26-map-chica"></div>
-          <div class="v26-map-float v26-tip" id="btn-mi-ubicacion" data-tip="Detecta tu posición GPS y la marca en el mapa"><i class="bi bi-crosshair"></i> Usar mi ubicación</div>
-          <input type="hidden" name="lat" id="lat">
-          <input type="hidden" name="lng" id="lng">
-        </div>
-
-        <div class="v26-field">
-          <label>Calle y número</label>
+          <label>Calle y número <small class="text-muted fw-normal">(se llena automático)</small></label>
           <input type="text" name="calle_numero" id="calle-numero" class="v26-input" value="<?= htmlspecialchars($cliente['calle_numero'] ?? '') ?>" placeholder="Ej. Av. Reforma 245" required>
         </div>
 
