@@ -24,10 +24,13 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
 // tracking encendido todo el día (reporta cada pocos segundos/minutos).
 const MAX_PUNTOS_POR_VENDEDOR = 300;
 
+// accuracy IS NULL cubre los puntos guardados antes de que existiera esta
+// columna; accuracy > 500 son fixes sin GPS real (red/Wi-Fi/IP) que pueden
+// marcar al vendedor a kilómetros de donde realmente está.
 $stmt = $db->prepare(
     "SELECT vendedor_id, lat, lng, fecha_hora
      FROM tracking_ubicaciones
-     WHERE DATE(fecha_hora) = ?
+     WHERE DATE(fecha_hora) = ? AND (accuracy IS NULL OR accuracy <= 500)
      ORDER BY vendedor_id, fecha_hora ASC"
 );
 $stmt->execute([$fecha]);
