@@ -250,6 +250,11 @@ function distanciaMetrosMapa(lat1, lng1, lat2, lng2) {
 // de "mismo punto exacto": se agrupan los puntos consecutivos que están a
 // menos de 100m del último ya agrupado.
 const DISTANCIA_MIN_NUEVO_MARCADOR_M = 100;
+// Un semáforo o alto de tránsito ya junta 2-3 pings (cada ~30s) dentro de
+// los mismos 100m, así que "más de un ping" NO basta para saber si fue una
+// parada real (cliente) o solo tráfico en el camino. Se exige que el grupo
+// dure al menos este tiempo para contar como parada.
+const DURACION_MIN_PARADA_MS = 3 * 60 * 1000;
 function agruparPuntosCercanos(puntos) {
   const grupos = [];
   puntos.forEach(p => {
@@ -324,14 +329,19 @@ async function dibujarRutasDia() {
         if (esFin && esHoy && !esInicio) return; // ese lugar ya lo marca el pin en vivo de arriba
         const destacado = esInicio || esFin;
         const esRango = g.fin !== g.inicio;
-        // Un grupo de un solo ping que no es inicio/fin ni una parada real
-        // (esRango) es solo un punto de paso mientras el vendedor iba
-        // manejando de un lugar a otro -- ej. el camino de su casa a la
-        // empresa. La línea de la ruta (arriba) ya representa ese tramo;
-        // poner un círculo por cada uno de esos pasos satura el mapa de
-        // puntos sin aportar información nueva, así que solo se dibuja
-        // marcador para inicio/fin del día y paradas donde sí se quedó.
-        if (!destacado && !esRango) return;
+        const duracionMs = esRango
+          ? new Date(String(g.fin.fecha_hora).replace(' ', 'T') + 'Z') - new Date(String(g.inicio.fecha_hora).replace(' ', 'T') + 'Z')
+          : 0;
+        const esParadaReal = esRango && duracionMs >= DURACION_MIN_PARADA_MS;
+        // Un grupo que no es inicio/fin ni una parada real (con duración
+        // mínima) es solo un punto de paso mientras el vendedor iba
+        // manejando de un lugar a otro -- un semáforo, un alto, o el camino
+        // de su casa a la empresa. La línea de la ruta (arriba) ya
+        // representa ese tramo; poner un círculo por cada uno de esos pasos
+        // satura el mapa de puntos sin aportar información nueva, así que
+        // solo se dibuja marcador para inicio/fin del día y paradas donde
+        // sí se quedó un rato.
+        if (!destacado && !esParadaReal) return;
         const etiqueta = esInicio ? 'Inicio del día' : esFin ? 'Última posición' : null;
         const horaTexto = esRango
           ? `${horaSoloUTC(g.inicio.fecha_hora)} – ${horaSoloUTC(g.fin.fecha_hora)}`
