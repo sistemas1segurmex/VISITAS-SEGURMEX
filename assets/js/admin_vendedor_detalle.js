@@ -641,9 +641,14 @@ function bitacoraParadasHtml(data) {
 let generacionDireccionesParadas = 0;
 async function cargarDireccionesParadas(paradas) {
   const generacion = ++generacionDireccionesParadas;
+  let primera = true;
   for (let i = 0; i < (paradas || []).length; i++) {
     const p = paradas[i];
     if (p.cliente) continue;
+    // Nominatim permite 1 consulta/seg; sin esta pausa la segunda parada
+    // a veces fallaba y salía "ubicación no disponible".
+    if (!primera) await new Promise(r => setTimeout(r, 1100));
+    primera = false;
     let direccion = null;
     try {
       const res = await fetch(`../api/geocodificar_punto.php?lat=${p.lat}&lng=${p.lng}`);
@@ -653,7 +658,9 @@ async function cargarDireccionesParadas(paradas) {
     if (generacion !== generacionDireccionesParadas) return; // se cambió de día mientras cargaba
     const el = document.querySelector(`[data-direccion-parada="${i}"]`);
     if (!el) return;
-    el.innerHTML = `<i class="bi bi-geo-alt"></i> ${direccion ? escapeHtmlParada(direccion) : 'ubicación no disponible'}`;
+    el.innerHTML = direccion
+      ? `<i class="bi bi-geo-alt"></i> ${escapeHtmlParada(direccion)}`
+      : `<i class="bi bi-geo-alt"></i> <a href="https://www.google.com/maps?q=${p.lat},${p.lng}" target="_blank" rel="noopener">ver en mapa</a>`;
     const marcador = marcadoresParadasDia[i];
     if (marcador && direccion) {
       marcador.setPopupContent(`<strong>Parada ${i + 1}</strong><br>${etiquetaParadaSinCliente(i)}<br>${escapeHtmlParada(direccion)}<br>${horaCortaLocal(p.inicio)} – ${horaCortaLocal(p.fin)} (${p.minutos} min)`);
