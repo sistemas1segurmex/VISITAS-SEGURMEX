@@ -10,7 +10,6 @@ function badgeEstado(estado) {
 
 function badgeVerificado(v) {
   if (v === null || v === undefined) return '<span class="text-muted small">Sin check-in</span>';
-  if (v == -1) return '<span class="v26-pill v26-pill--incierto">Ubicación imprecisa</span>';
   return v == 1
     ? '<span class="v26-pill v26-pill--verificado">GPS verificado</span>'
     : '<span class="v26-pill v26-pill--noverificado">Fuera de zona</span>';

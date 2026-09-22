@@ -68,9 +68,7 @@ function renderEvidencia(checkins) {
     const etiqueta = chk.tipo === 'entrada' ? 'Entrada' : 'Salida';
     const pill = chk.verificado == 1
       ? '<span class="v26-pill v26-pill--verificado">GPS ok</span>'
-      : chk.verificado == -1
-        ? '<span class="v26-pill v26-pill--incierto">Ubicación imprecisa</span>'
-        : '<span class="v26-pill v26-pill--noverificado">Fuera de zona</span>';
+      : '<span class="v26-pill v26-pill--noverificado">Fuera de zona</span>';
     const foto = chk.foto_path
       ? `<a href="../${chk.foto_path}" target="_blank" rel="noopener"><img class="miniatura" src="../${chk.foto_path}" alt="Foto ${etiqueta}"></a>`
       : '';

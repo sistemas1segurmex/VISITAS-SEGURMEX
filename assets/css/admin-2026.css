@@ -333,10 +333,6 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 .v26-pill--no_realizada { background: rgba(225,29,72,.12);   color: var(--v26-red); }
 .v26-pill--verificado   { background: rgba(22,163,74,.12);   color: var(--v26-green); }
 .v26-pill--noverificado { background: rgba(225,29,72,.12);   color: var(--v26-red); }
-/* GPS con precisión demasiado baja para confiar en la distancia calculada
-   (ej. fix por red/wifi en vez de satélite) -- ni "verificado" ni
-   "fuera de zona", porque no sabemos cuál de las dos es la real. */
-.v26-pill--incierto     { background: rgba(217,119,6,.14);    color: #B45309; }
 .v26-pill--cancelada    { background: rgba(107,114,128,.12); color: var(--v26-gray); }
 .v26-pill--retrasada    { background: rgba(225,29,72,.14);   color: var(--v26-red); animation: v26-pill-glow 1.6s ease-in-out infinite; }
 .v26-pill--retrasada::before { animation: v26-pill-dot 1.6s ease-in-out infinite; }

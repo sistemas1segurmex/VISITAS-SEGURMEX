@@ -60,17 +60,19 @@ if ($noShow) {
     }
 }
 
-// verificado: 1 = dentro del margen, 0 = fuera de zona (con GPS confiable),
-// -1 = precisión del GPS demasiado mala para saber cuál de las dos es real.
 $distancia  = null;
 $verificado = 0;
 if ($cita['cliente_lat'] !== null && $cita['cliente_lng'] !== null) {
-    $distancia = haversineDistance($lat, $lng, (float)$cita['cliente_lat'], (float)$cita['cliente_lng']);
-    if ($accuracy !== null && $accuracy > PRECISION_MAX_CHECKIN_METROS) {
-        $verificado = -1;
-    } else {
-        $verificado = $distancia <= RADIO_VERIFICACION_METROS ? 1 : 0;
+    // El propio checkin.php del vendedor ya reintenta el GPS hasta lograr
+    // buena precisión antes de dejar enviar -- esto es el candado del
+    // servidor por si aun así llega una lectura mala (app vieja, reintento
+    // agotado). Se rechaza en vez de calcular "fuera de zona" con un GPS
+    // que puede estar a kilómetros de error.
+    if ($accuracy !== null && $accuracy > PRECISION_MINIMA_CHECKIN_METROS) {
+        jsonResponse(['ok' => false, 'error' => 'Tu ubicación no es lo bastante precisa (±' . round($accuracy) . ' m). Sal a espacio abierto o espera unos segundos e intenta de nuevo.'], 400);
     }
+    $distancia  = haversineDistance($lat, $lng, (float)$cita['cliente_lat'], (float)$cita['cliente_lng']);
+    $verificado = $distancia <= RADIO_VERIFICACION_METROS ? 1 : 0;
 }
 
 $fotoPath = null;
@@ -176,7 +178,7 @@ if ($tipo === 'entrada' && $verificado === 0 && $distancia !== null) {
 
 jsonResponse([
     'ok'               => true,
-    'verificado'       => $verificado, // 1 | 0 | -1 (ver comentario arriba)
+    'verificado'       => (bool)$verificado,
     'distancia_metros' => $distancia !== null ? round($distancia) : null,
     'foto'             => $fotoPath,
     'estado'           => $nuevoEstado,

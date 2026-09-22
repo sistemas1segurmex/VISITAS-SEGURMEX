@@ -173,7 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ? '<span class="v26-pill v26-pill--retrasada">Retrasada</span>'
             : `<span class="v26-pill v26-pill--${p.estado}">${map[p.estado] || p.estado}</span>`];
           if (p.verificado == 1) badges.push('<span class="v26-pill v26-pill--verificado">GPS verificado</span>');
-          else if (p.verificado == -1) badges.push('<span class="v26-pill v26-pill--incierto">Ubicación imprecisa</span>');
           else if (p.verificado == 0) badges.push('<span class="v26-pill v26-pill--noverificado">Fuera de zona</span>');
           return { html: `
             <div class="v26-evento-lista">
