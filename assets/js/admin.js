@@ -324,6 +324,14 @@ async function dibujarRutasDia() {
         if (esFin && esHoy && !esInicio) return; // ese lugar ya lo marca el pin en vivo de arriba
         const destacado = esInicio || esFin;
         const esRango = g.fin !== g.inicio;
+        // Un grupo de un solo ping que no es inicio/fin ni una parada real
+        // (esRango) es solo un punto de paso mientras el vendedor iba
+        // manejando de un lugar a otro -- ej. el camino de su casa a la
+        // empresa. La línea de la ruta (arriba) ya representa ese tramo;
+        // poner un círculo por cada uno de esos pasos satura el mapa de
+        // puntos sin aportar información nueva, así que solo se dibuja
+        // marcador para inicio/fin del día y paradas donde sí se quedó.
+        if (!destacado && !esRango) return;
         const etiqueta = esInicio ? 'Inicio del día' : esFin ? 'Última posición' : null;
         const horaTexto = esRango
           ? `${horaSoloUTC(g.inicio.fecha_hora)} – ${horaSoloUTC(g.fin.fecha_hora)}`
