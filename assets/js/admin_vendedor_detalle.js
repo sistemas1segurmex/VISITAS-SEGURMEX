@@ -598,6 +598,16 @@ function horaCortaLocal(fechaHoraLocal) {
   return d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
 }
 
+// Sin cliente cercano no quiere decir que no haya pasado nada ahí -- el GPS
+// puede fallar en el emparejamiento aunque la parada sea real (ver
+// PARADA_RADIO_METROS/RADIO_VERIFICACION_METROS en helpers.php). En vez de
+// la leyenda negativa "Sin cliente registrado cerca", se usa una etiqueta
+// neutral según la posición: la primera parada del día suele ser el punto
+// de partida (casa/oficina), las siguientes son puntos donde se detuvo.
+function etiquetaParadaSinCliente(i) {
+  return i === 0 ? 'Inicio del día' : 'Punto de visita';
+}
+
 function bitacoraParadasHtml(data) {
   const paradas = data.paradas || [];
   if (paradas.length === 0) {
@@ -609,7 +619,7 @@ function bitacoraParadasHtml(data) {
   const filas = paradas.map((p, i) => {
     const nombre = p.cliente
       ? `<strong>${p.cliente.nombre}</strong>`
-      : '<span class="text-muted">Sin cliente registrado cerca</span>';
+      : `<span class="text-muted">${etiquetaParadaSinCliente(i)}</span>`;
     return `
       <div class="v26-parada-item">
         <span class="v26-parada-num">${i + 1}</span>
@@ -651,7 +661,7 @@ function renderMapaParadas(paradas) {
   const puntos = [];
   paradas.forEach((p, i) => {
     const marcador = L.marker([p.lat, p.lng], { icon: pinIcon(i + 1) }).addTo(mapaParadasDia);
-    const nombreCliente = p.cliente ? p.cliente.nombre : 'Sin cliente registrado cerca';
+    const nombreCliente = p.cliente ? p.cliente.nombre : etiquetaParadaSinCliente(i);
     marcador.bindPopup(`<strong>Parada ${i + 1}</strong><br>${nombreCliente}<br>${horaCortaLocal(p.inicio)} – ${horaCortaLocal(p.fin)} (${p.minutos} min)`);
     puntos.push([p.lat, p.lng]);
   });
