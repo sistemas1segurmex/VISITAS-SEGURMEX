@@ -15,6 +15,7 @@ function badgeEstado(cita) {
 
 function badgeVerificado(cita) {
   if (cita.checkin_verificado === null || cita.checkin_verificado === undefined) return '';
+  if (cita.checkin_verificado == -1) return '<span class="v26-pill v26-pill--incierto">Ubicación imprecisa</span>';
   return cita.checkin_verificado == 1
     ? '<span class="v26-pill v26-pill--verificado">GPS verificado</span>'
     : '<span class="v26-pill v26-pill--noverificado">Fuera de zona</span>';

@@ -79,7 +79,13 @@ $siguienteTipo = (!$estadoResuelto && !$esFuturo) ? (!$tieneEntrada ? 'entrada' 
     <?php foreach ($checkins as $ch): ?>
       <div class="v26-card mb-2" style="padding:12px 14px;">
         <strong style="font-size:.85rem;"><?= $ch['tipo'] === 'entrada' ? 'Entrada' : 'Salida' ?> registrada</strong>
-        <span class="v26-pill <?= $ch['verificado'] ? 'v26-pill--verificado' : 'v26-pill--noverificado' ?>" style="margin-left:6px;"><?= $ch['verificado'] ? 'GPS verificado' : 'Fuera de zona' ?></span>
+        <?php if ((int)$ch['verificado'] === 1): ?>
+          <span class="v26-pill v26-pill--verificado" style="margin-left:6px;">GPS verificado</span>
+        <?php elseif ((int)$ch['verificado'] === -1): ?>
+          <span class="v26-pill v26-pill--incierto" style="margin-left:6px;">Ubicación imprecisa</span>
+        <?php else: ?>
+          <span class="v26-pill v26-pill--noverificado" style="margin-left:6px;">Fuera de zona</span>
+        <?php endif; ?>
         <div style="font-size:.76rem;color:var(--v26-ink-soft);margin-top:4px;">
           <?= $ch['distancia_metros'] !== null ? 'Distancia al cliente: ' . round($ch['distancia_metros']) . ' m' : 'Cliente sin coordenadas registradas' ?>
         </div>
@@ -172,7 +178,7 @@ const citaId = <?= (int)$citaId ?>;
 const tipo = <?= json_encode($siguienteTipo) ?>;
 const fechaCitaStr = <?= json_encode($cita['fecha_hora']) ?>;
 const ESPERA_NO_SHOW_MIN = 10;
-let lat = null, lng = null;
+let lat = null, lng = null, accuracy = null;
 let fotoBlob = null;
 let streamCamara = null;
 let esReporteNoShow = false;
@@ -185,6 +191,7 @@ if (tipo && 'geolocation' in navigator) {
     (pos) => {
       lat = pos.coords.latitude;
       lng = pos.coords.longitude;
+      accuracy = pos.coords.accuracy;
       estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(pos.coords.accuracy)} m)`;
       revisarListoParaEnviar();
     },
@@ -438,6 +445,7 @@ async function enviarCheckin(motivoNoShow) {
   fd.append('tipo', tipo);
   fd.append('lat', lat);
   fd.append('lng', lng);
+  if (accuracy !== null) fd.append('accuracy', accuracy);
   fd.append('foto', fotoBlob, 'evidencia.jpg');
   if (motivoNoShow !== undefined) {
     fd.append('no_show', '1');

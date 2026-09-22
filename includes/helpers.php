@@ -3,6 +3,14 @@
 // registrada del cliente para considerar una visita "verificada".
 define('RADIO_VERIFICACION_METROS', 150);
 
+// Si la precisión del GPS del check-in (pos.coords.accuracy) es peor que
+// esto, no se puede confiar en la distancia calculada -- un fix por
+// red/wifi en vez de satélite puede marcar al vendedor a kilómetros de
+// donde realmente está (ej. "Fuera de zona" a 29 km estando parado en el
+// mismo estacionamiento del cliente). En vez de arriesgar un falso
+// "fuera de zona", ese check-in se guarda como "ubicación incierta".
+define('PRECISION_MAX_CHECKIN_METROS', 500);
+
 // ---------------------------------------------------------------------
 // Límite de sesiones concurrentes por usuario (login.php). Cada login
 // exitoso registra una fila en usuarios_sesiones; a partir de la 3ra
