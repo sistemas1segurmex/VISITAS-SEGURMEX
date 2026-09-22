@@ -624,7 +624,7 @@ function bitacoraParadasHtml(data) {
       <div class="v26-parada-item">
         <span class="v26-parada-num">${i + 1}</span>
         <div>
-          <div>${nombre}</div>
+          <div>${nombre}${p.cliente ? '' : ` <span class="text-muted small" data-direccion-parada="${i}"><i class="bi bi-geo-alt"></i> buscando ubicación…</span>`}</div>
           <div class="text-muted small">${horaCortaLocal(p.inicio)} – ${horaCortaLocal(p.fin)} · ${p.minutos} min ahí</div>
         </div>
       </div>`;
@@ -635,7 +635,38 @@ function bitacoraParadasHtml(data) {
     <div id="mapa-paradas-dia" class="v26-mapa-paradas"></div>`;
 }
 
+// Calle+colonia de cada parada sin cliente (api/geocodificar_punto.php, con
+// caché en disco del servidor). Son pocas paradas por día, pero se piden una
+// por una para no disparar varias consultas simultáneas a Nominatim.
+let generacionDireccionesParadas = 0;
+async function cargarDireccionesParadas(paradas) {
+  const generacion = ++generacionDireccionesParadas;
+  for (let i = 0; i < (paradas || []).length; i++) {
+    const p = paradas[i];
+    if (p.cliente) continue;
+    let direccion = null;
+    try {
+      const res = await fetch(`../api/geocodificar_punto.php?lat=${p.lat}&lng=${p.lng}`);
+      const data = await res.json();
+      direccion = data.ok ? data.direccion : null;
+    } catch (e) { /* se deja el texto de respaldo */ }
+    if (generacion !== generacionDireccionesParadas) return; // se cambió de día mientras cargaba
+    const el = document.querySelector(`[data-direccion-parada="${i}"]`);
+    if (!el) return;
+    el.innerHTML = `<i class="bi bi-geo-alt"></i> ${direccion ? escapeHtmlParada(direccion) : 'ubicación no disponible'}`;
+    const marcador = marcadoresParadasDia[i];
+    if (marcador && direccion) {
+      marcador.setPopupContent(`<strong>Parada ${i + 1}</strong><br>${etiquetaParadaSinCliente(i)}<br>${escapeHtmlParada(direccion)}<br>${horaCortaLocal(p.inicio)} – ${horaCortaLocal(p.fin)} (${p.minutos} min)`);
+    }
+  }
+}
+
+function escapeHtmlParada(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 let mapaParadasDia = null;
+let marcadoresParadasDia = [];
 function renderMapaParadas(paradas) {
   const cont = document.getElementById('mapa-paradas-dia');
   if (!cont || !paradas || paradas.length === 0) return;
@@ -659,8 +690,10 @@ function renderMapaParadas(paradas) {
   });
 
   const puntos = [];
+  marcadoresParadasDia = [];
   paradas.forEach((p, i) => {
     const marcador = L.marker([p.lat, p.lng], { icon: pinIcon(i + 1) }).addTo(mapaParadasDia);
+    marcadoresParadasDia[i] = marcador;
     const nombreCliente = p.cliente ? p.cliente.nombre : etiquetaParadaSinCliente(i);
     marcador.bindPopup(`<strong>Parada ${i + 1}</strong><br>${nombreCliente}<br>${horaCortaLocal(p.inicio)} – ${horaCortaLocal(p.fin)} (${p.minutos} min)`);
     puntos.push([p.lat, p.lng]);
@@ -746,6 +779,7 @@ async function cargarProspeccionDia(fecha) {
     if (!data.ok) { cont.innerHTML = `<p class="text-danger small">${data.error}</p>`; return; }
     cont.innerHTML = renderDiaDetalle(data);
     renderMapaParadas(data.paradas);
+    cargarDireccionesParadas(data.paradas);
   } catch (e) {
     cont.innerHTML = '<p class="text-danger small">Error al cargar el día.</p>';
   }
