@@ -278,8 +278,21 @@ async function dibujarRutasDia() {
     rutasFiltradas.forEach((r, i) => {
       if (r.puntos.length < 2) return; // no hay recorrido que dibujar con 1 solo punto
       const color = PALETA_RUTAS[i % PALETA_RUTAS.length];
-      const latlngs = r.puntos.map(p => [p.lat, p.lng]);
-      L.polyline(latlngs, { color, weight: 3, opacity: 0.65, lineJoin: 'round' }).addTo(capaRutas);
+
+      // La línea se dibuja con los puntos YA AGRUPADOS (mismo agrupamiento
+      // de 20m que ya se usaba para los marcadores), no con cada ping
+      // crudo. El GPS "tiembla" unos metros en cada lectura aunque el
+      // vendedor esté parado en el mismo lugar todo el día (ej. en la
+      // oficina), y conectar esos pings crudos en orden de tiempo dibuja un
+      // enredo de rayones en ese punto en vez de una ruta legible. Al usar
+      // los grupos, la línea solo avanza cuando hay un movimiento real de
+      // más de 20m.
+      const nombreVendedor = nombresVendedores[r.vendedor_id] || 'Vendedor';
+      const grupos = agruparPuntosCercanos(r.puntos);
+      if (grupos.length >= 2) {
+        const latlngs = grupos.map(g => [g.lat, g.lng]);
+        L.polyline(latlngs, { color, weight: 3, opacity: 0.65, lineJoin: 'round' }).addTo(capaRutas);
+      }
 
       // Un marcador por grupo de posiciones cercanas (no por cada ping
       // crudo) -- inicio y última posición del día más grandes para verlos
@@ -287,8 +300,6 @@ async function dibujarRutasDia() {
       // completo, los pasos rápidos chicos. Todos responden con su hora al
       // pasar el cursor y hacen el mismo zoom animado que el pin en vivo del
       // vendedor si se les da clic.
-      const nombreVendedor = nombresVendedores[r.vendedor_id] || 'Vendedor';
-      const grupos = agruparPuntosCercanos(r.puntos);
       grupos.forEach((g, idx) => {
         const esInicio = idx === 0;
         const esFin = idx === grupos.length - 1;
