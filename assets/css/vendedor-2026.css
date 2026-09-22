@@ -508,6 +508,28 @@
 .v26-search i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--v26-ink-soft); }
 .v26-search input { padding-left: 40px; }
 
+/* Caja destacada del buscador de dirección + mapa en nuevo_cliente.php y
+   editar_cliente.php -- es el campo que se debe usar (autocompleta calle,
+   estado, municipio, etc. al elegir un resultado o marcar el mapa); antes
+   se veía igual de "plano" que el resto de los campos y los vendedores
+   terminaban llenando "Calle y número" a mano en vez de usarlo. */
+.v26-buscar-destacado {
+  border: 2px solid var(--v26-brand-1);
+  border-radius: var(--v26-r-lg);
+  background: linear-gradient(135deg, rgba(232, 164, 0, .12), rgba(232, 164, 0, .03));
+  box-shadow: var(--v26-shadow-brand);
+  padding: 14px 14px 4px;
+  margin-bottom: 16px;
+}
+.v26-buscar-destacado .v26-search,
+.v26-buscar-destacado .v26-field:last-child { margin-bottom: 10px; }
+.v26-buscar-destacado .v26-search input { background: var(--v26-surface-solid); }
+.v26-buscar-eyebrow {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .68rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
+  color: var(--v26-brand-2); margin-bottom: 8px;
+}
+
 /* ---------- Tarjetas de estadísticas con vidrio (ej. "Mis clientes") ---------- */
 .v26-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
 .v26-stat-card {
