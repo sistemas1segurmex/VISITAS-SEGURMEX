@@ -411,11 +411,32 @@ function badgeEstado(cita) {
   return `<span class="v26-pill v26-pill--${cita.estado}">${map[cita.estado] || cita.estado}</span>`;
 }
 
-function badgeVerificado(cita) {
-  if (cita.checkin_verificado === null || cita.checkin_verificado === undefined) return '<span class="text-muted small">Sin check-in aún</span>';
-  return cita.checkin_verificado == 1
-    ? '<span class="v26-pill v26-pill--verificado">GPS verificado</span>'
-    : '<span class="v26-pill v26-pill--noverificado">Fuera de zona</span>';
+// Mismo criterio de etiquetas que INTERES_CLIENTE en assets/js/vendedor.js
+// -- duplicado aquí porque admin y vendedor son bundles de JS separados.
+const INTERES_CLIENTE_ADMIN = {
+  bajo: 'Poco interesado', medio: 'Interés medio', interesado: 'Interesado', muy_interesado: 'Muy interesado',
+};
+function badgeInteres(interes) {
+  if (!interes || !INTERES_CLIENTE_ADMIN[interes]) return '';
+  return `<span class="v26-pill v26-pill--interes-${interes}">${INTERES_CLIENTE_ADMIN[interes]}</span>`;
+}
+
+// Una línea por check-in (entrada/salida) en vez de una sola píldora
+// ambigua -- antes "Fuera de zona" no decía si fue al llegar o al salir.
+function lineaCheckin(etiqueta, verificado, fechaHora, distancia) {
+  if (verificado === null || verificado === undefined) return '';
+  const claseDot = verificado == 1 ? 'ok' : 'no';
+  const estadoTxt = verificado == 1
+    ? 'GPS verificado'
+    : `Fuera de zona${distancia !== null && distancia !== undefined ? ' (' + Math.round(distancia) + ' m)' : ''}`;
+  return `<div class="v26-checkin-linea"><span class="dot ${claseDot}"></span> <b>${etiqueta}</b> ${horaSoloUTC(fechaHora)} · ${estadoTxt}</div>`;
+}
+function lineasCheckin(c) {
+  const partes = [
+    lineaCheckin('Entrada', c.checkin_verificado, c.entrada_fecha_hora, c.entrada_distancia_metros),
+    lineaCheckin('Salida', c.checkin_verificado_salida, c.salida_fecha_hora, c.salida_distancia_metros),
+  ].filter(Boolean);
+  return partes.length ? `<div class="v26-checkin-lineas">${partes.join('')}</div>` : '';
 }
 
 function escapeAttr(s) {
@@ -472,13 +493,13 @@ function tarjetaVisita(c) {
       <div class="v26-cita-hora-solo"><span class="hora">${horaDeCita(c.fecha_hora)}</span></div>
       <div class="v26-cita-info">
         <div class="vendedor">${avatarVendedor} ${c.vendedor_nombre}</div>
-        <div class="cliente">${c.cliente_nombre}</div>
+        <div class="cliente">${c.cliente_nombre} ${badgeInteres(c.interes)}</div>
         <div class="direccion"><i class="bi bi-geo-alt"></i> ${c.direccion || 'Sin dirección'}</div>
         ${c.notas ? `<div class="notas"><i class="bi bi-chat-left-text"></i> ${c.notas}</div>` : ''}
+        ${lineasCheckin(c)}
       </div>
       <div class="v26-cita-estado">
         ${badgeEstado(c)}
-        ${badgeVerificado(c)}
       </div>
       <div class="v26-cita-fotos">
         ${fotosCita(c)}

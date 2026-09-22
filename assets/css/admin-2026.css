@@ -431,6 +431,16 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 .v26-cita-info .notas { color: var(--v26-blue); }
 .v26-cita-info .direccion i, .v26-cita-info .notas i { margin-top: 1px; }
 
+/* Una línea por check-in (entrada/salida) con su propio estado de GPS --
+   antes una sola píldora ambigua no decía si "fuera de zona" fue al llegar
+   o al salir. */
+.v26-checkin-lineas { display: flex; flex-direction: column; gap: 2px; margin-top: 5px; }
+.v26-checkin-linea { display: flex; align-items: center; gap: 6px; font-size: .74rem; color: var(--v26-ink-soft); }
+.v26-checkin-linea .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.v26-checkin-linea .dot.ok { background: var(--v26-green); }
+.v26-checkin-linea .dot.no { background: var(--v26-red); }
+.v26-checkin-linea b { color: var(--v26-ink); font-weight: 700; }
+
 .v26-cita-estado { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 
 .v26-cita-fotos { display: flex; align-items: center; }
