@@ -325,6 +325,10 @@ function consultarNominatim(float $lat, float $lng): ?string {
 // de ~1 km: a nivel calle, dos puntos a 1 km pueden ser colonias distintas.
 // ---------------------------------------------------------------------
 define('GEOCODE_DIRECCION_CACHE_PATH', __DIR__ . '/../uploads/cache/geocode_direccion.json');
+// Aquí un fallo se recuerda solo 5 min (no 1 h como en nombreLugarGPS): es
+// una consulta bajo demanda de pocos puntos, y un fallo pasajero (límite de
+// 1 consulta/seg de Nominatim) dejaba "ubicación no disponible" una hora.
+define('GEOCODE_DIRECCION_FALLO_SEGUNDOS', 300);
 
 function direccionExactaGPS(float $lat, float $lng): ?string {
     $clave = round($lat, 5) . ',' . round($lng, 5);
@@ -340,7 +344,7 @@ function direccionExactaGPS(float $lat, float $lng): ?string {
         $cache = $contenido ? (json_decode($contenido, true) ?: []) : [];
 
         if (isset($cache[$clave])) {
-            $vigenciaSegundos = $cache[$clave]['direccion'] === null ? GEOCODE_CACHE_FALLO_SEGUNDOS : GEOCODE_CACHE_DIAS * 86400;
+            $vigenciaSegundos = $cache[$clave]['direccion'] === null ? GEOCODE_DIRECCION_FALLO_SEGUNDOS : GEOCODE_CACHE_DIAS * 86400;
             if ((time() - $cache[$clave]['ts']) < $vigenciaSegundos) {
                 $direccion = $cache[$clave]['direccion'];
                 flock($fp, LOCK_UN);
@@ -351,6 +355,11 @@ function direccionExactaGPS(float $lat, float $lng): ?string {
     }
 
     $direccion = consultarNominatimDireccion($lat, $lng);
+    if ($direccion === null) {
+        // Un reintento tras 1 s (el límite de uso de Nominatim es 1/seg).
+        sleep(1);
+        $direccion = consultarNominatimDireccion($lat, $lng);
+    }
 
     if ($fp) {
         $cache[$clave] = ['direccion' => $direccion, 'ts' => time()];
@@ -373,10 +382,13 @@ function consultarNominatimDireccion(float $lat, float $lng): ?string {
         $ctx = stream_context_create(['http' => [
             'method' => 'GET',
             'header' => "User-Agent: VisitasSegurmex/1.0 (sistemas@segurmex.com.mx)\r\n",
-            'timeout' => 2.5,
+            'timeout' => 4,
         ]]);
         $resp = @file_get_contents($url, false, $ctx);
-        if (!$resp) return null;
+        if (!$resp) {
+            error_log('[VISITAS] consultarNominatimDireccion sin respuesta: ' . ($http_response_header[0] ?? 'timeout/sin red'));
+            return null;
+        }
         $addr = json_decode($resp, true)['address'] ?? [];
 
         $calle = $addr['road'] ?? null;
@@ -388,7 +400,8 @@ function consultarNominatimDireccion(float $lat, float $lng): ?string {
 
         // Sin calle/colonia identificable (zona rural, carretera) -- se
         // regresa al menos la ciudad para no dejar el tooltip vacío.
-        return $addr['city'] ?? $addr['town'] ?? $addr['municipality'] ?? null;
+        return $addr['city'] ?? $addr['town'] ?? $addr['village'] ?? $addr['hamlet']
+            ?? $addr['municipality'] ?? $addr['county'] ?? null;
     } catch (Throwable $e) {
         error_log('[VISITAS] consultarNominatimDireccion: ' . $e->getMessage());
         return null;
