@@ -251,8 +251,18 @@ function agruparPuntosCercanos(puntos) {
     const ultimo = grupos[grupos.length - 1];
     if (ultimo && distanciaMetrosMapa(ultimo.lat, ultimo.lng, p.lat, p.lng) < DISTANCIA_MIN_NUEVO_MARCADOR_M) {
       ultimo.fin = p;
+      // Centroide incremental: el punto del grupo se va acercando al
+      // promedio real de la nube en vez de quedarse fijo en el primer ping.
+      // Si comparáramos siempre contra el primer punto, un GPS que tiembla
+      // más de 20m del ancla original (aunque siga siendo el mismo lugar)
+      // abre un grupo nuevo, y al regresar puede rebotar entre grupos --
+      // eso es lo que dibujaba las líneas cruzadas encimadas en un solo
+      // punto (ej. la oficina).
+      ultimo.n++;
+      ultimo.lat += (p.lat - ultimo.lat) / ultimo.n;
+      ultimo.lng += (p.lng - ultimo.lng) / ultimo.n;
     } else {
-      grupos.push({ lat: p.lat, lng: p.lng, inicio: p, fin: p });
+      grupos.push({ lat: p.lat, lng: p.lng, inicio: p, fin: p, n: 1 });
     }
   });
   return grupos;
