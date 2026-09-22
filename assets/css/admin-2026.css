@@ -441,6 +441,12 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 .v26-checkin-linea .dot.no { background: var(--v26-red); }
 .v26-checkin-linea b { color: var(--v26-ink); font-weight: 700; }
 
+/* Duración entre entrada y salida -- ámbar + ícono de alerta si fue
+   sospechosamente corta (ver DURACION_MINIMA_SOSPECHOSA_SEG en admin.js). */
+.v26-duracion { display: flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 700; margin-top: 3px; }
+.v26-duracion.normal { color: var(--v26-ink-soft); }
+.v26-duracion.corta { color: #D97706; }
+
 .v26-cita-estado { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 
 .v26-cita-fotos { display: flex; align-items: center; }
