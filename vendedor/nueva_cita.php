@@ -125,16 +125,30 @@ cargarSelectClientes().then(() => V26Tour.iniciar(PASOS_TOUR_NUEVA_CITA, OPCIONE
 
 document.getElementById('form-cita').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const btnGuardar = e.target.querySelector('[type="submit"]');
+  if (btnGuardar.disabled) return; // ya se está enviando -- evita citas duplicadas por doble tap/doble clic
+  const textoOriginal = btnGuardar.textContent;
+  btnGuardar.disabled = true;
+  // Sin esta señal, con internet lento la pantalla no cambiaba nada al
+  // tocar "Guardar" -- eso hacía pensar que no funcionó y llevaba a tocarlo
+  // varias veces seguidas, creando citas duplicadas (ver caso Tohken,
+  // 2026-09-22: 4 clics en 9 segundos).
+  btnGuardar.textContent = 'Guardando...';
   const msg = document.getElementById('msg-cita');
   msg.innerHTML = '';
-  const fd = new FormData(e.target);
-  fd.set('fecha_hora', `${inputFecha.value}T${inputHora.value}`);
-  const res = await fetch('../api/citas.php', { method: 'POST', body: fd });
-  const data = await res.json();
-  if (data.ok) {
-    window.location.href = 'index.php';
-  } else {
+  try {
+    const fd = new FormData(e.target);
+    fd.set('fecha_hora', `${inputFecha.value}T${inputHora.value}`);
+    const res = await fetch('../api/citas.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.ok) {
+      window.location.href = 'index.php';
+      return; // no reactivar el botón -- ya estamos navegando fuera de la página
+    }
     msg.innerHTML = `<div class="alert alert-danger py-2">${data.error}</div>`;
+  } finally {
+    btnGuardar.disabled = false;
+    btnGuardar.textContent = textoOriginal;
   }
 });
 </script>
