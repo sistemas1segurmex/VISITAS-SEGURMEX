@@ -68,6 +68,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         jsonResponse(['ok' => false, 'error' => 'Cliente no válido'], 400);
     }
 
+    // Evita citas duplicadas (mismo vendedor, mismo cliente, misma fecha/hora
+    // exacta) -- ej. un doble tap en "Guardar cita" con conexión lenta
+    // alcanzaba a mandar varias citas idénticas antes de que la página
+    // navegara a index.php.
+    $dup = $db->prepare('SELECT id FROM citas WHERE vendedor_id = ? AND cliente_id = ? AND fecha_hora = ?');
+    $dup->execute([$u['id'], $clienteId, $fechaHora]);
+    if ($dup->fetch()) {
+        jsonResponse(['ok' => false, 'error' => 'Ya existe una cita con este cliente en esa misma fecha y hora'], 400);
+    }
+
     $stmt = $db->prepare('INSERT INTO citas (vendedor_id, cliente_id, fecha_hora, notas) VALUES (?,?,?,?)');
     $stmt->execute([$u['id'], $clienteId, $fechaHora, $notas]);
     $nuevaId = (int)$db->lastInsertId();
