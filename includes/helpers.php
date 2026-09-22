@@ -25,13 +25,6 @@ define('PRECISION_MINIMA_CHECKIN_METROS', 500);
 define('SESION_MAX_ACTIVAS', 2);
 define('SESION_VENTANA_INACTIVIDAD_MIN', 20);
 
-// Ventana para el punto "conectado" de admin/usuarios.php: mucho más laxa
-// que SESION_VENTANA_INACTIVIDAD_MIN a propósito -- esa es para liberar
-// lugares de sesión rápido, esta es solo para no mostrar en verde a alguien
-// que de plano lleva días sin tocar la app (usuarios.ultima_actividad_en no
-// se borra sola por inactividad, ver tocarSesionActual() abajo).
-define('CONECTADO_VENTANA_HORAS', 12);
-
 /**
  * Cuenta las sesiones activas de un usuario. De paso barre filas vencidas
  * de CUALQUIER usuario (barato: el índice ya está por ultima_actividad) para
@@ -73,9 +66,10 @@ function tocarSesionActual(PDO $db): void {
     try {
         $stmt = $db->prepare('UPDATE usuarios_sesiones SET ultima_actividad = CURRENT_TIMESTAMP WHERE session_id = ?');
         $stmt->execute([session_id()]);
-        // Aparte de la fila de sesión (que se limpia sola pasados 20 min de
-        // inactividad), se marca en el propio usuario para el punto
-        // "conectado" de admin/usuarios.php -- ver CONECTADO_VENTANA_HORAS.
+        // Se marca también en el propio usuario (ultima_actividad_en, ya no
+        // usado por el punto "conectado" de admin/usuarios.php -- ese ahora
+        // lee usuarios_sesiones directo -- pero se deja como bitácora simple
+        // de última actividad por si algo más lo necesita).
         $db->prepare('UPDATE usuarios SET ultima_actividad_en = CURRENT_TIMESTAMP WHERE id = ?')
            ->execute([(int)$_SESSION['usuario_id']]);
     } catch (Throwable $e) {
