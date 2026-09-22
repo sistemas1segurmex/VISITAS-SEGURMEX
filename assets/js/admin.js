@@ -239,12 +239,17 @@ function distanciaMetrosMapa(lat1, lng1, lat2, lng2) {
 
 // Cuando el vendedor se queda parado en un lugar, el tracking sigue mandando
 // un punto cada ~30s -- en un par de horas eso son cientos de puntos
-// encimados casi en el mismo lugar, ilegible en el mapa. Se agrupan los
-// puntos consecutivos que están a menos de 20 m del último ya agrupado: la
-// LÍNEA sigue dibujando el trazo completo (sin perder precisión), pero solo
-// se pone un marcador visible por grupo, con el rango de horas completo de
-// esa parada en vez de un punto por cada ping individual.
-const DISTANCIA_MIN_NUEVO_MARCADOR_M = 20;
+// dispersos alrededor del mismo lugar, ilegible en el mapa. El GPS bajo
+// techo/en zona urbana no solo tiembla: el "multipath" (rebote de la señal
+// en edificios) suele alargar ese ruido EN LA DIRECCIÓN DE LA CALLE, así
+// que aunque nadie se haya movido, se ve como si hubieran caminado una ruta
+// real. 20m no bastaba para que un día completo parado en la oficina
+// colapsara en un solo punto. Como las paradas reales de un vendedor
+// (visitas a clientes distintos) normalmente están a cientos de metros o
+// kilómetros entre sí, se usa una escala de "misma cuadra/edificio" en vez
+// de "mismo punto exacto": se agrupan los puntos consecutivos que están a
+// menos de 100m del último ya agrupado.
+const DISTANCIA_MIN_NUEVO_MARCADOR_M = 100;
 function agruparPuntosCercanos(puntos) {
   const grupos = [];
   puntos.forEach(p => {
