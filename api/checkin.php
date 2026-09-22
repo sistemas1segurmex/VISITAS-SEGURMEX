@@ -14,11 +14,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // se pueda reportar "el cliente no llegó" (evita reportes prematuros).
 define('ESPERA_NO_SHOW_MINUTOS', 10);
 
-$citaId  = (int)($_POST['cita_id'] ?? 0);
-$tipo    = $_POST['tipo'] ?? 'entrada';
-$lat     = isset($_POST['lat']) ? (float)$_POST['lat'] : 0.0;
-$lng     = isset($_POST['lng']) ? (float)$_POST['lng'] : 0.0;
-$noShow  = ($_POST['no_show'] ?? '') === '1';
+$citaId   = (int)($_POST['cita_id'] ?? 0);
+$tipo     = $_POST['tipo'] ?? 'entrada';
+$lat      = isset($_POST['lat']) ? (float)$_POST['lat'] : 0.0;
+$lng      = isset($_POST['lng']) ? (float)$_POST['lng'] : 0.0;
+$accuracy = isset($_POST['accuracy']) && $_POST['accuracy'] !== '' ? (float)$_POST['accuracy'] : null;
+$noShow   = ($_POST['no_show'] ?? '') === '1';
 $motivo  = trim($_POST['motivo'] ?? '');
 // Nivel de interés del cliente en ESTA visita -- obligatorio al registrar
 // la salida (ver comentario junto al UPDATE de abajo).
@@ -62,6 +63,14 @@ if ($noShow) {
 $distancia  = null;
 $verificado = 0;
 if ($cita['cliente_lat'] !== null && $cita['cliente_lng'] !== null) {
+    // El propio checkin.php del vendedor ya reintenta el GPS hasta lograr
+    // buena precisión antes de dejar enviar -- esto es el candado del
+    // servidor por si aun así llega una lectura mala (app vieja, reintento
+    // agotado). Se rechaza en vez de calcular "fuera de zona" con un GPS
+    // que puede estar a kilómetros de error.
+    if ($accuracy !== null && $accuracy > PRECISION_MINIMA_CHECKIN_METROS) {
+        jsonResponse(['ok' => false, 'error' => 'Tu ubicación no es lo bastante precisa (±' . round($accuracy) . ' m). Sal a espacio abierto o espera unos segundos e intenta de nuevo.'], 400);
+    }
     $distancia  = haversineDistance($lat, $lng, (float)$cita['cliente_lat'], (float)$cita['cliente_lng']);
     $verificado = $distancia <= RADIO_VERIFICACION_METROS ? 1 : 0;
 }
@@ -131,9 +140,9 @@ if (!empty($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
 }
 
 $stmt = $db->prepare(
-    'INSERT INTO checkins (cita_id, tipo, lat, lng, distancia_metros, foto_path, verificado) VALUES (?,?,?,?,?,?,?)'
+    'INSERT INTO checkins (cita_id, tipo, lat, lng, accuracy, distancia_metros, foto_path, verificado) VALUES (?,?,?,?,?,?,?,?)'
 );
-$stmt->execute([$citaId, $tipo, $lat, $lng, $distancia, $fotoPath, $verificado]);
+$stmt->execute([$citaId, $tipo, $lat, $lng, $accuracy, $distancia, $fotoPath, $verificado]);
 
 if ($noShow) {
     $nuevoEstado = 'no_realizada';
@@ -157,7 +166,7 @@ if ($noShow) {
     $db->prepare('UPDATE citas SET estado = ? WHERE id = ?')->execute([$nuevoEstado, $citaId]);
 }
 
-if ($tipo === 'entrada' && !$verificado && $distancia !== null) {
+if ($tipo === 'entrada' && $verificado === 0 && $distancia !== null) {
     $db->prepare('INSERT INTO alertas (vendedor_id, cita_id, tipo, mensaje) VALUES (?,?,?,?)')
        ->execute([
            $u['id'],

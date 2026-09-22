@@ -172,7 +172,7 @@ const citaId = <?= (int)$citaId ?>;
 const tipo = <?= json_encode($siguienteTipo) ?>;
 const fechaCitaStr = <?= json_encode($cita['fecha_hora']) ?>;
 const ESPERA_NO_SHOW_MIN = 10;
-let lat = null, lng = null;
+let lat = null, lng = null, accuracy = null;
 let fotoBlob = null;
 let streamCamara = null;
 let esReporteNoShow = false;
@@ -180,31 +180,71 @@ let esReporteNoShow = false;
 const estadoGps = document.getElementById('estado-gps');
 const btn = document.getElementById('btn-registrar');
 
-if (tipo && 'geolocation' in navigator) {
-  navigator.geolocation.getCurrentPosition(
+// El primer fix del GPS suele ser el peor (arrancando en frío, dentro de un
+// vehículo/edificio, cae a red/wifi en vez de satélite -- así se marcó a
+// una vendedora "fuera de zona" a 29 km estando en el estacionamiento de la
+// empresa). En vez de tomar la primera lectura tal cual, se escuchan varias
+// (watchPosition) durante unos segundos y se usa la de mejor precisión.
+const PRECISION_BUENA_M = 30;        // ya no hace falta seguir esperando
+const PRECISION_MINIMA_ACEPTABLE_M = 500; // por debajo de esto no se deja enviar
+const TIEMPO_MAX_ESPERA_MS = 15000;
+
+let watchId = null;
+let mejorAccuracy = Infinity;
+
+function iniciarCapturaGps() {
+  if (!('geolocation' in navigator)) {
+    estadoGps.innerHTML = 'Tu navegador no soporta geolocalización.';
+    return;
+  }
+  mejorAccuracy = Infinity;
+  lat = null; lng = null; accuracy = null;
+  revisarListoParaEnviar();
+  estadoGps.innerHTML = '<i class="bi bi-geo-alt"></i> Obteniendo tu ubicación...';
+  const inicio = Date.now();
+  watchId = navigator.geolocation.watchPosition(
     (pos) => {
-      lat = pos.coords.latitude;
-      lng = pos.coords.longitude;
-      estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(pos.coords.accuracy)} m)`;
-      revisarListoParaEnviar();
+      const acc = pos.coords.accuracy;
+      if (acc < mejorAccuracy) {
+        mejorAccuracy = acc;
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+        accuracy = acc;
+      }
+      const yaEsperoBastante = (Date.now() - inicio) >= TIEMPO_MAX_ESPERA_MS;
+      if (mejorAccuracy <= PRECISION_BUENA_M || yaEsperoBastante) {
+        navigator.geolocation.clearWatch(watchId);
+        if (mejorAccuracy > PRECISION_MINIMA_ACEPTABLE_M) {
+          estadoGps.innerHTML = `<span class="text-danger">⚠️ No se pudo obtener una ubicación confiable (±${Math.round(mejorAccuracy)} m). Sal a espacio abierto o acércate a una ventana.</span> <button type="button" id="btn-reintentar-gps" class="v26-btn v26-btn-ghost mt-2" style="padding:6px 14px;font-size:.8rem;width:auto;display:inline-block;">Reintentar</button>`;
+          document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarCapturaGps);
+        } else {
+          estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(mejorAccuracy)} m)`;
+        }
+        revisarListoParaEnviar();
+      } else {
+        estadoGps.innerHTML = `<i class="bi bi-geo-alt"></i> Mejorando precisión... (±${Math.round(mejorAccuracy)} m)`;
+      }
     },
     (err) => {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
       let msg = '⚠️ No se pudo obtener tu ubicación. Activa el GPS y los permisos de ubicación del navegador.';
       if (err.code === 1) msg = '⚠️ Permiso de ubicación denegado en el navegador.';
       else if (err.code === 2) msg = '⚠️ Posición GPS no disponible.';
       else if (err.code === 3) msg = '⚠️ Tiempo de espera agotado al obtener GPS.';
-      estadoGps.innerHTML = msg;
+      estadoGps.innerHTML = `${msg} <button type="button" id="btn-reintentar-gps" class="v26-btn v26-btn-ghost mt-2" style="padding:6px 14px;font-size:.8rem;width:auto;display:inline-block;">Reintentar</button>`;
+      document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarCapturaGps);
     },
-    { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
   );
-} else if (tipo) {
-  estadoGps.innerHTML = 'Tu navegador no soporta geolocalización.';
 }
+
+if (tipo) iniciarCapturaGps();
 
 function revisarListoParaEnviar() {
   if (!btn) return;
   const faltaInteres = tipo === 'salida' && !interesSel;
-  if (lat && lng && fotoBlob && !faltaInteres) {
+  const gpsListo = lat && lng && mejorAccuracy <= PRECISION_MINIMA_ACEPTABLE_M;
+  if (gpsListo && fotoBlob && !faltaInteres) {
     btn.disabled = false;
     btn.textContent = esReporteNoShow ? 'Confirmar: cliente no llegó' : 'Registrar ' + (tipo === 'entrada' ? 'entrada' : 'salida');
   } else {
@@ -438,6 +478,7 @@ async function enviarCheckin(motivoNoShow) {
   fd.append('tipo', tipo);
   fd.append('lat', lat);
   fd.append('lng', lng);
+  if (accuracy !== null) fd.append('accuracy', accuracy);
   fd.append('foto', fotoBlob, 'evidencia.jpg');
   if (motivoNoShow !== undefined) {
     fd.append('no_show', '1');

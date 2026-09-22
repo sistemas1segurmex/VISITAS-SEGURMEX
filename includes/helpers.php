@@ -1,7 +1,18 @@
 <?php
 // Margen de tolerancia (en metros) entre el GPS reportado y la dirección
-// registrada del cliente para considerar una visita "verificada".
-define('RADIO_VERIFICACION_METROS', 150);
+// registrada del cliente para considerar una visita "verificada". Se subió
+// de 150 a 250 para cubrir casos normales como estar en el estacionamiento
+// de la empresa en vez de exactamente sobre el pin de la entrada.
+define('RADIO_VERIFICACION_METROS', 250);
+
+// El propio checkin.php del vendedor ya reintenta obtener GPS hasta lograr
+// una precisión razonable antes de dejar enviar (ver vendedor/checkin.php).
+// Esto es solo el candado del lado del servidor: si aun así llega una
+// lectura con precisión peor a esto (ej. una versión vieja de la app, o el
+// reintento se agotó), se rechaza el check-in en vez de guardar una
+// distancia calculada con un GPS que puede estar a kilómetros de error
+// (ej. "Fuera de zona" a 29 km estando parado en el mismo estacionamiento).
+define('PRECISION_MINIMA_CHECKIN_METROS', 500);
 
 // ---------------------------------------------------------------------
 // Límite de sesiones concurrentes por usuario (login.php). Cada login
