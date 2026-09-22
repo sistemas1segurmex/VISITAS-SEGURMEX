@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dup = $db->prepare('SELECT id FROM citas WHERE vendedor_id = ? AND cliente_id = ? AND fecha_hora = ?');
     $dup->execute([$u['id'], $clienteId, $fechaHora]);
     if ($dup->fetch()) {
-        jsonResponse(['ok' => false, 'error' => 'Ya existe una cita con este cliente en esa misma fecha y hora'], 400);
+        jsonResponse(['ok' => false, 'error' => 'Ya tienes esta cita registrada'], 400);
     }
 
     $stmt = $db->prepare('INSERT INTO citas (vendedor_id, cliente_id, fecha_hora, notas) VALUES (?,?,?,?)');
