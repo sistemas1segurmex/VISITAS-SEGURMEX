@@ -431,10 +431,38 @@ function lineaCheckin(etiqueta, verificado, fechaHora, distancia) {
     : `Fuera de zona${distancia !== null && distancia !== undefined ? ' (' + Math.round(distancia) + ' m)' : ''}`;
   return `<div class="v26-checkin-linea"><span class="dot ${claseDot}"></span> <b>${etiqueta}</b> ${horaSoloUTC(fechaHora)} · ${estadoTxt}</div>`;
 }
+// Menos de esto entre entrada y salida se marca para revisar -- no da
+// tiempo de una visita real (ej. Marcela: tomó la foto de salida por error
+// justo después de la de entrada, 21 seg de diferencia).
+const DURACION_MINIMA_SOSPECHOSA_SEG = 120;
+
+function formatoDuracion(segundos) {
+  if (segundos < 60) return `${Math.round(segundos)} seg`;
+  const minutos = Math.round(segundos / 60);
+  if (minutos < 60) return `${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  const minRestantes = minutos % 60;
+  return `${horas} h${minRestantes ? ' ' + minRestantes + ' min' : ''}`;
+}
+
+function lineaDuracion(entradaFechaHora, salidaFechaHora) {
+  if (!entradaFechaHora || !salidaFechaHora) return '';
+  const inicio = new Date(String(entradaFechaHora).replace(' ', 'T') + (String(entradaFechaHora).endsWith('Z') ? '' : 'Z'));
+  const fin = new Date(String(salidaFechaHora).replace(' ', 'T') + (String(salidaFechaHora).endsWith('Z') ? '' : 'Z'));
+  if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) return '';
+  const segundos = (fin.getTime() - inicio.getTime()) / 1000;
+  if (segundos < 0) return ''; // dato inconsistente -- mejor no mostrar nada confuso
+  const esCorta = segundos < DURACION_MINIMA_SOSPECHOSA_SEG;
+  const icono = esCorta ? 'bi-exclamation-triangle-fill' : 'bi-clock';
+  const texto = esCorta ? `Visita de ${formatoDuracion(segundos)} -- revisar` : `Visita de ${formatoDuracion(segundos)}`;
+  return `<div class="v26-duracion ${esCorta ? 'corta' : 'normal'}"><i class="bi ${icono}"></i> ${texto}</div>`;
+}
+
 function lineasCheckin(c) {
   const partes = [
     lineaCheckin('Entrada', c.checkin_verificado, c.entrada_fecha_hora, c.entrada_distancia_metros),
     lineaCheckin('Salida', c.checkin_verificado_salida, c.salida_fecha_hora, c.salida_distancia_metros),
+    lineaDuracion(c.entrada_fecha_hora, c.salida_fecha_hora),
   ].filter(Boolean);
   return partes.length ? `<div class="v26-checkin-lineas">${partes.join('')}</div>` : '';
 }
