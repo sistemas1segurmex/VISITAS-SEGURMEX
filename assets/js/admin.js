@@ -70,7 +70,29 @@ document.getElementById('filtro-vendedor-mapa')?.addEventListener('change', func
   dibujarRutasDia();
 });
 
+function fechaSeleccionadaEsHoy() {
+  const fecha = document.getElementById('filtro-fecha')?.value || new Date().toISOString().slice(0, 10);
+  return fecha === new Date().toISOString().slice(0, 10);
+}
+
 async function actualizarUbicaciones() {
+  // Los pines de "en vivo" (en_linea/desconectado/perdida) son siempre la
+  // ubicación MÁS RECIENTE de cada vendedor, sin importar qué día se esté
+  // revisando en el filtro de "Visitas" de abajo -- eso confundía porque un
+  // pin de HOY aparecía encimado sobre la ruta de un día anterior. Si no se
+  // está viendo el día de hoy, se ocultan en vez de mostrar algo que no
+  // corresponde al día seleccionado.
+  if (!fechaSeleccionadaEsHoy()) {
+    Object.values(marcadoresVendedores).forEach(m => mapa.removeLayer(m));
+    marcadoresVendedores = {};
+    const resumenEl = document.getElementById('resumen-vendedores');
+    if (resumenEl) resumenEl.textContent = 'Ubicación en vivo oculta -- estás viendo un día anterior';
+    ['conteo-en-linea', 'conteo-desconectado', 'conteo-perdida'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '–';
+    });
+    return;
+  }
   try {
     const res = await fetch('../api/tracking.php');
     const data = await res.json();
@@ -326,7 +348,7 @@ function initCalendarioFecha() {
     dateFormat: 'Y-m-d',
     altInput: true,
     altFormat: 'j \\d\\e F, Y',
-    onChange: () => { cargarCitasHoy(); dibujarRutasDia(); },
+    onChange: () => { cargarCitasHoy(); dibujarRutasDia(); actualizarUbicaciones(); },
   });
 }
 
