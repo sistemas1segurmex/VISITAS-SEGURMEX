@@ -36,6 +36,11 @@ $calleNumeroPrevio = $calleNumeroPrevio ?? '';
       </select>
     </div>
   </div>
+  <div class="v26-search">
+    <i class="bi bi-signpost-split"></i>
+    <input type="text" id="buscar-colonia" class="v26-input" autocomplete="off" placeholder="¿No sabes el CP? Escribe el nombre de la colonia">
+  </div>
+  <div id="resultados-colonia"></div>
   <div class="v26-grid-2">
     <div class="v26-field">
       <label>Estado</label>

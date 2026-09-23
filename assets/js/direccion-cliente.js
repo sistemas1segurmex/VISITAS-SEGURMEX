@@ -420,7 +420,9 @@ window.DireccionCliente = (function () {
 
   // Escribió un CP: se fija estado y municipio y la lista de colonias se
   // reduce a las de ese CP. Si solo hay una, se elige sola.
-  async function aplicarCP(cp, coloniaSugerida = '', centrar = true) {
+  // preferido = { estado, municipio } cuando se eligió una colonia por nombre
+  // (un mismo CP puede abarcar más de un municipio).
+  async function aplicarCP(cp, coloniaSugerida = '', centrar = true, preferido = null) {
     coloniasDelCp = null;
     nota('nota-cp', 'Buscando...', 'info');
     let data;
@@ -436,7 +438,8 @@ window.DireccionCliente = (function () {
       nota('nota-cp', 'Ese CP no está en el catálogo. Elige estado, municipio y colonia a mano.', 'error');
       return;
     }
-    const { estado, municipio } = data.colonias[0];
+    const base = (preferido && data.colonias.find(c => c.estado === preferido.estado && c.municipio === preferido.municipio)) || data.colonias[0];
+    const { estado, municipio } = base;
     const colonias = data.colonias.filter(c => c.estado === estado && c.municipio === municipio);
     coloniasDelCp = colonias;
 
@@ -498,6 +501,49 @@ window.DireccionCliente = (function () {
     }
   }
 
+  // Colonia por nombre, para cuando no saben el CP o el que tienen no
+  // coincide con SEPOMEX (p. ej. Google dice 50900 y SEPOMEX 50904).
+  let temporizadorColonia = null;
+  let busquedaColoniaActual = 0;
+
+  function pintarResultadosColonia(html) {
+    $('resultados-colonia').innerHTML = html ? `<div class="v26-resultados-busqueda">${html}</div>` : '';
+  }
+
+  async function buscarColoniaPorNombre() {
+    const campo = $('buscar-colonia');
+    const q = campo.value.trim();
+    if (q.length < 3) { pintarResultadosColonia(''); return; }
+    const miBusqueda = ++busquedaColoniaActual;
+    pintarResultadosColonia('<button type="button" disabled>Buscando...</button>');
+    let data;
+    try {
+      const res = await fetch('../api/sepomex.php?tipo=buscar_colonia&q=' + encodeURIComponent(q));
+      data = await res.json();
+    } catch (e) {
+      data = { ok: false, error: 'No se pudo buscar (revisa tu conexión).' };
+    }
+    if (miBusqueda !== busquedaColoniaActual) return;
+    if (!data.ok) { pintarResultadosColonia(`<button type="button" disabled>${escaparHtml(data.error)}</button>`); return; }
+    if (!data.colonias.length) {
+      pintarResultadosColonia('<button type="button" disabled>No hay colonias con ese nombre. Prueba con una sola palabra (ej. "Tlalchichilpan").</button>');
+      return;
+    }
+    const filas = data.colonias;
+    pintarResultadosColonia(filas.map((c, i) =>
+      `<button type="button" data-i="${i}"><b>${escaparHtml(c.asentamiento)}</b> — ${escaparHtml(c.municipio)}, ${escaparHtml(c.estado)} (CP ${escaparHtml(c.cp)})</button>`
+    ).join(''));
+    $('resultados-colonia').querySelectorAll('button[data-i]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const c = filas[btn.dataset.i];
+        pintarResultadosColonia('');
+        campo.value = '';
+        inputCp.value = c.cp;
+        await aplicarCP(c.cp, c.asentamiento, true, { estado: c.estado, municipio: c.municipio });
+      });
+    });
+  }
+
   // ------------------------------------------------------------------
   // API pública
   // ------------------------------------------------------------------
@@ -544,7 +590,18 @@ window.DireccionCliente = (function () {
     calleEditadaAMano = campoCalle.value.trim() !== '';
 
     mapa = L.map('mapa-cliente').setView([23.6345, -102.5528], 5); // centro de México por defecto
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
+    // Mapa normal (OpenStreetMap) y satélite (Esri, gratis y sin clave). El
+    // satélite sirve para ubicar la nave/local cuando la calle no tiene
+    // nombre en el mapa (carreteras, parques industriales).
+    const capaMapa = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 });
+    const esri = (servicio) => `https://server.arcgisonline.com/ArcGIS/rest/services/${servicio}/MapServer/tile/{z}/{y}/{x}`;
+    const capaSatelite = L.layerGroup([
+      L.tileLayer(esri('World_Imagery'), { attribution: 'Imágenes © Esri, Maxar, Earthstar Geographics', maxZoom: 19 }),
+      L.tileLayer(esri('Reference/World_Transportation'), { maxZoom: 19, opacity: .8 }),
+      L.tileLayer(esri('Reference/World_Boundaries_and_Places'), { maxZoom: 19 }),
+    ]);
+    capaMapa.addTo(mapa);
+    L.control.layers({ 'Mapa': capaMapa, 'Satélite': capaSatelite }, null, { position: 'topright', collapsed: false }).addTo(mapa);
     mapa.on('click', (e) => ponerMarcador(e.latlng.lat, e.latlng.lng));
 
     $('btn-mi-ubicacion').addEventListener('click', () => {
@@ -568,6 +625,15 @@ window.DireccionCliente = (function () {
     ['buscar-direccion', 'input-cp'].forEach(id => $(id).addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); if (id === 'buscar-direccion') buscarDireccion(); }
     }));
+
+    $('buscar-colonia').addEventListener('input', () => {
+      clearTimeout(temporizadorColonia);
+      if ($('buscar-colonia').value.trim().length < 3) { busquedaColoniaActual++; pintarResultadosColonia(''); return; }
+      temporizadorColonia = setTimeout(buscarColoniaPorNombre, 350);
+    });
+    $('buscar-colonia').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); buscarColoniaPorNombre(); }
+    });
 
     const campoLink = $('pegar-ubicacion');
     campoLink.addEventListener('paste', () => setTimeout(procesarLink, 0));
