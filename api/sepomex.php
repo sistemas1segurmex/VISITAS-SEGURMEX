@@ -5,6 +5,8 @@
 // GET ?tipo=estados
 // GET ?tipo=municipios&estado=...
 // GET ?tipo=colonias&estado=...&municipio=...
+// GET ?tipo=cp&cp=20367
+// GET ?tipo=buscar_colonia&q=tlalchichilpan[&estado=...]
 
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
@@ -42,6 +44,40 @@ if ($tipo === 'colonias') {
          ORDER BY asentamiento'
     );
     $stmt->execute([$estado, $municipio]);
+    jsonResponse(['ok' => true, 'colonias' => $stmt->fetchAll()]);
+}
+
+// Todas las colonias de un código postal, con su estado y municipio, para
+// que el vendedor escriba el CP y el resto se llene solo.
+if ($tipo === 'cp') {
+    $cp = trim($_GET['cp'] ?? '');
+    if (!preg_match('/^\d{5}$/', $cp)) jsonResponse(['ok' => false, 'error' => 'El código postal debe tener 5 dígitos'], 400);
+    $stmt = $db->prepare(
+        'SELECT DISTINCT estado, municipio, asentamiento, cp FROM sepomex_colonias
+         WHERE cp = ?
+         ORDER BY estado, municipio, asentamiento'
+    );
+    $stmt->execute([$cp]);
+    jsonResponse(['ok' => true, 'colonias' => $stmt->fetchAll()]);
+}
+
+// Colonias por nombre (sin importar acentos ni mayúsculas), para cuando el
+// vendedor no sabe el CP o el que tiene no coincide con SEPOMEX.
+if ($tipo === 'buscar_colonia') {
+    $q = trim($_GET['q'] ?? '');
+    $estado = trim($_GET['estado'] ?? '');
+    if (mb_strlen($q) < 3) jsonResponse(['ok' => false, 'error' => 'Escribe al menos 3 letras'], 400);
+    $sinAcentos = "translate(lower(%s), 'áéíóúüñ', 'aeiouun')";
+    $sql = 'SELECT DISTINCT estado, municipio, asentamiento, cp FROM sepomex_colonias
+            WHERE ' . sprintf($sinAcentos, 'asentamiento') . ' LIKE ' . sprintf($sinAcentos, '?');
+    $params = ['%' . $q . '%'];
+    if ($estado !== '') {
+        $sql .= ' AND estado = ?';
+        $params[] = $estado;
+    }
+    $sql .= ' ORDER BY estado, municipio, asentamiento LIMIT 30';
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
     jsonResponse(['ok' => true, 'colonias' => $stmt->fetchAll()]);
 }
 
