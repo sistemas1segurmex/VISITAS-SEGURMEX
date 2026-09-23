@@ -98,57 +98,7 @@ if (!$cliente) {
           <input type="text" name="nombre_contacto" class="v26-input" placeholder="¿Con quién tratas ahí?" value="<?= htmlspecialchars($cliente['nombre_contacto'] ?? '') ?>">
         </div>
 
-        <div class="v26-buscar-destacado">
-          <div class="v26-buscar-eyebrow"><i class="bi bi-stars"></i> Empieza aquí -- el resto se llena solo</div>
-          <div class="v26-buscar-row">
-            <div class="v26-search">
-              <i class="bi bi-search"></i>
-              <input type="text" id="buscar-direccion" class="v26-input" placeholder="Escribe la dirección y se busca sola...">
-            </div>
-          </div>
-          <div id="resultados-busqueda"></div>
-
-          <div class="v26-field">
-            <label>Ubicación en el mapa <span id="ubicacion-estado" class="v26-ubicacion-badge pendiente"><i class="bi bi-exclamation-circle"></i> obligatoria, aún sin marcar</span></label>
-            <div id="mapa-cliente" class="v26-map v26-map-chica"></div>
-            <div class="v26-map-float v26-tip" id="btn-mi-ubicacion" data-tip="Detecta tu posición GPS y la marca en el mapa"><i class="bi bi-crosshair"></i> Usar mi ubicación</div>
-            <input type="hidden" name="lat" id="lat">
-            <input type="hidden" name="lng" id="lng">
-          </div>
-        </div>
-
-        <div class="v26-field">
-          <label>Calle y número <small class="text-muted fw-normal">(se llena automático)</small></label>
-          <input type="text" name="calle_numero" id="calle-numero" class="v26-input" value="<?= htmlspecialchars($cliente['calle_numero'] ?? '') ?>" placeholder="Ej. Av. Reforma 245" required>
-        </div>
-
-        <div class="v26-grid-2">
-          <div class="v26-field">
-            <label>Estado</label>
-            <select id="select-estado" class="v26-select" required>
-              <option value="">Cargando...</option>
-            </select>
-          </div>
-          <div class="v26-field">
-            <label>Municipio</label>
-            <select id="select-municipio" class="v26-select" required disabled>
-              <option value="">Elige el estado</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="v26-grid-2">
-          <div class="v26-field">
-            <label>Colonia</label>
-            <select id="select-colonia" class="v26-select" required disabled>
-              <option value="">Elige el municipio</option>
-            </select>
-          </div>
-          <div class="v26-field">
-            <label>Código postal</label>
-            <input type="text" id="input-cp" class="v26-input" readonly placeholder="Automático">
-          </div>
-        </div>
+        <?php $calleNumeroPrevio = $cliente['calle_numero'] ?? ''; include __DIR__ . '/../includes/form_direccion_cliente.php'; ?>
 
         <div id="msg-cliente"></div>
         <button type="submit" class="v26-btn v26-btn-primary v26-btn-block mt-1">Guardar cambios</button>
@@ -160,6 +110,8 @@ if (!$cliente) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="../assets/js/v26-modal.js<?= assetVer(__DIR__ . '/../assets/js/v26-modal.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
+<script>window.DIRECCION_CFG = { googleKey: <?= json_encode(envConfig('GOOGLE_MAPS_API_KEY', '') ?? '') ?> };</script>
+<script src="../assets/js/direccion-cliente.js<?= assetVer(__DIR__ . '/../assets/js/direccion-cliente.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 
@@ -174,23 +126,8 @@ const clientePrevio = <?= json_encode([
   'codigo_postal' => $cliente['codigo_postal'],
 ], JSON_UNESCAPED_UNICODE) ?>;
 
-const mapa = L.map('mapa-cliente').setView([23.6345, -102.5528], 5); // centro de México por defecto
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
-let marcador = null;
-
-function ponerMarcador(lat, lng, autocompletar = true) {
-  document.getElementById('lat').value = lat;
-  document.getElementById('lng').value = lng;
-  if (marcador) mapa.removeLayer(marcador);
-  marcador = L.marker([lat, lng]).addTo(mapa);
-  mapa.setView([lat, lng], 16);
-  const badge = document.getElementById('ubicacion-estado');
-  badge.className = 'v26-ubicacion-badge lista';
-  badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> marcada';
-  if (autocompletar) autocompletarDesdeCoordenadas(lat, lng);
-}
-
-mapa.on('click', (e) => ponerMarcador(e.latlng.lat, e.latlng.lng));
+// Precarga de lo que el cliente ya tenía guardado.
+DireccionCliente.init().then(() => DireccionCliente.precargar(clientePrevio));
 
 document.querySelectorAll('#seg-tipo-cliente .v26-seg-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -201,203 +138,6 @@ document.querySelectorAll('#seg-tipo-cliente .v26-seg-btn').forEach(btn => {
     document.getElementById('campo-contacto').classList.toggle('d-none', btn.dataset.tipo === 'persona');
   });
 });
-
-document.getElementById('btn-mi-ubicacion').addEventListener('click', () => {
-  if (!('geolocation' in navigator)) return alert('Tu navegador no soporta geolocalización.');
-  navigator.geolocation.getCurrentPosition(
-    (pos) => ponerMarcador(pos.coords.latitude, pos.coords.longitude),
-    () => alert('No se pudo obtener tu ubicación. Revisa los permisos del navegador.')
-  );
-});
-
-// --- Nominatim: buscar dirección automáticamente mientras escribe ---
-let buscandoDireccion = false;
-let temporizadorBusqueda = null;
-
-document.getElementById('buscar-direccion').addEventListener('input', (e) => {
-  clearTimeout(temporizadorBusqueda);
-  const q = e.target.value.trim();
-  const cont = document.getElementById('resultados-busqueda');
-  if (q.length < 4) { cont.innerHTML = ''; return; }
-  temporizadorBusqueda = setTimeout(buscarDireccion, 600);
-});
-
-async function buscarDireccion() {
-  const campo = document.getElementById('buscar-direccion');
-  const q = campo.value.trim();
-  const cont = document.getElementById('resultados-busqueda');
-  if (q.length < 4 || buscandoDireccion) return;
-  buscandoDireccion = true;
-  cont.innerHTML = '<div class="v26-resultados-busqueda"><button type="button" disabled>Buscando...</button></div>';
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=mx&limit=6&q=${encodeURIComponent(q)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (!data.length) {
-      cont.innerHTML = '<div class="v26-resultados-busqueda"><button type="button" disabled>Sin resultados. Prueba con más detalle (calle, ciudad).</button></div>';
-      return;
-    }
-    cont.innerHTML = '<div class="v26-resultados-busqueda">' +
-      data.map((r, i) => `<button type="button" data-i="${i}">${r.display_name}</button>`).join('') +
-      '</div>';
-    cont.querySelectorAll('button[data-i]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const r = data[btn.dataset.i];
-        ponerMarcador(parseFloat(r.lat), parseFloat(r.lon));
-        cont.innerHTML = '';
-        campo.value = '';
-      });
-    });
-  } catch (e) {
-    console.error('Error buscando dirección en Nominatim:', e);
-    cont.innerHTML = '<div class="v26-resultados-busqueda"><button type="button" disabled>No se pudo buscar (revisa tu conexión a internet). Puedes marcar el punto directo en el mapa.</button></div>';
-  } finally {
-    buscandoDireccion = false;
-  }
-}
-
-// --- Catálogo SEPOMEX: selects en cascada ---
-const selectEstado = document.getElementById('select-estado');
-const selectMunicipio = document.getElementById('select-municipio');
-const selectColonia = document.getElementById('select-colonia');
-const inputCp = document.getElementById('input-cp');
-
-async function cargarEstados() {
-  try {
-    const res = await fetch('../api/sepomex.php?tipo=estados');
-    const data = await res.json();
-    if (!data.ok || data.estados.length === 0) {
-      selectEstado.innerHTML = '<option value="">Catálogo no disponible</option>';
-      return;
-    }
-    selectEstado.innerHTML = '<option value="">Selecciona un estado</option>' +
-      data.estados.map(e => `<option value="${e}">${e}</option>`).join('');
-  } catch (e) {
-    selectEstado.innerHTML = '<option value="">Error al cargar</option>';
-  }
-}
-
-async function cargarMunicipios(estado) {
-  selectMunicipio.disabled = true;
-  selectColonia.disabled = true;
-  selectColonia.innerHTML = '<option value="">Elige el municipio</option>';
-  inputCp.value = '';
-  if (!estado) {
-    selectMunicipio.innerHTML = '<option value="">Elige el estado</option>';
-    return;
-  }
-  selectMunicipio.innerHTML = '<option value="">Cargando...</option>';
-  const res = await fetch('../api/sepomex.php?tipo=municipios&estado=' + encodeURIComponent(estado));
-  const data = await res.json();
-  if (!data.ok) { selectMunicipio.innerHTML = '<option value="">Error al cargar</option>'; return; }
-  selectMunicipio.innerHTML = '<option value="">Selecciona un municipio</option>' +
-    data.municipios.map(m => `<option value="${m}">${m}</option>`).join('');
-  selectMunicipio.disabled = false;
-}
-
-async function cargarColonias(estado, municipio) {
-  selectColonia.disabled = true;
-  inputCp.value = '';
-  if (!municipio) {
-    selectColonia.innerHTML = '<option value="">Elige el municipio</option>';
-    return;
-  }
-  selectColonia.innerHTML = '<option value="">Cargando...</option>';
-  const url = `../api/sepomex.php?tipo=colonias&estado=${encodeURIComponent(estado)}&municipio=${encodeURIComponent(municipio)}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!data.ok) { selectColonia.innerHTML = '<option value="">Error al cargar</option>'; return; }
-  selectColonia.innerHTML = '<option value="">Selecciona una colonia</option>' +
-    data.colonias.map(c => `<option value="${c.asentamiento}" data-cp="${c.cp}">${c.asentamiento} (CP ${c.cp})</option>`).join('');
-  selectColonia.disabled = false;
-}
-
-selectEstado.addEventListener('change', () => cargarMunicipios(selectEstado.value));
-selectMunicipio.addEventListener('change', () => cargarColonias(selectEstado.value, selectMunicipio.value));
-selectColonia.addEventListener('change', () => {
-  const opt = selectColonia.selectedOptions[0];
-  inputCp.value = opt ? (opt.dataset.cp || '') : '';
-});
-
-const estadosListos = cargarEstados();
-
-// --- Autocompletado desde el mapa: calle/número + Estado/Municipio/Colonia ---
-function normalizar(s) {
-  const marcasDiacriticas = new RegExp('[̀-ͯ]', 'g');
-  const sinAcentos = (s || '').toString().toLowerCase().normalize('NFD').replace(marcasDiacriticas, '');
-  return sinAcentos.replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function buscarCoincidencia(select, texto) {
-  const objetivo = normalizar(texto);
-  if (!objetivo) return null;
-  const opciones = Array.from(select.options).map(o => o.value).filter(Boolean);
-  let match = opciones.find(o => normalizar(o) === objetivo);
-  if (!match) match = opciones.find(o => normalizar(o).includes(objetivo) || objetivo.includes(normalizar(o)));
-  return match || null;
-}
-
-async function autocompletarDesdeCoordenadas(lat, lng) {
-  const campoCalle = document.getElementById('calle-numero');
-  try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    const a = data.address || {};
-
-    const calle = a.road || a.pedestrian || a.suburb || '';
-    const numero = a.house_number || '';
-    if (calle) campoCalle.value = numero ? `${calle} ${numero}` : calle;
-
-    await estadosListos;
-    const estadoMatch = buscarCoincidencia(selectEstado, a.state);
-    if (!estadoMatch) return;
-    selectEstado.value = estadoMatch;
-    await cargarMunicipios(estadoMatch);
-
-    const municipioTexto = a.county || a.city_district || a.municipality || a.town || a.city || '';
-    const municipioMatch = buscarCoincidencia(selectMunicipio, municipioTexto);
-    if (!municipioMatch) return;
-    selectMunicipio.value = municipioMatch;
-    await cargarColonias(estadoMatch, municipioMatch);
-
-    const coloniaTexto = a.suburb || a.neighbourhood || a.quarter || a.residential || '';
-    const coloniaMatch = buscarCoincidencia(selectColonia, coloniaTexto);
-    if (coloniaMatch) {
-      selectColonia.value = coloniaMatch;
-      selectColonia.dispatchEvent(new Event('change'));
-    }
-  } catch (e) {
-    console.error('Error en autocompletado desde el mapa:', e);
-  }
-}
-
-// --- Precarga de lo que el cliente ya tenía guardado ---
-async function precargarCliente() {
-  await estadosListos;
-  if (clientePrevio.estado) {
-    selectEstado.value = clientePrevio.estado;
-    await cargarMunicipios(clientePrevio.estado);
-  }
-  if (clientePrevio.municipio) {
-    selectMunicipio.value = clientePrevio.municipio;
-    await cargarColonias(clientePrevio.estado, clientePrevio.municipio);
-  }
-  if (clientePrevio.colonia) {
-    selectColonia.value = clientePrevio.colonia;
-  }
-  if (clientePrevio.codigo_postal) {
-    inputCp.value = clientePrevio.codigo_postal;
-  }
-  if (clientePrevio.lat && clientePrevio.lng) {
-    // false = no reconsultar Nominatim para reautocompletar campos que el
-    // vendedor ya tiene capturados; solo se posiciona el marcador.
-    ponerMarcador(parseFloat(clientePrevio.lat), parseFloat(clientePrevio.lng), false);
-  }
-}
-precargarCliente();
 
 // --- Detección de posibles clientes duplicados (excluyendo al propio cliente) ---
 async function buscarPosiblesDuplicados({ nombre, telefono, lat, lng, colonia, calleNumero }) {
@@ -419,25 +159,19 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
   const msg = document.getElementById('msg-cliente');
   msg.innerHTML = '';
 
-  if (!selectEstado.value || !selectMunicipio.value || !selectColonia.value) {
-    msg.innerHTML = '<div class="alert alert-danger py-2">Elige estado, municipio y colonia de las listas (así evitamos colonias que no existen).</div>';
+  const { estado, municipio, colonia, cp, lat, lng, calleNumero } = DireccionCliente.valores();
+  if (!estado || !municipio || !colonia) {
+    msg.innerHTML = '<div class="alert alert-danger py-2">Escribe el código postal y elige la colonia de la lista (así evitamos colonias que no existen).</div>';
     return;
   }
 
   const nombre = document.querySelector('input[name="nombre"]').value.trim();
   const telefono = document.querySelector('input[name="telefono"]').value.trim();
-  const calleNumero = document.getElementById('calle-numero').value.trim();
-  const colonia = selectColonia.value;
-  const municipio = selectMunicipio.value;
-  const estado = selectEstado.value;
-  const cp = inputCp.value;
-  const lat = document.getElementById('lat').value;
-  const lng = document.getElementById('lng').value;
 
   // La ubicación es obligatoria sin excepción: sin ella no se puede
   // verificar el check-in por GPS ni ordenar la cartera por cercanía.
   if (!lat || !lng) {
-    msg.innerHTML = '<div class="alert alert-danger py-2">Falta marcar la ubicación del cliente: toca el mapa, usa "Usar mi ubicación" o elige un resultado de la búsqueda.</div>';
+    msg.innerHTML = '<div class="alert alert-danger py-2">Falta marcar la ubicación del cliente: toca el punto en el mapa, busca la calle, pega el link que te compartieron o usa "Usar mi ubicación".</div>';
     document.getElementById('mapa-cliente').scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
