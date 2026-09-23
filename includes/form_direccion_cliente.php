@@ -5,16 +5,18 @@
 //
 // Tres pasos, de arriba abajo:
 //   1. ¿En qué colonia está?  -> un solo campo: CP o nombre de colonia.
-//   2. ¿Dónde exactamente?    -> pestañas Buscar / Me mandaron la ubicación /
-//                                Estoy aquí, con el mapa siempre debajo.
-//   3. Calle y número         -> se llena sola, editable.
+//   2. Calle y número         -> el campo que se guarda; sugiere direcciones
+//                                para ubicarla en el mapa.
+//   3. Ubicación en el mapa   -> tocar el mapa / arrastrar el pin, o botones
+//                                "Me mandaron la ubicación" y "Estoy aquí".
 //
 // Variables opcionales antes del include:
 //   $calleNumeroPrevio  calle y número ya guardados (editar)
 $calleNumeroPrevio = $calleNumeroPrevio ?? '';
 ?>
 <style>
-  .v26-dir-paso { display: flex; align-items: center; gap: 7px; font-size: .8rem; font-weight: 800; color: var(--v26-ink); margin: 6px 0 8px; }
+  .v26-dir-paso { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; font-size: .8rem; font-weight: 800; color: var(--v26-ink); margin: 6px 0 8px; }
+  .v26-dir-paso .v26-ubicacion-badge { white-space: nowrap; }
   .v26-dir-paso b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--v26-brand-1); color: #fff; font-size: .68rem; flex-shrink: 0; }
   .v26-dir-nota { font-size: .72rem; margin-top: 3px; }
   .v26-dir-nota:empty { display: none; }
@@ -36,12 +38,11 @@ $calleNumeroPrevio = $calleNumeroPrevio ?? '';
   #colonia-manual { margin-top: 8px; }
   #btn-colonia-manual { display: block; text-align: left; margin-top: 2px; font-weight: 600; color: var(--v26-ink-soft); }
 
-  /* Pestañas de "¿Dónde exactamente?" */
-  #seg-modo-ubicacion { display: flex; width: 100%; margin-bottom: 10px; }
-  #seg-modo-ubicacion .v26-seg-btn { flex: 1; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 4px; font-size: .72rem; line-height: 1.15; }
-  #seg-modo-ubicacion .v26-seg-btn i { font-size: 1rem; }
-  .v26-dir-panel { margin-bottom: 8px; }
-  #btn-mi-ubicacion { display: flex; align-items: center; justify-content: center; gap: 8px; }
+  /* Botones bajo el mapa */
+  .v26-dir-acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .v26-dir-acciones .v26-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 8px; font-size: .78rem; }
+  #panel-link { margin-top: 8px; }
+  #resultados-busqueda button.text-muted { font-weight: 600; }
 
   #mapa-cliente { height: 260px; }
 </style>
@@ -91,43 +92,31 @@ $calleNumeroPrevio = $calleNumeroPrevio ?? '';
 
   <div class="v26-dir-separador"></div>
 
-  <!-- 2. Punto exacto -->
-  <div class="v26-dir-paso"><b>2</b> ¿Dónde está exactamente?</div>
-  <div class="v26-seg" id="seg-modo-ubicacion">
-    <button type="button" class="v26-seg-btn active" data-modo="buscar"><i class="bi bi-search"></i> Buscar</button>
-    <button type="button" class="v26-seg-btn" data-modo="link"><i class="bi bi-link-45deg"></i> Me mandaron la ubicación</button>
-    <button type="button" class="v26-seg-btn" data-modo="aqui"><i class="bi bi-crosshair"></i> Estoy aquí</button>
+  <!-- 2. Calle y número (es lo que se guarda; también sirve para ubicarla) -->
+  <div class="v26-dir-paso"><b>2</b> Calle y número</div>
+  <div class="v26-search">
+    <i class="bi bi-house-door"></i>
+    <input type="text" name="calle_numero" id="calle-numero" class="v26-input" autocomplete="off" value="<?= htmlspecialchars($calleNumeroPrevio) ?>" placeholder="Ej. Blvd. Diamantes 116" required>
   </div>
+  <div id="resultados-busqueda"></div>
 
-  <div class="v26-dir-panel" data-panel="buscar">
-    <div class="v26-search">
-      <i class="bi bi-search"></i>
-      <input type="text" id="buscar-direccion" class="v26-input" autocomplete="off" placeholder="Calle y número o negocio">
-    </div>
-    <div id="resultados-busqueda"></div>
+  <div class="v26-dir-separador"></div>
+
+  <!-- 3. Punto exacto en el mapa -->
+  <div class="v26-dir-paso"><b>3</b> Ubicación en el mapa <span id="ubicacion-estado" class="v26-ubicacion-badge pendiente"><i class="bi bi-exclamation-circle"></i> obligatoria, aún sin marcar</span></div>
+  <div id="mapa-cliente" class="v26-map"></div>
+  <div class="v26-dir-nota info">Toca el mapa en el punto exacto o arrastra el pin. Usa <b>Satélite</b> (arriba a la derecha) para ver las construcciones.</div>
+  <div class="v26-dir-acciones">
+    <button type="button" class="v26-btn v26-btn-ghost" id="btn-link-ubicacion"><i class="bi bi-link-45deg"></i> Me mandaron la ubicación</button>
+    <button type="button" class="v26-btn v26-btn-ghost" id="btn-mi-ubicacion"><i class="bi bi-crosshair"></i> Estoy aquí</button>
   </div>
-  <div class="v26-dir-panel d-none" data-panel="link">
+  <div id="panel-link" class="d-none">
     <div class="v26-search">
       <i class="bi bi-link-45deg"></i>
       <input type="text" id="pegar-ubicacion" class="v26-input" autocomplete="off" placeholder="Pega el link de Google Maps o WhatsApp">
     </div>
-    <div id="nota-link" class="v26-dir-nota info"></div>
   </div>
-  <div class="v26-dir-panel d-none" data-panel="aqui">
-    <button type="button" class="v26-btn v26-btn-ghost v26-btn-block" id="btn-mi-ubicacion"><i class="bi bi-crosshair"></i> Usar mi ubicación actual</button>
-    <div class="v26-dir-nota info">Úsalo solo si estás en el negocio del cliente.</div>
-  </div>
-
-  <div class="v26-field">
-    <label>Ubicación en el mapa <span id="ubicacion-estado" class="v26-ubicacion-badge pendiente"><i class="bi bi-exclamation-circle"></i> obligatoria, aún sin marcar</span></label>
-    <div id="mapa-cliente" class="v26-map"></div>
-    <div class="v26-dir-nota info">También puedes tocar el mapa en el punto exacto o arrastrar el pin. Usa <b>Satélite</b> (arriba a la derecha) para ver las construcciones.</div>
-    <input type="hidden" name="lat" id="lat">
-    <input type="hidden" name="lng" id="lng">
-  </div>
-</div>
-
-<div class="v26-field">
-  <label><span class="v26-dir-paso d-inline-flex m-0"><b>3</b></span> Calle y número <small class="text-muted fw-normal">(se llena sola, pero puedes escribirla o corregirla)</small></label>
-  <input type="text" name="calle_numero" id="calle-numero" class="v26-input" value="<?= htmlspecialchars($calleNumeroPrevio) ?>" placeholder="Ej. Blvd. Diamantes 116" required>
+  <div id="nota-link" class="v26-dir-nota info"></div>
+  <input type="hidden" name="lat" id="lat">
+  <input type="hidden" name="lng" id="lng">
 </div>

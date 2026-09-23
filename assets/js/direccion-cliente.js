@@ -6,13 +6,12 @@
 //   colonia; sale del catálogo SEPOMEX y el mapa se centra en la colonia.
 //   Estado/municipio/colonia quedan en selects ocultos (hay un "elegir de la
 //   lista" como último recurso).
-// Paso 2, punto exacto, en pestañas:
-//   - Buscar: Google Places si hay clave (window.DIRECCION_CFG.googleKey);
-//     si no o si falla, Nominatim (OpenStreetMap).
-//   - Me mandaron la ubicación: link de Google Maps / WhatsApp / Apple Maps
-//     (o "lat, lng").
-//   - Estoy aquí: GPS del teléfono.
-//   Siempre se puede tocar el mapa (con vista satélite) o arrastrar el pin.
+// Paso 2, calle y número: es el campo que se guarda y, mientras no haya pin,
+//   sugiere direcciones para ubicarla (Google Places si hay clave en
+//   window.DIRECCION_CFG.googleKey; si no o si falla, Nominatim).
+// Paso 3, ubicación en el mapa: tocar el mapa (con vista satélite) o
+//   arrastrar el pin, o los botones "Me mandaron la ubicación" (link de
+//   Google Maps / WhatsApp / Apple Maps o "lat, lng") y "Estoy aquí" (GPS).
 //
 // Uso: DireccionCliente.init() -> promesa; .precargar({...}); .valores().
 window.DireccionCliente = (function () {
@@ -162,7 +161,11 @@ window.DireccionCliente = (function () {
       if (data.length) {
         return data.map(r => ({
           texto: r.display_name,
-          elegir: async () => ({ lat: parseFloat(r.lat), lng: parseFloat(r.lon) }),
+          elegir: async () => ({
+            lat: parseFloat(r.lat), lng: parseFloat(r.lon),
+            calle: (r.address && (r.address.road || r.address.pedestrian)) || '',
+            numero: (r.address && r.address.house_number) || '',
+          }),
         }));
       }
     }
@@ -227,10 +230,10 @@ window.DireccionCliente = (function () {
 
   // Llena calle/CP/colonia con lo que devuelve Google (más confiable que
   // la geocodificación inversa de OSM).
-  async function aplicarComponentesGoogle(comps) {
+  async function aplicarComponentesGoogle(comps, llenarCalle = true) {
     const calle = componente(comps, 'route');
     const numero = componente(comps, 'street_number');
-    if (calle && !calleEditadaAMano) campoCalle.value = numero ? `${calle} ${numero}` : calle;
+    if (llenarCalle && calle && !calleEditadaAMano) campoCalle.value = numero ? `${calle} ${numero}` : calle;
     const cp = componente(comps, 'postal_code');
     const coloniaTexto = componente(comps, 'sublocality_level_1') || componente(comps, 'sublocality') || componente(comps, 'neighborhood');
     if (/^\d{5}$/.test(cp) && !valores().colonia) await coloniaDesdeCp(cp, coloniaTexto);
@@ -246,10 +249,21 @@ window.DireccionCliente = (function () {
     $('resultados-busqueda').innerHTML = html ? `<div class="v26-resultados-busqueda">${html}</div>` : '';
   }
 
-  async function buscarDireccion() {
-    const campo = $('buscar-direccion');
-    const q = campo.value.trim();
-    if (q.length < 4) { pintarResultados(''); return; }
+  // El número que escribió el vendedor ("116", "#116", "No. 116", "Km 16"),
+  // sin confundirlo con el CP ni con calles como "5 de Mayo".
+  function numeroEscrito(texto) {
+    const t = (texto || '').replace(/\bc\.?\s?p\.?\s*\d{5}\b/gi, ' ').replace(/\b\d{5}\b/g, ' ');
+    const km = t.match(/\bkm\.?\s*(\d+(?:[.,]\d+)?)/i);
+    if (km) return 'Km ' + km[1];
+    const m = t.match(/(?:#|\bno\.?|\bnum\.?|\bnúmero)?\s*\b(\d{1,4}[a-z]?)\b(?!\s+de\b)/i);
+    return m ? m[1] : '';
+  }
+
+  // Busca lo escrito en "Calle y número" (o el nombre que trae un link) y
+  // ofrece resultados para ubicarlo en el mapa.
+  async function buscarDireccion(textoForzado) {
+    const q = (typeof textoForzado === 'string' ? textoForzado : campoCalle.value).trim();
+    if (q.length < 4) { pintarResultados(''); return null; }
     const miBusqueda = ++busquedaActual;
     pintarResultados('<button type="button" disabled>Buscando...</button>');
 
@@ -263,27 +277,44 @@ window.DireccionCliente = (function () {
     }
     if (miBusqueda !== busquedaActual) return null; // ya escribió otra cosa
 
+    // Buscar es solo una ayuda para ubicarla: lo que escribió en "Calle y
+    // número" se guarda igual aunque no aparezca.
+    const desdeCampoCalle = typeof textoForzado !== 'string';
+    const seGuardaIgual = desdeCampoCalle ? ' La calle se guarda tal como la escribiste; solo marca el punto en el mapa (paso 3).' : '';
     if (error) {
-      pintarResultados('<button type="button" disabled>No se pudo buscar (revisa tu conexión). Puedes tocar el punto directo en el mapa.</button>');
+      pintarResultados(`<button type="button" disabled>No se pudo buscar en el mapa (revisa tu conexión).${seGuardaIgual}</button>`);
       return 0;
     }
     if (!resultados.length) {
-      pintarResultados('<button type="button" disabled>No se encontró. Toca el punto directo en el mapa (ya está centrado en la colonia) o pega el link de la ubicación.</button>');
+      pintarResultados(`<button type="button" disabled>No aparece en el mapa, no pasa nada.${seGuardaIgual || ' Toca el punto directo en el mapa.'}</button>`);
       return 0;
     }
-    pintarResultados(resultados.map((r, i) => `<button type="button" data-i="${i}">${escaparHtml(r.texto)}</button>`).join(''));
+    pintarResultados('<div class="v26-dir-titulo-lista"><i class="bi bi-geo-alt"></i> ¿Es alguna de estas? Tócala para ubicarla en el mapa</div>' +
+      resultados.map((r, i) => `<button type="button" data-i="${i}">${escaparHtml(r.texto)}</button>`).join('') +
+      '<button type="button" data-cerrar="1" class="text-muted">Ninguna: la ubico yo en el mapa</button>');
+    $('resultados-busqueda').querySelector('button[data-cerrar]').addEventListener('click', () => {
+      pintarResultados('');
+      $('mapa-cliente').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
     $('resultados-busqueda').querySelectorAll('button[data-i]').forEach(btn => {
       btn.addEventListener('click', async () => {
+        const escrito = campoCalle.value;
         const r = await resultados[btn.dataset.i].elegir();
         pintarResultados('');
-        campo.value = '';
+        ponerMarcador(r.lat, r.lng, false);
+        let calle = r.calle, numero = r.numero;
         if (r.comps) {
-          ponerMarcador(r.lat, r.lng, false);
-          await aplicarComponentesGoogle(r.comps);
-          if (!campoCalle.value) autocompletarDesdeCoordenadas(r.lat, r.lng);
-        } else {
-          ponerMarcador(r.lat, r.lng, true);
+          calle = componente(r.comps, 'route');
+          numero = componente(r.comps, 'street_number');
+          await aplicarComponentesGoogle(r.comps, false);
         }
+        // Queda la calle bien escrita con el número que puso el vendedor.
+        numero = numero || numeroEscrito(escrito);
+        if (calle) {
+          campoCalle.value = numero ? `${calle} ${numero}` : calle;
+          calleEditadaAMano = true;
+        }
+        if (!valores().colonia || !calle) autocompletarDesdeCoordenadas(r.lat, r.lng);
       });
     });
     return resultados.length;
@@ -351,9 +382,7 @@ window.DireccionCliente = (function () {
       // Típico de "Compartir" desde la búsqueda de Google (share.google):
       // solo trae el nombre del negocio, no dónde está.
       nota('nota-link', `El link solo trae el nombre ("${nombre}"), no la ubicación. Lo busqué por nombre...`, 'info');
-      cambiarModo('buscar', false);
-      $('buscar-direccion').value = nombre;
-      const encontrados = await buscarDireccion();
+      const encontrados = await buscarDireccion(nombre);
       if (encontrados) {
         nota('nota-link', `El link solo trae el nombre ("${nombre}"). Elige el resultado correcto de la lista.`, 'info');
       } else if (encontrados === 0) {
@@ -573,12 +602,10 @@ window.DireccionCliente = (function () {
   // ------------------------------------------------------------------
   // Paso 2: pestañas Buscar / Me mandaron la ubicación / Estoy aquí
   // ------------------------------------------------------------------
-  function cambiarModo(modo, enfocar = true) {
-    document.querySelectorAll('#seg-modo-ubicacion .v26-seg-btn').forEach(b => b.classList.toggle('active', b.dataset.modo === modo));
-    document.querySelectorAll('.v26-dir-panel').forEach(p => p.classList.toggle('d-none', p.dataset.panel !== modo));
-    if (!enfocar) return;
-    if (modo === 'buscar') $('buscar-direccion').focus();
-    if (modo === 'link') $('pegar-ubicacion').focus();
+  function mostrarPanelLink() {
+    const panel = $('panel-link');
+    panel.classList.toggle('d-none');
+    if (!panel.classList.contains('d-none')) $('pegar-ubicacion').focus();
   }
 
   function usarMiUbicacion() {
@@ -675,15 +702,15 @@ window.DireccionCliente = (function () {
     });
 
     // Paso 2
-    document.querySelectorAll('#seg-modo-ubicacion .v26-seg-btn').forEach(b => {
-      b.addEventListener('click', () => cambiarModo(b.dataset.modo));
-    });
+    $('btn-link-ubicacion').addEventListener('click', mostrarPanelLink);
     $('btn-mi-ubicacion').addEventListener('click', usarMiUbicacion);
 
-    $('buscar-direccion').addEventListener('input', () => {
+    // Mientras escribe la calle se sugieren direcciones para ubicarla, solo
+    // si todavía no hay pin (después ya no se le mueve el punto).
+    campoCalle.addEventListener('input', () => {
       clearTimeout(temporizadorBusqueda);
-      if ($('buscar-direccion').value.trim().length < 4) { busquedaActual++; pintarResultados(''); return; }
-      temporizadorBusqueda = setTimeout(buscarDireccion, CFG.googleKey ? 350 : 700);
+      if ($('lat').value || campoCalle.value.trim().length < 4) { busquedaActual++; pintarResultados(''); return; }
+      temporizadorBusqueda = setTimeout(buscarDireccion, CFG.googleKey ? 350 : 800);
     });
 
     const campoLink = $('pegar-ubicacion');
@@ -691,7 +718,7 @@ window.DireccionCliente = (function () {
     campoLink.addEventListener('change', procesarLink);
 
     // Enter en estos campos no debe mandar el formulario a medio llenar.
-    [['buscar-colonia', buscarColonia], ['buscar-direccion', buscarDireccion], ['pegar-ubicacion', procesarLink]].forEach(([id, fn]) => {
+    [['buscar-colonia', buscarColonia], ['calle-numero', buscarDireccion], ['pegar-ubicacion', procesarLink]].forEach(([id, fn]) => {
       $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fn(); } });
     });
 
