@@ -176,6 +176,9 @@ let lat = null, lng = null, accuracy = null;
 let fotoBlob = null;
 let streamCamara = null;
 let esReporteNoShow = false;
+// Debe declararse aquí arriba: revisarListoParaEnviar() lo lee desde
+// iniciarCapturaGps(), que corre antes de llegar a la sección de interés.
+let interesSel = null;
 
 const estadoGps = document.getElementById('estado-gps');
 const btn = document.getElementById('btn-registrar');
@@ -454,7 +457,6 @@ if (placeholder) {
 iniciarCamara();
 
 // --- Nivel de interés (obligatorio al registrar salida) ---
-let interesSel = null;
 document.querySelectorAll('#chips-interes .v26-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     document.querySelectorAll('#chips-interes .v26-chip').forEach(c => c.classList.remove('active'));
