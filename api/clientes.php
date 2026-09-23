@@ -46,11 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($nombre === '' || $calleNumero === '') {
         jsonResponse(['ok' => false, 'error' => 'Nombre y dirección son obligatorios'], 400);
     }
-    // La ubicación GPS es obligatoria sin excepción: sin ella no se puede
-    // verificar el check-in por distancia ni ordenar la cartera por cercanía.
-    if ($lat === null || $lat === '' || $lng === null || $lng === '') {
-        jsonResponse(['ok' => false, 'error' => 'Marca la ubicación del cliente en el mapa antes de guardar'], 400);
-    }
+    // La ubicación GPS es opcional al registrar: si no se marca, el cliente
+    // se guarda sin coordenadas y se puede completar después al editarlo.
 
     // Dirección completa y legible, compuesta a partir de las partes
     // capturadas (para no tener que tocar las pantallas que ya muestran
