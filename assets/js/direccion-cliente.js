@@ -260,15 +260,15 @@ window.DireccionCliente = (function () {
     if (!resultados || !resultados.length) {
       try { resultados = await buscarEnNominatim(q); } catch (e) { error = true; }
     }
-    if (miBusqueda !== busquedaActual) return; // ya escribió otra cosa
+    if (miBusqueda !== busquedaActual) return null; // ya escribió otra cosa
 
     if (error) {
       pintarResultados('<button type="button" disabled>No se pudo buscar (revisa tu conexión). Puedes tocar el punto directo en el mapa.</button>');
-      return;
+      return 0;
     }
     if (!resultados.length) {
       pintarResultados('<button type="button" disabled>No se encontró. Toca el punto directo en el mapa (ya está centrado en la colonia) o pega el link de la ubicación.</button>');
-      return;
+      return 0;
     }
     pintarResultados(resultados.map((r, i) => `<button type="button" data-i="${i}">${escaparHtml(r.texto)}</button>`).join(''));
     $('resultados-busqueda').querySelectorAll('button[data-i]').forEach(btn => {
@@ -285,6 +285,7 @@ window.DireccionCliente = (function () {
         }
       });
     });
+    return resultados.length;
   }
 
   // ------------------------------------------------------------------
@@ -346,9 +347,16 @@ window.DireccionCliente = (function () {
       return;
     }
     if (nombre) {
-      nota('nota-link', 'El link no trae coordenadas; lo busqué por nombre, elige el resultado.', 'info');
+      // Típico de "Compartir" desde la búsqueda de Google (share.google):
+      // solo trae el nombre del negocio, no dónde está.
+      nota('nota-link', `El link solo trae el nombre ("${nombre}"), no la ubicación. Lo busqué por nombre...`, 'info');
       $('buscar-direccion').value = nombre;
-      buscarDireccion();
+      const encontrados = await buscarDireccion();
+      if (encontrados) {
+        nota('nota-link', `El link solo trae el nombre ("${nombre}"). Elige el resultado correcto de la lista.`, 'info');
+      } else if (encontrados === 0) {
+        nota('nota-link', 'Ese link solo trae el nombre del negocio y no se encontró en el mapa. Pide la ubicación desde la app de Google Maps (abrir el lugar > Compartir) o por WhatsApp (Adjuntar > Ubicación), o toca el punto en el mapa.', 'error');
+      }
       return;
     }
     nota('nota-link', 'Ese link no trae la ubicación. Pide al cliente que la comparta desde Google Maps o WhatsApp (Adjuntar > Ubicación).', 'error');

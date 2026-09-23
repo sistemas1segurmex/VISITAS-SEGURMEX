@@ -9,6 +9,12 @@
 // -> { ok, lat, lng, url_final, nombre }  (nombre = lugar buscado cuando el
 //    link no trae coordenadas, para que el vendedor lo busque)
 //
+// Los links de "Compartir" de la búsqueda de Google (share.google/xxxx)
+// terminan en una página de resultados sin coordenadas: de esos solo se
+// saca el nombre del lugar. NO se leen coordenadas del HTML de la página:
+// Google pone ahí el centro del mapa según la IP del servidor, no el lugar,
+// y el pin quedaría en otra ciudad.
+//
 // Solo se siguen redirecciones hacia dominios de Google/Apple Maps: nunca
 // se hace una petición a un host arbitrario que mande el usuario.
 
@@ -19,7 +25,7 @@ require_once __DIR__ . '/../includes/helpers.php';
 requireLogin();
 
 const HOSTS_PERMITIDOS = [
-    'maps.app.goo.gl', 'goo.gl', 'g.co',
+    'maps.app.goo.gl', 'goo.gl', 'g.co', 'share.google',
     'maps.google.com', 'www.google.com', 'google.com', 'www.google.com.mx', 'google.com.mx', 'maps.google.com.mx',
     'maps.apple.com',
 ];
@@ -61,7 +67,6 @@ if (!hostPermitido($url)) {
     jsonResponse(['ok' => false, 'error' => 'Ese link no es de Google Maps ni de Apple Maps.'], 400);
 }
 
-$cuerpo = '';
 for ($saltos = 0; $saltos < 6; $saltos++) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -85,13 +90,14 @@ for ($saltos = 0; $saltos < 6; $saltos++) {
         if (coordenadasDe($siguiente)) { $url = $siguiente; break; }
         if (!hostPermitido($siguiente)) break;
         $url = $siguiente;
+        // Página de resultados de Google: ya no hay más a dónde llegar.
+        if (parse_url($url, PHP_URL_PATH) === '/search') break;
         continue;
     }
-    $cuerpo = (string)$respuesta;
     break;
 }
 
-$coords = coordenadasDe($url) ?? ($cuerpo !== '' ? coordenadasDe(substr($cuerpo, 0, 500000)) : null);
+$coords = coordenadasDe($url);
 jsonResponse([
     'ok'        => true,
     'lat'       => $coords[0] ?? null,
