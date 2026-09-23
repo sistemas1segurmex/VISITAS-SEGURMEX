@@ -110,7 +110,7 @@ $u = requireRole('vendedor');
           <div id="resultados-busqueda"></div>
 
           <div class="v26-field">
-            <label>Ubicación en el mapa <span id="ubicacion-estado" class="v26-ubicacion-badge pendiente"><i class="bi bi-exclamation-circle"></i> obligatoria, aún sin marcar</span></label>
+            <label>Ubicación en el mapa <span id="ubicacion-estado" class="v26-ubicacion-badge pendiente"><i class="bi bi-info-circle"></i> opcional, aún sin marcar</span></label>
             <div id="mapa-cliente" class="v26-map v26-map-chica"></div>
             <div class="v26-map-float v26-tip" id="btn-mi-ubicacion" data-tip="Detecta tu posición GPS y la marca en el mapa"><i class="bi bi-crosshair"></i> Usar mi ubicación</div>
             <input type="hidden" name="lat" id="lat">
@@ -407,13 +407,8 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
   const lat = document.getElementById('lat').value;
   const lng = document.getElementById('lng').value;
 
-  // La ubicación es obligatoria sin excepción: sin ella no se puede
-  // verificar el check-in por GPS ni ordenar la cartera por cercanía.
-  if (!lat || !lng) {
-    msg.innerHTML = '<div class="alert alert-danger py-2">Falta marcar la ubicación del cliente: toca el mapa, usa "Usar mi ubicación" o elige un resultado de la búsqueda.</div>';
-    document.getElementById('mapa-cliente').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return;
-  }
+  // La ubicación es opcional al registrar: si no se marca, el cliente se
+  // guarda sin coordenadas y se puede completar después al editarlo.
   const candidatos = await buscarPosiblesDuplicados({ nombre, telefono, lat, lng, colonia, calleNumero });
   if (candidatos.length > 0) {
     const lista = candidatos.map(c => `• ${c.nombre} — ${c.direccion} (${c.razon})`).join('\n');
