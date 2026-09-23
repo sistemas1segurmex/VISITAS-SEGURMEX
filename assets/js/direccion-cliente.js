@@ -2,12 +2,17 @@
 // vendedor/nuevo_cliente.php y vendedor/editar_cliente.php (el HTML está en
 // includes/form_direccion_cliente.php).
 //
-// Tres formas de llegar a la ubicación exacta:
-//   1. Código postal -> estado/municipio/colonia salen del catálogo SEPOMEX y
-//      el mapa se centra en la colonia para que el vendedor toque el punto.
-//   2. Buscador de calle: Google Places si hay clave (window.DIRECCION_CFG.
-//      googleKey), si no o si falla, Nominatim (OpenStreetMap).
-//   3. Pegar un link de Google Maps / WhatsApp / Apple Maps (o "lat, lng").
+// Paso 1, colonia: un solo campo que acepta CP (5 dígitos) o nombre de
+//   colonia; sale del catálogo SEPOMEX y el mapa se centra en la colonia.
+//   Estado/municipio/colonia quedan en selects ocultos (hay un "elegir de la
+//   lista" como último recurso).
+// Paso 2, punto exacto, en pestañas:
+//   - Buscar: Google Places si hay clave (window.DIRECCION_CFG.googleKey);
+//     si no o si falla, Nominatim (OpenStreetMap).
+//   - Me mandaron la ubicación: link de Google Maps / WhatsApp / Apple Maps
+//     (o "lat, lng").
+//   - Estoy aquí: GPS del teléfono.
+//   Siempre se puede tocar el mapa (con vista satélite) o arrastrar el pin.
 //
 // Uso: DireccionCliente.init() -> promesa; .precargar({...}); .valores().
 window.DireccionCliente = (function () {
@@ -18,7 +23,6 @@ window.DireccionCliente = (function () {
   let selectEstado, selectMunicipio, selectColonia, inputCp, campoCalle;
   let estadosListos;
   let calleEditadaAMano = false;
-  let coloniasDelCp = null; // filas de SEPOMEX del CP escrito (null = sin filtro por CP)
 
   // ------------------------------------------------------------------
   // Utilidades
@@ -32,7 +36,7 @@ window.DireccionCliente = (function () {
   function buscarCoincidencia(select, texto) {
     const objetivo = normalizar(texto);
     if (!objetivo) return null;
-    const opciones = Array.from(select.options).map(o => o.value).filter(v => v && v !== '__todas__');
+    const opciones = Array.from(select.options).map(o => o.value).filter(Boolean);
     let match = opciones.find(o => normalizar(o) === objetivo);
     if (!match) match = opciones.find(o => normalizar(o).includes(objetivo) || objetivo.includes(normalizar(o)));
     return match || null;
@@ -229,10 +233,7 @@ window.DireccionCliente = (function () {
     if (calle && !calleEditadaAMano) campoCalle.value = numero ? `${calle} ${numero}` : calle;
     const cp = componente(comps, 'postal_code');
     const coloniaTexto = componente(comps, 'sublocality_level_1') || componente(comps, 'sublocality') || componente(comps, 'neighborhood');
-    if (cp && !selectColonia.value) {
-      inputCp.value = cp;
-      await aplicarCP(cp, coloniaTexto, false);
-    }
+    if (/^\d{5}$/.test(cp) && !valores().colonia) await coloniaDesdeCp(cp, coloniaTexto);
   }
 
   // ------------------------------------------------------------------
@@ -350,6 +351,7 @@ window.DireccionCliente = (function () {
       // Típico de "Compartir" desde la búsqueda de Google (share.google):
       // solo trae el nombre del negocio, no dónde está.
       nota('nota-link', `El link solo trae el nombre ("${nombre}"), no la ubicación. Lo busqué por nombre...`, 'info');
+      cambiarModo('buscar', false);
       $('buscar-direccion').value = nombre;
       const encontrados = await buscarDireccion();
       if (encontrados) {
@@ -363,7 +365,7 @@ window.DireccionCliente = (function () {
   }
 
   // ------------------------------------------------------------------
-  // Catálogo SEPOMEX
+  // Paso 1: colonia (un solo campo: CP o nombre)
   // ------------------------------------------------------------------
   async function cargarEstados() {
     try {
@@ -397,13 +399,6 @@ window.DireccionCliente = (function () {
     selectMunicipio.disabled = false;
   }
 
-  function pintarColonias(colonias, conOpcionTodas) {
-    selectColonia.innerHTML = '<option value="">Selecciona una colonia</option>' +
-      colonias.map(c => `<option value="${escaparHtml(c.asentamiento)}" data-cp="${escaparHtml(c.cp)}">${escaparHtml(c.asentamiento)} (CP ${escaparHtml(c.cp)})</option>`).join('') +
-      (conOpcionTodas ? '<option value="__todas__">¿No aparece? Ver todas las del municipio</option>' : '');
-    selectColonia.disabled = false;
-  }
-
   async function cargarColonias(estado, municipio) {
     selectColonia.disabled = true;
     if (!municipio) {
@@ -415,49 +410,124 @@ window.DireccionCliente = (function () {
     const res = await fetch(url);
     const data = await res.json();
     if (!data.ok) { selectColonia.innerHTML = '<option value="">Error al cargar</option>'; return; }
-    pintarColonias(data.colonias, false);
+    selectColonia.innerHTML = '<option value="">Selecciona una colonia</option>' +
+      data.colonias.map(c => `<option value="${escaparHtml(c.asentamiento)}" data-cp="${escaparHtml(c.cp)}">${escaparHtml(c.asentamiento)} (CP ${escaparHtml(c.cp)})</option>`).join('');
+    selectColonia.disabled = false;
   }
 
-  // Escribió un CP: se fija estado y municipio y la lista de colonias se
-  // reduce a las de ese CP. Si solo hay una, se elige sola.
-  // preferido = { estado, municipio } cuando se eligió una colonia por nombre
-  // (un mismo CP puede abarcar más de un municipio).
-  async function aplicarCP(cp, coloniaSugerida = '', centrar = true, preferido = null) {
-    coloniasDelCp = null;
-    nota('nota-cp', 'Buscando...', 'info');
-    let data;
-    try {
-      const res = await fetch('../api/sepomex.php?tipo=cp&cp=' + encodeURIComponent(cp));
-      data = await res.json();
-    } catch (e) {
-      nota('nota-cp', 'No se pudo consultar el CP.', 'error');
-      return;
-    }
-    if (!data.ok) { nota('nota-cp', data.error, 'error'); return; }
-    if (!data.colonias.length) {
-      nota('nota-cp', 'Ese CP no está en el catálogo. Elige estado, municipio y colonia a mano.', 'error');
-      return;
-    }
-    const base = (preferido && data.colonias.find(c => c.estado === preferido.estado && c.municipio === preferido.municipio)) || data.colonias[0];
-    const { estado, municipio } = base;
-    const colonias = data.colonias.filter(c => c.estado === estado && c.municipio === municipio);
-    coloniasDelCp = colonias;
+  // Filas SEPOMEX { estado, municipio, asentamiento, cp } para un CP o un nombre.
+  async function consultarColonias(texto) {
+    const url = /^\d{5}$/.test(texto)
+      ? '../api/sepomex.php?tipo=cp&cp=' + encodeURIComponent(texto)
+      : '../api/sepomex.php?tipo=buscar_colonia&q=' + encodeURIComponent(texto);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error al consultar');
+    return data.colonias;
+  }
 
+  function pintarResultadosColonia(html) {
+    $('resultados-colonia').innerHTML = html ? `<div class="v26-resultados-busqueda">${html}</div>` : '';
+  }
+
+  function ofrecerColonias(filas, titulo) {
+    pintarResultadosColonia(
+      (titulo ? `<div class="v26-dir-titulo-lista">${escaparHtml(titulo)}</div>` : '') +
+      filas.map((c, i) =>
+        `<button type="button" data-i="${i}"><b>${escaparHtml(c.asentamiento)}</b> — ${escaparHtml(c.municipio)}, ${escaparHtml(c.estado)} (CP ${escaparHtml(c.cp)})</button>`
+      ).join('')
+    );
+    $('resultados-colonia').querySelectorAll('button[data-i]').forEach(btn => {
+      btn.addEventListener('click', () => fijarColonia(filas[btn.dataset.i], true));
+    });
+  }
+
+  // Deja elegida una colonia del catálogo (llena los selects ocultos, el CP
+  // y muestra el resumen).
+  async function fijarColonia(c, centrar = true) {
+    pintarResultadosColonia('');
+    $('buscar-colonia').value = '';
+    nota('nota-cp', '', 'info');
     await estadosListos;
-    selectEstado.value = estado;
-    await cargarMunicipios(estado);
-    selectMunicipio.value = municipio;
-    pintarColonias(colonias, true);
-    nota('nota-cp', `${municipio}, ${estado}`, 'ok');
-
-    const elegida = (coloniaSugerida && buscarCoincidencia(selectColonia, coloniaSugerida)) ||
-      (colonias.length === 1 ? colonias[0].asentamiento : null);
-    if (elegida) {
-      selectColonia.value = elegida;
-      if (centrar) centrarEnColonia();
-    } else if (centrar) {
-      centrarEnColonia();
+    if (selectEstado.value !== c.estado || selectMunicipio.disabled) {
+      selectEstado.value = c.estado;
+      await cargarMunicipios(c.estado);
     }
+    const tieneColonia = Array.from(selectColonia.options).some(o => o.value === c.asentamiento);
+    if (selectMunicipio.value !== c.municipio || !tieneColonia) {
+      selectMunicipio.value = c.municipio;
+      await cargarColonias(c.estado, c.municipio);
+    }
+    selectColonia.value = c.asentamiento;
+    inputCp.value = c.cp;
+    mostrarResumenColonia();
+    if (centrar) centrarEnColonia();
+  }
+
+  function mostrarResumenColonia() {
+    const v = valores();
+    const hay = !!v.colonia;
+    $('resumen-colonia').classList.toggle('d-none', !hay);
+    $('caja-buscar-colonia').classList.toggle('d-none', hay);
+    if (hay) {
+      $('colonia-manual').classList.add('d-none');
+      $('resumen-colonia-nombre').textContent = v.colonia;
+      $('resumen-colonia-detalle').textContent = `${v.municipio}, ${v.estado}${v.cp ? ' · CP ' + v.cp : ''}`;
+    }
+  }
+
+  let temporizadorColonia = null;
+  let busquedaColoniaActual = 0;
+
+  async function buscarColonia() {
+    const texto = $('buscar-colonia').value.trim();
+    const miBusqueda = ++busquedaColoniaActual;
+    nota('nota-cp', '', 'info');
+    if (/^\d+$/.test(texto) && texto.length < 5) {
+      pintarResultadosColonia('');
+      nota('nota-cp', 'Escribe los 5 dígitos del código postal.', 'info');
+      return;
+    }
+    if (texto.length < 3) { pintarResultadosColonia(''); return; }
+    pintarResultadosColonia('<button type="button" disabled>Buscando...</button>');
+    let filas;
+    try {
+      filas = await consultarColonias(texto);
+    } catch (e) {
+      if (miBusqueda === busquedaColoniaActual) {
+        pintarResultadosColonia(`<button type="button" disabled>${escaparHtml(e.message || 'No se pudo buscar (revisa tu conexión).')}</button>`);
+      }
+      return;
+    }
+    if (miBusqueda !== busquedaColoniaActual) return;
+    const esCp = /^\d{5}$/.test(texto);
+    if (!filas.length) {
+      pintarResultadosColonia(`<button type="button" disabled>${esCp
+        ? 'Ese código postal no está en el catálogo. Prueba escribiendo el nombre de la colonia.'
+        : 'No hay colonias con ese nombre. Prueba con una sola palabra (ej. "Tlalchichilpan").'}</button>`);
+      return;
+    }
+    if (esCp && filas.length === 1) { fijarColonia(filas[0], true); return; }
+    ofrecerColonias(filas, esCp ? `Colonias con CP ${texto}` : 'Elige la colonia');
+  }
+
+  function cambiarColonia() {
+    $('resumen-colonia').classList.add('d-none');
+    $('caja-buscar-colonia').classList.remove('d-none');
+    $('buscar-colonia').focus();
+  }
+
+  // Desde Google llega un CP y quizá el nombre de la colonia: si coincide
+  // con el catálogo se elige sola; si no, se ofrecen las del CP.
+  async function coloniaDesdeCp(cp, coloniaTexto) {
+    let filas;
+    try { filas = await consultarColonias(cp); } catch (e) { return; }
+    if (!filas.length || valores().colonia) return;
+    const objetivo = normalizar(coloniaTexto);
+    const match = objetivo && (filas.find(c => normalizar(c.asentamiento) === objetivo) ||
+      filas.find(c => normalizar(c.asentamiento).includes(objetivo) || objetivo.includes(normalizar(c.asentamiento))));
+    if (match || filas.length === 1) { fijarColonia(match || filas[0], false); return; }
+    ofrecerColonias(filas, `Elige la colonia (CP ${cp})`);
   }
 
   // ------------------------------------------------------------------
@@ -472,9 +542,9 @@ window.DireccionCliente = (function () {
     const numero = a.house_number || '';
     if (calle && !calleEditadaAMano) campoCalle.value = numero ? `${calle} ${numero}` : calle;
 
-    // Si ya eligió colonia (por CP o a mano) no se le cambia: SEPOMEX es
-    // más confiable que lo que diga OpenStreetMap.
-    if (selectColonia.value && selectColonia.value !== '__todas__') return;
+    // Si ya eligió colonia no se le cambia: SEPOMEX es más confiable que
+    // lo que diga OpenStreetMap.
+    if (valores().colonia) return;
 
     await estadosListos;
     const estadoMatch = buscarCoincidencia(selectEstado, a.state);
@@ -483,65 +553,46 @@ window.DireccionCliente = (function () {
       selectEstado.value = estadoMatch;
       await cargarMunicipios(estadoMatch);
     }
-
     const municipioTexto = a.county || a.city_district || a.municipality || a.town || a.city || '';
     const municipioMatch = buscarCoincidencia(selectMunicipio, municipioTexto);
     if (!municipioMatch) return;
-    if (selectMunicipio.value !== municipioMatch || !coloniasDelCp) {
+    if (selectMunicipio.value !== municipioMatch || selectColonia.disabled) {
       selectMunicipio.value = municipioMatch;
-      coloniasDelCp = null;
       await cargarColonias(estadoMatch, municipioMatch);
     }
-
     const coloniaTexto = a.suburb || a.neighbourhood || a.quarter || a.residential || '';
     const coloniaMatch = buscarCoincidencia(selectColonia, coloniaTexto);
     if (coloniaMatch) {
       selectColonia.value = coloniaMatch;
-      selectColonia.dispatchEvent(new Event('change'));
+      const opt = selectColonia.selectedOptions[0];
+      if (opt && opt.dataset.cp) inputCp.value = opt.dataset.cp;
+      mostrarResumenColonia();
     }
   }
 
-  // Colonia por nombre, para cuando no saben el CP o el que tienen no
-  // coincide con SEPOMEX (p. ej. Google dice 50900 y SEPOMEX 50904).
-  let temporizadorColonia = null;
-  let busquedaColoniaActual = 0;
-
-  function pintarResultadosColonia(html) {
-    $('resultados-colonia').innerHTML = html ? `<div class="v26-resultados-busqueda">${html}</div>` : '';
+  // ------------------------------------------------------------------
+  // Paso 2: pestañas Buscar / Me mandaron la ubicación / Estoy aquí
+  // ------------------------------------------------------------------
+  function cambiarModo(modo, enfocar = true) {
+    document.querySelectorAll('#seg-modo-ubicacion .v26-seg-btn').forEach(b => b.classList.toggle('active', b.dataset.modo === modo));
+    document.querySelectorAll('.v26-dir-panel').forEach(p => p.classList.toggle('d-none', p.dataset.panel !== modo));
+    if (!enfocar) return;
+    if (modo === 'buscar') $('buscar-direccion').focus();
+    if (modo === 'link') $('pegar-ubicacion').focus();
   }
 
-  async function buscarColoniaPorNombre() {
-    const campo = $('buscar-colonia');
-    const q = campo.value.trim();
-    if (q.length < 3) { pintarResultadosColonia(''); return; }
-    const miBusqueda = ++busquedaColoniaActual;
-    pintarResultadosColonia('<button type="button" disabled>Buscando...</button>');
-    let data;
-    try {
-      const res = await fetch('../api/sepomex.php?tipo=buscar_colonia&q=' + encodeURIComponent(q));
-      data = await res.json();
-    } catch (e) {
-      data = { ok: false, error: 'No se pudo buscar (revisa tu conexión).' };
-    }
-    if (miBusqueda !== busquedaColoniaActual) return;
-    if (!data.ok) { pintarResultadosColonia(`<button type="button" disabled>${escaparHtml(data.error)}</button>`); return; }
-    if (!data.colonias.length) {
-      pintarResultadosColonia('<button type="button" disabled>No hay colonias con ese nombre. Prueba con una sola palabra (ej. "Tlalchichilpan").</button>');
-      return;
-    }
-    const filas = data.colonias;
-    pintarResultadosColonia(filas.map((c, i) =>
-      `<button type="button" data-i="${i}"><b>${escaparHtml(c.asentamiento)}</b> — ${escaparHtml(c.municipio)}, ${escaparHtml(c.estado)} (CP ${escaparHtml(c.cp)})</button>`
-    ).join(''));
-    $('resultados-colonia').querySelectorAll('button[data-i]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const c = filas[btn.dataset.i];
-        pintarResultadosColonia('');
-        campo.value = '';
-        inputCp.value = c.cp;
-        await aplicarCP(c.cp, c.asentamiento, true, { estado: c.estado, municipio: c.municipio });
-      });
-    });
+  function usarMiUbicacion() {
+    if (!('geolocation' in navigator)) return alert('Tu navegador no soporta geolocalización.');
+    const btn = $('btn-mi-ubicacion');
+    const textoOriginal = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Obteniendo tu ubicación...';
+    const restaurar = () => { btn.disabled = false; btn.innerHTML = textoOriginal; };
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { restaurar(); ponerMarcador(pos.coords.latitude, pos.coords.longitude); },
+      () => { restaurar(); alert('No se pudo obtener tu ubicación. Revisa los permisos del navegador.'); },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
   }
 
   // ------------------------------------------------------------------
@@ -549,7 +600,7 @@ window.DireccionCliente = (function () {
   // ------------------------------------------------------------------
   function valores() {
     const opt = selectColonia.selectedOptions[0];
-    const colonia = selectColonia.value === '__todas__' ? '' : selectColonia.value;
+    const colonia = selectColonia.value;
     return {
       estado: selectEstado.value,
       municipio: selectMunicipio.value,
@@ -573,6 +624,7 @@ window.DireccionCliente = (function () {
     }
     if (p.colonia) selectColonia.value = p.colonia;
     if (p.codigo_postal) inputCp.value = p.codigo_postal;
+    mostrarResumenColonia();
     if (p.lat && p.lng) {
       // false = no reconsultar para no pisar lo que ya tiene capturado.
       ponerMarcador(parseFloat(p.lat), parseFloat(p.lng), false);
@@ -604,16 +656,29 @@ window.DireccionCliente = (function () {
     L.control.layers({ 'Mapa': capaMapa, 'Satélite': capaSatelite }, null, { position: 'topright', collapsed: false }).addTo(mapa);
     mapa.on('click', (e) => ponerMarcador(e.latlng.lat, e.latlng.lng));
 
-    $('btn-mi-ubicacion').addEventListener('click', () => {
-      if (!('geolocation' in navigator)) return alert('Tu navegador no soporta geolocalización.');
-      navigator.geolocation.getCurrentPosition(
-        (pos) => ponerMarcador(pos.coords.latitude, pos.coords.longitude),
-        () => alert('No se pudo obtener tu ubicación. Revisa los permisos del navegador.'),
-        { enableHighAccuracy: true, timeout: 15000 }
-      );
+    campoCalle.addEventListener('input', () => { calleEditadaAMano = campoCalle.value.trim() !== ''; });
+
+    // Paso 1
+    $('buscar-colonia').addEventListener('input', () => {
+      clearTimeout(temporizadorColonia);
+      temporizadorColonia = setTimeout(buscarColonia, 350);
+    });
+    $('btn-cambiar-colonia').addEventListener('click', cambiarColonia);
+    $('btn-colonia-manual').addEventListener('click', () => $('colonia-manual').classList.toggle('d-none'));
+    selectEstado.addEventListener('change', () => cargarMunicipios(selectEstado.value));
+    selectMunicipio.addEventListener('change', () => cargarColonias(selectEstado.value, selectMunicipio.value));
+    selectColonia.addEventListener('change', () => {
+      const opt = selectColonia.selectedOptions[0];
+      if (opt && opt.dataset.cp) inputCp.value = opt.dataset.cp;
+      mostrarResumenColonia();
+      centrarEnColonia();
     });
 
-    campoCalle.addEventListener('input', () => { calleEditadaAMano = campoCalle.value.trim() !== ''; });
+    // Paso 2
+    document.querySelectorAll('#seg-modo-ubicacion .v26-seg-btn').forEach(b => {
+      b.addEventListener('click', () => cambiarModo(b.dataset.modo));
+    });
+    $('btn-mi-ubicacion').addEventListener('click', usarMiUbicacion);
 
     $('buscar-direccion').addEventListener('input', () => {
       clearTimeout(temporizadorBusqueda);
@@ -621,42 +686,13 @@ window.DireccionCliente = (function () {
       temporizadorBusqueda = setTimeout(buscarDireccion, CFG.googleKey ? 350 : 700);
     });
 
-    // Enter en estos campos no debe mandar el formulario a medio llenar.
-    ['buscar-direccion', 'input-cp'].forEach(id => $(id).addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); if (id === 'buscar-direccion') buscarDireccion(); }
-    }));
-
-    $('buscar-colonia').addEventListener('input', () => {
-      clearTimeout(temporizadorColonia);
-      if ($('buscar-colonia').value.trim().length < 3) { busquedaColoniaActual++; pintarResultadosColonia(''); return; }
-      temporizadorColonia = setTimeout(buscarColoniaPorNombre, 350);
-    });
-    $('buscar-colonia').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); buscarColoniaPorNombre(); }
-    });
-
     const campoLink = $('pegar-ubicacion');
     campoLink.addEventListener('paste', () => setTimeout(procesarLink, 0));
     campoLink.addEventListener('change', procesarLink);
-    campoLink.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); procesarLink(); } });
 
-    inputCp.addEventListener('input', () => {
-      inputCp.value = inputCp.value.replace(/\D/g, '').slice(0, 5);
-      if (inputCp.value.length === 5) aplicarCP(inputCp.value);
-      else nota('nota-cp', '', 'info');
-    });
-
-    selectEstado.addEventListener('change', () => { coloniasDelCp = null; cargarMunicipios(selectEstado.value); });
-    selectMunicipio.addEventListener('change', () => { coloniasDelCp = null; cargarColonias(selectEstado.value, selectMunicipio.value); });
-    selectColonia.addEventListener('change', async () => {
-      if (selectColonia.value === '__todas__') {
-        coloniasDelCp = null;
-        await cargarColonias(selectEstado.value, selectMunicipio.value);
-        return;
-      }
-      const opt = selectColonia.selectedOptions[0];
-      if (opt && opt.dataset.cp) inputCp.value = opt.dataset.cp;
-      centrarEnColonia();
+    // Enter en estos campos no debe mandar el formulario a medio llenar.
+    [['buscar-colonia', buscarColonia], ['buscar-direccion', buscarDireccion], ['pegar-ubicacion', procesarLink]].forEach(([id, fn]) => {
+      $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fn(); } });
     });
 
     // Con clave de Google se precarga la librería para que la primera

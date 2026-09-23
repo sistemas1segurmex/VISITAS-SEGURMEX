@@ -3,82 +3,131 @@
 // vendedor/nuevo_cliente.php y vendedor/editar_cliente.php. La lógica vive
 // en assets/js/direccion-cliente.js.
 //
+// Tres pasos, de arriba abajo:
+//   1. ¿En qué colonia está?  -> un solo campo: CP o nombre de colonia.
+//   2. ¿Dónde exactamente?    -> pestañas Buscar / Me mandaron la ubicación /
+//                                Estoy aquí, con el mapa siempre debajo.
+//   3. Calle y número         -> se llena sola, editable.
+//
 // Variables opcionales antes del include:
 //   $calleNumeroPrevio  calle y número ya guardados (editar)
 $calleNumeroPrevio = $calleNumeroPrevio ?? '';
 ?>
 <style>
-  .v26-dir-paso { display: flex; align-items: center; gap: 6px; font-size: .72rem; font-weight: 800; color: var(--v26-ink-soft); margin: 4px 0 4px; }
-  .v26-dir-paso b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--v26-brand-1); color: #fff; font-size: .66rem; }
-  .v26-dir-nota { font-size: .7rem; margin-top: 3px; min-height: 1em; }
+  .v26-dir-paso { display: flex; align-items: center; gap: 7px; font-size: .8rem; font-weight: 800; color: var(--v26-ink); margin: 6px 0 8px; }
+  .v26-dir-paso b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--v26-brand-1); color: #fff; font-size: .68rem; flex-shrink: 0; }
+  .v26-dir-nota { font-size: .72rem; margin-top: 3px; }
+  .v26-dir-nota:empty { display: none; }
   .v26-dir-nota.error { color: var(--v26-red); }
   .v26-dir-nota.ok { color: var(--v26-green); }
   .v26-dir-nota.info { color: var(--v26-ink-soft); }
-  #mapa-cliente { height: 230px; }
+  .v26-dir-separador { border-top: 1px dashed var(--v26-border); margin: 14px 0 6px; }
   .v26-buscar-destacado .v26-search input.v26-input { padding-left: 38px; } /* .v26-compacto pisa el padding del ícono */
-  .v26-buscar-destacado .v26-search { margin-bottom: 8px; }
+  .v26-buscar-destacado .v26-search { margin-bottom: 6px; }
+  .v26-dir-titulo-lista { padding: 7px 12px; font-size: .7rem; font-weight: 800; color: var(--v26-ink-soft); background: rgba(0,0,0,.03); border-bottom: 1px solid var(--v26-border); }
+
+  /* Colonia ya elegida */
+  .v26-dir-resumen { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--v26-surface-solid); border: 1px solid var(--v26-border); border-radius: var(--v26-r-md); }
+  .v26-dir-resumen > i { color: var(--v26-green); font-size: 1.1rem; }
+  .v26-dir-resumen .txt { flex: 1; min-width: 0; line-height: 1.25; }
+  .v26-dir-resumen .txt b { display: block; font-size: .88rem; }
+  .v26-dir-resumen .txt small { color: var(--v26-ink-soft); font-size: .74rem; }
+  .v26-dir-link { border: none; background: none; padding: 0; color: var(--v26-brand-2); font-size: .74rem; font-weight: 700; text-decoration: underline; cursor: pointer; }
+  #colonia-manual { margin-top: 8px; }
+  #btn-colonia-manual { display: block; text-align: left; margin-top: 2px; font-weight: 600; color: var(--v26-ink-soft); }
+
+  /* Pestañas de "¿Dónde exactamente?" */
+  #seg-modo-ubicacion { display: flex; width: 100%; margin-bottom: 10px; }
+  #seg-modo-ubicacion .v26-seg-btn { flex: 1; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 4px; font-size: .72rem; line-height: 1.15; }
+  #seg-modo-ubicacion .v26-seg-btn i { font-size: 1rem; }
+  .v26-dir-panel { margin-bottom: 8px; }
+  #btn-mi-ubicacion { display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+  #mapa-cliente { height: 260px; }
 </style>
 
 <div class="v26-buscar-destacado">
   <div class="v26-buscar-eyebrow"><i class="bi bi-geo-alt"></i> Dirección y ubicación del cliente</div>
 
-  <div class="v26-dir-paso"><b>1</b> Código postal y colonia</div>
-  <div class="v26-grid-2">
-    <div class="v26-field">
-      <label>Código postal</label>
-      <input type="text" id="input-cp" class="v26-input" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="Ej. 20367">
-      <div id="nota-cp" class="v26-dir-nota info"></div>
+  <!-- 1. Colonia -->
+  <div class="v26-dir-paso"><b>1</b> ¿En qué colonia está?</div>
+  <div id="caja-buscar-colonia">
+    <div class="v26-search">
+      <i class="bi bi-signpost-split"></i>
+      <input type="text" id="buscar-colonia" class="v26-input" autocomplete="off" placeholder="CP o nombre de la colonia">
+    </div>
+    <div id="resultados-colonia"></div>
+    <div id="nota-cp" class="v26-dir-nota info"></div>
+    <button type="button" class="v26-dir-link" id="btn-colonia-manual">No la encuentro: elegir estado, municipio y colonia de la lista</button>
+  </div>
+  <div id="resumen-colonia" class="v26-dir-resumen d-none">
+    <i class="bi bi-check-circle-fill"></i>
+    <div class="txt"><b id="resumen-colonia-nombre"></b><small id="resumen-colonia-detalle"></small></div>
+    <button type="button" class="v26-dir-link" id="btn-cambiar-colonia">Cambiar</button>
+  </div>
+  <div id="colonia-manual" class="d-none">
+    <div class="v26-grid-2">
+      <div class="v26-field">
+        <label>Estado</label>
+        <select id="select-estado" class="v26-select">
+          <option value="">Cargando...</option>
+        </select>
+      </div>
+      <div class="v26-field">
+        <label>Municipio</label>
+        <select id="select-municipio" class="v26-select" disabled>
+          <option value="">Elige el estado</option>
+        </select>
+      </div>
     </div>
     <div class="v26-field">
       <label>Colonia</label>
-      <select id="select-colonia" class="v26-select" required disabled>
-        <option value="">Escribe el CP</option>
+      <select id="select-colonia" class="v26-select" disabled>
+        <option value="">Elige el municipio</option>
       </select>
     </div>
   </div>
-  <div class="v26-search">
-    <i class="bi bi-signpost-split"></i>
-    <input type="text" id="buscar-colonia" class="v26-input" autocomplete="off" placeholder="¿No sabes el CP? Escribe el nombre de la colonia">
-  </div>
-  <div id="resultados-colonia"></div>
-  <div class="v26-grid-2">
-    <div class="v26-field">
-      <label>Estado</label>
-      <select id="select-estado" class="v26-select" required>
-        <option value="">Cargando...</option>
-      </select>
-    </div>
-    <div class="v26-field">
-      <label>Municipio</label>
-      <select id="select-municipio" class="v26-select" required disabled>
-        <option value="">Elige el estado</option>
-      </select>
-    </div>
+  <input type="hidden" id="input-cp">
+
+  <div class="v26-dir-separador"></div>
+
+  <!-- 2. Punto exacto -->
+  <div class="v26-dir-paso"><b>2</b> ¿Dónde está exactamente?</div>
+  <div class="v26-seg" id="seg-modo-ubicacion">
+    <button type="button" class="v26-seg-btn active" data-modo="buscar"><i class="bi bi-search"></i> Buscar</button>
+    <button type="button" class="v26-seg-btn" data-modo="link"><i class="bi bi-link-45deg"></i> Me mandaron la ubicación</button>
+    <button type="button" class="v26-seg-btn" data-modo="aqui"><i class="bi bi-crosshair"></i> Estoy aquí</button>
   </div>
 
-  <div class="v26-dir-paso"><b>2</b> Busca la calle o pega la ubicación que te compartieron</div>
-  <div class="v26-search">
-    <i class="bi bi-search"></i>
-    <input type="text" id="buscar-direccion" class="v26-input" autocomplete="off" placeholder="Calle y número, ej. Blvd. Diamantes 116">
+  <div class="v26-dir-panel" data-panel="buscar">
+    <div class="v26-search">
+      <i class="bi bi-search"></i>
+      <input type="text" id="buscar-direccion" class="v26-input" autocomplete="off" placeholder="Calle y número o negocio">
+    </div>
+    <div id="resultados-busqueda"></div>
   </div>
-  <div id="resultados-busqueda"></div>
-  <div class="v26-search">
-    <i class="bi bi-link-45deg"></i>
-    <input type="text" id="pegar-ubicacion" class="v26-input" autocomplete="off" placeholder="Pega aquí el link de Google Maps o WhatsApp">
+  <div class="v26-dir-panel d-none" data-panel="link">
+    <div class="v26-search">
+      <i class="bi bi-link-45deg"></i>
+      <input type="text" id="pegar-ubicacion" class="v26-input" autocomplete="off" placeholder="Pega el link de Google Maps o WhatsApp">
+    </div>
+    <div id="nota-link" class="v26-dir-nota info"></div>
   </div>
-  <div id="nota-link" class="v26-dir-nota info"></div>
+  <div class="v26-dir-panel d-none" data-panel="aqui">
+    <button type="button" class="v26-btn v26-btn-ghost v26-btn-block" id="btn-mi-ubicacion"><i class="bi bi-crosshair"></i> Usar mi ubicación actual</button>
+    <div class="v26-dir-nota info">Úsalo solo si estás en el negocio del cliente.</div>
+  </div>
 
   <div class="v26-field">
     <label>Ubicación en el mapa <span id="ubicacion-estado" class="v26-ubicacion-badge pendiente"><i class="bi bi-exclamation-circle"></i> obligatoria, aún sin marcar</span></label>
     <div id="mapa-cliente" class="v26-map"></div>
-    <div class="v26-map-float v26-tip" id="btn-mi-ubicacion" data-tip="Detecta tu posición GPS y la marca en el mapa"><i class="bi bi-crosshair"></i> Usar mi ubicación</div>
-    <div class="v26-dir-nota info"><b>3</b> Toca el mapa en el punto exacto del cliente o arrastra el pin para ajustarlo.</div>
+    <div class="v26-dir-nota info">También puedes tocar el mapa en el punto exacto o arrastrar el pin. Usa <b>Satélite</b> (arriba a la derecha) para ver las construcciones.</div>
     <input type="hidden" name="lat" id="lat">
     <input type="hidden" name="lng" id="lng">
   </div>
 </div>
 
 <div class="v26-field">
-  <label>Calle y número <small class="text-muted fw-normal">(se llena solo, pero puedes escribirla o corregirla)</small></label>
+  <label><span class="v26-dir-paso d-inline-flex m-0"><b>3</b></span> Calle y número <small class="text-muted fw-normal">(se llena sola, pero puedes escribirla o corregirla)</small></label>
   <input type="text" name="calle_numero" id="calle-numero" class="v26-input" value="<?= htmlspecialchars($calleNumeroPrevio) ?>" placeholder="Ej. Blvd. Diamantes 116" required>
 </div>

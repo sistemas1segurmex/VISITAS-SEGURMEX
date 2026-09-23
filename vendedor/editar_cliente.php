@@ -161,7 +161,8 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
 
   const { estado, municipio, colonia, cp, lat, lng, calleNumero } = DireccionCliente.valores();
   if (!estado || !municipio || !colonia) {
-    msg.innerHTML = '<div class="alert alert-danger py-2">Escribe el código postal y elige la colonia de la lista (así evitamos colonias que no existen).</div>';
+    msg.innerHTML = '<div class="alert alert-danger py-2">Falta la colonia (paso 1): escribe el código postal o el nombre de la colonia y elígela de la lista.</div>';
+    document.getElementById('buscar-colonia').scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
 
