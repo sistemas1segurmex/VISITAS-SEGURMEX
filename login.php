@@ -23,6 +23,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$email]);
     $u = $stmt->fetch();
     if ($u && password_verify($pass, $u['password_hash'])) {
+        // Si este mismo navegador/teléfono ya tenía una sesión registrada
+        // (vencida o revocada), se libera su lugar antes de contar -- que
+        // volver a entrar desde el mismo dispositivo no ocupe un lugar más.
+        cerrarSesionActual($db);
         session_regenerate_id(true);
 
         if ($forzar) {

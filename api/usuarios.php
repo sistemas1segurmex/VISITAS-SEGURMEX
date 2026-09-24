@@ -13,15 +13,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // desactivó a propósito.
     // conectado: tiene una sesión realmente activa ahora mismo, es decir una
     // fila viva en usuarios_sesiones (la misma tabla que cuenta sesiones
-    // concurrentes en login.php) -- se cae sola a los
-    // SESION_VENTANA_INACTIVIDAD_MIN minutos de inactividad o al cerrar
-    // sesión explícitamente, NO lo mismo que "activo" (que es si la cuenta
+    // concurrentes en login.php) usada en los últimos
+    // CONECTADOS_AHORA_MIN minutos; se cae antes si se cierra
+    // la sesión, NO lo mismo que "activo" (que es si la cuenta
     // está habilitada o no).
     $stmt = $db->query(
         "SELECT u.id, u.nombre, u.email, u.rol, u.telefono, u.estado_operacion, u.activo, u.created_at, u.foto_path,
                 EXISTS(SELECT 1 FROM invitaciones_vendedor iv WHERE iv.usuario_creado_id = u.id) AS es_autoregistro,
                 EXISTS(SELECT 1 FROM usuarios_sesiones us WHERE us.usuario_id = u.id
-                    AND us.ultima_actividad >= NOW() - INTERVAL '" . SESION_VENTANA_INACTIVIDAD_MIN . " minutes') AS conectado
+                    AND us.ultima_actividad >= NOW() - INTERVAL '" . CONECTADOS_AHORA_MIN . " minutes') AS conectado
          FROM usuarios u ORDER BY u.rol, u.nombre"
     );
     jsonResponse(['ok' => true, 'usuarios' => $stmt->fetchAll()]);

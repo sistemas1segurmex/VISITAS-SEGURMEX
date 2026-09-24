@@ -51,11 +51,11 @@ if ($accion === 'resumen') {
     $stmt = $db->query("SELECT COUNT(*) FROM usuarios_accesos_historial WHERE resultado IN ('fallido','bloqueado_limite') AND creado_en >= NOW() - INTERVAL '7 days'");
     $fallidos7d = (int)$stmt->fetchColumn();
 
-    // Mismo criterio de "sigue conectado" que contarSesionesActivas() en
-    // helpers.php, pero contando vendedores distintos, no sesiones.
+    // Vendedores distintos con una sesión usada en los últimos minutos (no
+    // solo abierta: las sesiones ahora duran días, ver SESION_DURACION_SEG).
     $stmt = $db->query(
         "SELECT COUNT(DISTINCT usuario_id) FROM usuarios_sesiones
-         WHERE ultima_actividad >= NOW() - INTERVAL '" . SESION_VENTANA_INACTIVIDAD_MIN . " minutes'"
+         WHERE ultima_actividad >= NOW() - INTERVAL '" . CONECTADOS_AHORA_MIN . " minutes'"
     );
     $conectadosAhora = (int)$stmt->fetchColumn();
 
