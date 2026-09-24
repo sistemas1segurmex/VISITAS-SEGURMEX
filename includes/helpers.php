@@ -18,12 +18,26 @@ define('PRECISION_MINIMA_CHECKIN_METROS', 500);
 // Límite de sesiones concurrentes por usuario (login.php). Cada login
 // exitoso registra una fila en usuarios_sesiones; a partir de la 3ra
 // sesión activa se bloquea con una alerta hasta que el usuario cierre
-// alguna. Una sesión "activa" es la que tuvo actividad dentro de esta
-// ventana -- si nadie le dio "Salir" (cerró el navegador sin más), se
-// libera sola pasado ese tiempo, sin necesitar un cron.
+// alguna. La fila es la fuente de verdad de que la sesión sigue viva:
+// si se borra (logout, "Cerrar otras sesiones") o el usuario se desactiva,
+// tocarSesionActual() lo saca en su siguiente request.
 // ---------------------------------------------------------------------
 define('SESION_MAX_ACTIVAS', 2);
-define('SESION_VENTANA_INACTIVIDAD_MIN', 20);
+
+// Cuánto dura una sesión sin usarse (24-sep-2026). Antes eran los 24 min
+// por default de PHP y la cookie se borraba al cerrar la app, así que
+// Android sacaba a los vendedores cada que mataba la WebView en segundo
+// plano (al abrir la cámara, pantalla apagada manejando, etc.). Se renueva
+// con el uso: quien usa la app a diario no vuelve a ver el login. Aplica
+// igual a la cookie (auth.php), a los archivos de sesión de PHP y a las
+// filas de usuarios_sesiones -- si una expira antes que las otras, se saca
+// al usuario antes de tiempo.
+define('SESION_DURACION_SEG', 7 * 86400);
+
+// Punto "conectado" de admin/usuarios.php (api/usuarios.php) y "conectados
+// ahora" de la bitácora (api/admin_bitacora.php): sesiones con actividad
+// reciente, no solo abiertas -- una sesión abierta ahora dura días.
+define('CONECTADOS_AHORA_MIN', 20);
 
 /**
  * Cuenta las sesiones activas de un usuario. De paso barre filas vencidas
@@ -31,7 +45,7 @@ define('SESION_VENTANA_INACTIVIDAD_MIN', 20);
  * que la tabla no crezca sin límite sin necesitar un cron aparte.
  */
 function contarSesionesActivas(PDO $db, int $usuarioId): int {
-    $db->exec("DELETE FROM usuarios_sesiones WHERE ultima_actividad < NOW() - INTERVAL '" . SESION_VENTANA_INACTIVIDAD_MIN . " minutes'");
+    $db->exec("DELETE FROM usuarios_sesiones WHERE ultima_actividad < NOW() - INTERVAL '" . SESION_DURACION_SEG . " seconds'");
     $stmt = $db->prepare('SELECT COUNT(*) FROM usuarios_sesiones WHERE usuario_id = ?');
     $stmt->execute([$usuarioId]);
     return (int)$stmt->fetchColumn();
@@ -53,28 +67,36 @@ function registrarSesion(PDO $db, int $usuarioId, string $sessionId): void {
 }
 
 /**
- * Refresca "última actividad" de la sesión actual para que siga contando
- * como viva. Se llama en cada request autenticado (ver currentUser() en
- * auth.php) pero se throttlea a lo más 1 escritura por minuto vía $_SESSION,
- * para no pegarle a la BD en cada click/fetch del usuario.
+ * Refresca "última actividad" de la sesión actual y, de paso, confirma que
+ * sigue siendo válida: devuelve false si su fila en usuarios_sesiones ya no
+ * existe (logout en otro lado, "Cerrar otras sesiones", expiró) o si el
+ * usuario fue desactivado -- currentUser() entonces lo saca. Se llama en
+ * cada request autenticado pero se throttlea a lo más 1 vez por minuto vía
+ * $_SESSION, para no pegarle a la BD en cada click/fetch del usuario (así
+ * que una sesión revocada tarda hasta 1 min en salir).
  */
-function tocarSesionActual(PDO $db): void {
-    if (empty($_SESSION['usuario_id'])) return;
+function tocarSesionActual(PDO $db): bool {
+    if (empty($_SESSION['usuario_id'])) return false;
     $ahora = time();
-    if (!empty($_SESSION['_sesion_tocada_en']) && ($ahora - $_SESSION['_sesion_tocada_en']) < 60) return;
+    if (!empty($_SESSION['_sesion_tocada_en']) && ($ahora - $_SESSION['_sesion_tocada_en']) < 60) return true;
     $_SESSION['_sesion_tocada_en'] = $ahora;
+    $usuarioId = (int)$_SESSION['usuario_id'];
     try {
-        $stmt = $db->prepare('UPDATE usuarios_sesiones SET ultima_actividad = CURRENT_TIMESTAMP WHERE session_id = ?');
-        $stmt->execute([session_id()]);
+        $stmt = $db->prepare('UPDATE usuarios_sesiones SET ultima_actividad = CURRENT_TIMESTAMP WHERE session_id = ? AND usuario_id = ?');
+        $stmt->execute([session_id(), $usuarioId]);
+        if ($stmt->rowCount() === 0) return false;
         // Se marca también en el propio usuario (ultima_actividad_en, ya no
-        // usado por el punto "conectado" de admin/usuarios.php -- ese ahora
-        // lee usuarios_sesiones directo -- pero se deja como bitácora simple
-        // de última actividad por si algo más lo necesita).
-        $db->prepare('UPDATE usuarios SET ultima_actividad_en = CURRENT_TIMESTAMP WHERE id = ?')
-           ->execute([(int)$_SESSION['usuario_id']]);
+        // usado por el punto "conectado" de admin/usuarios.php -- ese lee
+        // usuarios_sesiones directo -- pero se deja como bitácora simple de
+        // última actividad), y de paso confirma que sigue activo.
+        $stmt = $db->prepare('UPDATE usuarios SET ultima_actividad_en = CURRENT_TIMESTAMP WHERE id = ? AND activo = 1');
+        $stmt->execute([$usuarioId]);
+        if ($stmt->rowCount() === 0) return false;
     } catch (Throwable $e) {
+        // Una falla de BD no es motivo para sacar al vendedor en campo.
         error_log('[VISITAS] tocarSesionActual: ' . $e->getMessage());
     }
+    return true;
 }
 
 /** Libera el lugar de esta sesión al cerrar sesión explícitamente. Si se
