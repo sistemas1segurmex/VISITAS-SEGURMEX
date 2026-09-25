@@ -626,7 +626,14 @@ window.DireccionCliente = (function () {
         // (el servidor decide con CORRECCION_PRECISION_MAX_M).
         $('ubicacion-precision').value = pos.coords.accuracy;
       },
-      () => { restaurar(); alert('No se pudo obtener tu ubicación. Revisa los permisos del navegador.'); },
+      (err) => {
+        restaurar();
+        // Bloqueada en el teléfono: pasos según su teléfono (vendedor.js,
+        // cargado antes en nuevo_cliente.php / editar_cliente.php).
+        alert(err.code === 1 && typeof textoUbicacionBloqueada === 'function'
+          ? textoUbicacionBloqueada()
+          : 'No se pudo obtener tu ubicación. Sal a espacio abierto o acércate a una ventana e intenta de nuevo.');
+      },
       { enableHighAccuracy: true, timeout: 15000 }
     );
   }

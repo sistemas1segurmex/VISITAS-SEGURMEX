@@ -249,7 +249,11 @@ function iniciarCapturaGps() {
       if (err.code === 1) msg = '⚠️ Permiso de ubicación denegado en el navegador.';
       else if (err.code === 2) msg = '⚠️ Posición GPS no disponible.';
       else if (err.code === 3) msg = '⚠️ Tiempo de espera agotado al obtener GPS.';
-      estadoGps.innerHTML = `${msg} <button type="button" id="btn-reintentar-gps" class="v26-btn v26-btn-ghost mt-2" style="padding:6px 14px;font-size:.8rem;width:auto;display:inline-block;">Reintentar</button>`;
+      // Bloqueada en el teléfono: pasos para activarla (ver vendedor.js). La
+      // foto ya tomada se conserva: reintentar no recarga la página.
+      estadoGps.innerHTML = err.code === 1
+        ? htmlUbicacionBloqueada()
+        : `${msg} <button type="button" id="btn-reintentar-gps" class="v26-btn v26-btn-ghost mt-2" style="padding:6px 14px;font-size:.8rem;width:auto;display:inline-block;">Reintentar</button>`;
       document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarCapturaGps);
     },
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }

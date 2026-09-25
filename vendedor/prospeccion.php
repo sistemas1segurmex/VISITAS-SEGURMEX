@@ -199,7 +199,8 @@ function iniciarGps() {
       if (err.code === 1) msg = '⚠️ Permiso de ubicación denegado en el navegador.';
       else if (err.code === 2) msg = '⚠️ Posición GPS no disponible.';
       else if (err.code === 3) msg = '⚠️ Tiempo de espera agotado al obtener GPS.';
-      estadoGps.innerHTML = msg + botonReintentarGps();
+      // Bloqueada en el teléfono: pasos para activarla (ver vendedor.js).
+      estadoGps.innerHTML = err.code === 1 ? htmlUbicacionBloqueada() : msg + botonReintentarGps();
       document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarGps);
     },
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
