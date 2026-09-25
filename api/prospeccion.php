@@ -21,6 +21,21 @@ $db = getDB();
 $INTERES_VALIDOS = ['bajo', 'medio', 'interesado', 'muy_interesado'];
 $TIPOS_VALIDOS   = ['persona', 'organizacion'];
 
+// Con señal débil es común que el servidor sí guarde pero la respuesta no
+// le llegue al celular, y el vendedor reintenta. Si el mismo registro ya
+// quedó hace menos de esto, el reintento se contesta como éxito en vez de
+// "Ya tienes una parada abierta" / "Esa parada ya no está abierta".
+define('REINTENTO_VENTANA_MIN', 15);
+
+// Mismo candado que api/checkin.php: una lectura de GPS peor que esto (red
+// o IP en vez de satélite) no se guarda como ubicación de la parada.
+function validarPrecisionGps(): void {
+    $accuracy = isset($_POST['accuracy']) && $_POST['accuracy'] !== '' ? (float)$_POST['accuracy'] : null;
+    if ($accuracy !== null && $accuracy > PRECISION_MINIMA_CHECKIN_METROS) {
+        jsonResponse(['ok' => false, 'error' => 'Tu ubicación no es lo bastante precisa (±' . round($accuracy) . ' m). Sal a espacio abierto o espera unos segundos e intenta de nuevo.'], 400);
+    }
+}
+
 // Guarda una foto (archivo o base64, mismo criterio que api/checkin.php) en
 // uploads/prospecciones/ y regresa la ruta relativa, o null si no vino nada.
 function guardarFotoProspeccion(string $prefijo): ?string {
@@ -100,13 +115,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             jsonResponse(['ok' => false, 'error' => 'Espera a que se obtenga tu ubicación GPS'], 400);
         }
 
+        validarPrecisionGps();
+
         // No se deja abrir una parada nueva si ya hay una sin cerrar --
-        // primero hay que registrar la salida de la actual.
+        // primero hay que registrar la salida de la actual. Salvo que sea
+        // esta misma recién creada (reintento, ver REINTENTO_VENTANA_MIN).
         $stmt = $db->prepare(
-            'SELECT id FROM prospecciones WHERE vendedor_id = ? AND fecha = CURRENT_DATE AND hora_fin IS NULL'
+            "SELECT *, (nombre = ? AND hora_inicio >= NOW() - INTERVAL '" . REINTENTO_VENTANA_MIN . " minutes') AS es_reintento
+             FROM prospecciones WHERE vendedor_id = ? AND fecha = CURRENT_DATE AND hora_fin IS NULL"
         );
-        $stmt->execute([$u['id']]);
-        if ($stmt->fetch()) {
+        $stmt->execute([$nombre, $u['id']]);
+        if ($abierta = $stmt->fetch()) {
+            if ($abierta['es_reintento']) {
+                unset($abierta['es_reintento']);
+                jsonResponse(['ok' => true, 'parada' => $abierta, 'ya_registrada' => true]);
+            }
             jsonResponse(['ok' => false, 'error' => 'Ya tienes una parada abierta. Registra su salida antes de iniciar otra.'], 400);
         }
 
@@ -145,12 +168,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             jsonResponse(['ok' => false, 'error' => 'Espera a que se obtenga tu ubicación GPS'], 400);
         }
 
+        validarPrecisionGps();
+
         $stmt = $db->prepare(
-            'SELECT id, nombre FROM prospecciones WHERE id = ? AND vendedor_id = ? AND hora_fin IS NULL'
+            "SELECT id, nombre, hora_fin, (hora_fin >= NOW() - INTERVAL '" . REINTENTO_VENTANA_MIN . " minutes') AS es_reintento
+             FROM prospecciones WHERE id = ? AND vendedor_id = ?"
         );
         $stmt->execute([$paradaId, $u['id']]);
         $parada = $stmt->fetch();
-        if (!$parada) {
+        if ($parada && $parada['hora_fin'] !== null && $parada['es_reintento']) {
+            jsonResponse(['ok' => true, 'ya_registrada' => true]); // se cerró en el intento anterior
+        }
+        if (!$parada || $parada['hora_fin'] !== null) {
             jsonResponse(['ok' => false, 'error' => 'Esa parada ya no está abierta'], 404);
         }
 

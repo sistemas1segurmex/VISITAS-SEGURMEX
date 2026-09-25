@@ -8,6 +8,36 @@ $db = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireRole('vendedor');
+
+    // Lote de puntos (assets/js/vendedor.js, vaciarColaTracking): los que el
+    // celular juntó sin señal, cada uno con la hora real del GPS (ts, ms).
+    // Mismos filtros que un punto suelto; los inválidos se saltan sin
+    // tumbar el lote. La hora se acota a las últimas 24 h (reloj del
+    // celular mal puesto) -- fuera de eso se usa la del servidor.
+    if (isset($_POST['puntos'])) {
+        $puntos = json_decode((string)$_POST['puntos'], true);
+        if (!is_array($puntos)) {
+            jsonResponse(['ok' => false, 'error' => 'Lote inválido'], 400);
+        }
+        $ins = $db->prepare(
+            'INSERT INTO tracking_ubicaciones (vendedor_id, lat, lng, accuracy, fecha_hora)
+             VALUES (?, ?, ?, ?, COALESCE(to_timestamp(?::double precision), CURRENT_TIMESTAMP))'
+        );
+        $ahora = time();
+        $guardados = 0;
+        foreach (array_slice($puntos, -300) as $p) {
+            $lat = (float)($p['lat'] ?? 0);
+            $lng = (float)($p['lng'] ?? 0);
+            $acc = isset($p['accuracy']) && is_numeric($p['accuracy']) ? (float)$p['accuracy'] : null;
+            if (!$lat || !$lng || ($acc !== null && $acc > 500)) continue;
+            $ts = isset($p['ts']) && is_numeric($p['ts']) ? (float)$p['ts'] / 1000 : null;
+            if ($ts !== null && ($ts < $ahora - 86400 || $ts > $ahora + 300)) $ts = null;
+            $ins->execute([$u['id'], $lat, $lng, $acc, $ts]);
+            $guardados++;
+        }
+        jsonResponse(['ok' => true, 'guardados' => $guardados]);
+    }
+
     $lat = isset($_POST['lat']) ? (float)$_POST['lat'] : 0.0;
     $lng = isset($_POST['lng']) ? (float)$_POST['lng'] : 0.0;
     $accuracy = isset($_POST['accuracy']) && $_POST['accuracy'] !== '' ? (float)$_POST['accuracy'] : null;

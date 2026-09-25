@@ -123,7 +123,7 @@ $u = requireRole('vendedor');
 <script>
 iniciarTrackingPeriodico();
 
-let lat = null, lng = null;
+let lat = null, lng = null, accuracy = null;
 let fotoBlob = null;
 let streamCamara = null;
 let modo = null;       // 'entrada' | 'salida', se define al cargar el estado
@@ -143,24 +143,66 @@ document.querySelectorAll('#seg-tipo-parada .v26-seg-btn').forEach(b => {
 });
 
 // ---------- GPS ----------
+// Mismo criterio que vendedor/checkin.php: el primer fix suele ser el peor
+// (arranque en frío, dentro de un local), así que se escuchan varias
+// lecturas unos segundos y se queda la más precisa. Se puede registrar en
+// cuanto hay una aceptable; api/prospeccion.php rechaza las peores que
+// PRECISION_MINIMA_CHECKIN_METROS.
+const PRECISION_BUENA_M = 30;
+const PRECISION_MINIMA_ACEPTABLE_M = 500;
+const TIEMPO_MAX_ESPERA_MS = 15000;
+let watchId = null;
+let direccionAutocompletada = false;
+
+function botonReintentarGps() {
+  return ' <button type="button" id="btn-reintentar-gps" class="v26-btn v26-btn-ghost mt-2" style="padding:6px 14px;font-size:.8rem;width:auto;display:inline-block;">Reintentar</button>';
+}
+
 function iniciarGps() {
   if (!('geolocation' in navigator)) { estadoGps.innerHTML = 'Tu navegador no soporta geolocalización.'; return; }
-  navigator.geolocation.getCurrentPosition(
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  lat = null; lng = null; accuracy = null;
+  revisarListoParaEnviar();
+  estadoGps.innerHTML = '<i class="bi bi-geo-alt"></i> Obteniendo tu ubicación...';
+  const inicio = Date.now();
+  watchId = navigator.geolocation.watchPosition(
     (pos) => {
-      lat = pos.coords.latitude;
-      lng = pos.coords.longitude;
-      estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(pos.coords.accuracy)} m)`;
+      const acc = pos.coords.accuracy;
+      if (accuracy === null || acc < accuracy) {
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+        accuracy = acc;
+      }
+      const aceptable = accuracy <= PRECISION_MINIMA_ACEPTABLE_M;
+      const termino = accuracy <= PRECISION_BUENA_M || (Date.now() - inicio) >= TIEMPO_MAX_ESPERA_MS;
+      if (termino) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      if (!aceptable) {
+        estadoGps.innerHTML = termino
+          ? `<span class="text-danger">⚠️ No se pudo obtener una ubicación confiable (±${Math.round(accuracy)} m). Sal a espacio abierto o acércate a una ventana.</span>` + botonReintentarGps()
+          : `<i class="bi bi-geo-alt"></i> Mejorando precisión... (±${Math.round(accuracy)} m)`;
+      } else {
+        estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(accuracy)} m)` + (termino ? '' : ' · mejorando precisión...');
+        if (!direccionAutocompletada) { direccionAutocompletada = true; autocompletarDireccion(); }
+      }
+      document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarGps);
       revisarListoParaEnviar();
-      autocompletarDireccion();
     },
     (err) => {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+      // Si ya había una lectura aceptable, el vendedor puede seguir con esa.
+      if (lat && accuracy <= PRECISION_MINIMA_ACEPTABLE_M) return;
       let msg = '⚠️ No se pudo obtener tu ubicación. Activa el GPS y los permisos de ubicación del navegador.';
       if (err.code === 1) msg = '⚠️ Permiso de ubicación denegado en el navegador.';
       else if (err.code === 2) msg = '⚠️ Posición GPS no disponible.';
       else if (err.code === 3) msg = '⚠️ Tiempo de espera agotado al obtener GPS.';
-      estadoGps.innerHTML = msg;
+      estadoGps.innerHTML = msg + botonReintentarGps();
+      document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarGps);
     },
-    { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
   );
 }
 
@@ -191,12 +233,13 @@ function revisarListoParaEnviar() {
   const nombre = document.getElementById('nombre-parada').value.trim();
   const faltaNombre = modo === 'entrada' && !nombre;
   const faltaInteres = modo === 'salida' && !interesSel;
-  if (lat && lng && fotoBlob && !faltaNombre && !faltaInteres) {
+  const gpsListo = lat && lng && accuracy !== null && accuracy <= PRECISION_MINIMA_ACEPTABLE_M;
+  if (gpsListo && fotoBlob && !faltaNombre && !faltaInteres) {
     btn.disabled = false;
     btn.textContent = modo === 'entrada' ? 'Registrar entrada' : 'Registrar salida';
   } else {
     btn.disabled = true;
-    btn.textContent = !lat ? 'Obteniendo GPS...'
+    btn.textContent = !gpsListo ? 'Obteniendo GPS...'
       : (!fotoBlob ? 'Toma la foto para continuar'
       : (faltaNombre ? 'Escribe a quién visitas' : 'Elige qué tan interesado se mostró'));
   }
@@ -225,7 +268,9 @@ function dataURItoBlob(dataURI) {
 }
 
 function procesarYGuardarBlob(origen, anchoOriginal, altoOriginal) {
-  const maxDim = 1024;
+  // 800px/0.7 (~60-80 KB) en vez de 1024px/0.82 (~150 KB): con señal débil
+  // la subida tardaba cerca de 50 s. Mismo criterio que vendedor/checkin.php.
+  const maxDim = 800;
   let w = anchoOriginal || 640, h = altoOriginal || 480;
   if (w > maxDim || h > maxDim) {
     if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
@@ -236,7 +281,7 @@ function procesarYGuardarBlob(origen, anchoOriginal, altoOriginal) {
 
   const finalizarConBlob = (blob) => {
     fotoBlob = blob;
-    try { preview.src = URL.createObjectURL(blob); } catch (err) { preview.src = canvas.toDataURL('image/jpeg', 0.82); }
+    try { preview.src = URL.createObjectURL(blob); } catch (err) { preview.src = canvas.toDataURL('image/jpeg', 0.7); }
     preview.classList.remove('d-none');
     video.classList.add('d-none');
     if (placeholder) placeholder.classList.add('d-none');
@@ -247,9 +292,9 @@ function procesarYGuardarBlob(origen, anchoOriginal, altoOriginal) {
     revisarListoParaEnviar();
   };
   try {
-    canvas.toBlob((blob) => blob ? finalizarConBlob(blob) : finalizarConBlob(dataURItoBlob(canvas.toDataURL('image/jpeg', 0.82))), 'image/jpeg', 0.82);
+    canvas.toBlob((blob) => blob ? finalizarConBlob(blob) : finalizarConBlob(dataURItoBlob(canvas.toDataURL('image/jpeg', 0.7))), 'image/jpeg', 0.7);
   } catch (err) {
-    finalizarConBlob(dataURItoBlob(canvas.toDataURL('image/jpeg', 0.82)));
+    finalizarConBlob(dataURItoBlob(canvas.toDataURL('image/jpeg', 0.7)));
   }
 }
 
@@ -346,6 +391,7 @@ async function enviarParada() {
   const fd = new FormData();
   fd.append('lat', lat);
   fd.append('lng', lng);
+  if (accuracy !== null) fd.append('accuracy', accuracy);
   fd.append('foto', fotoBlob, 'evidencia.jpg');
 
   if (modo === 'entrada') {
@@ -362,9 +408,9 @@ async function enviarParada() {
     fd.append('interes', interesSel);
   }
 
+  envioEnCurso = true; // pausa el tracking mientras sube (ver vendedor.js)
   try {
-    const res = await fetch('../api/prospeccion.php', { method: 'POST', body: fd });
-    const data = await res.json();
+    const data = await enviarConTiempoLimite('../api/prospeccion.php', { method: 'POST', body: fd }, 90000);
     if (data.ok) {
       if (streamCamara) streamCamara.getTracks().forEach(t => t.stop());
       window.location.reload();
@@ -374,9 +420,11 @@ async function enviarParada() {
       revisarListoParaEnviar();
     }
   } catch (e) {
-    msg.innerHTML = '<div class="alert alert-danger py-2">Error de conexión. Intenta de nuevo.</div>';
+    msg.innerHTML = `<div class="alert alert-danger py-2">${mensajeErrorEnvio(e)}</div>`;
     btn.disabled = false;
     revisarListoParaEnviar();
+  } finally {
+    envioEnCurso = false;
   }
 }
 btn.addEventListener('click', enviarParada);
