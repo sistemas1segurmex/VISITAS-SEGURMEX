@@ -324,6 +324,35 @@ function htmlUbicacionNoDisponible(codigo) {
     </div>`;
 }
 
+// Ubicación APROXIMADA: con "Ubicación exacta" (iPhone) o "Usar ubicación
+// precisa" (Android) apagada, el teléfono sí da ubicación pero borrosa a
+// propósito (±1-3 km). Salir a espacio abierto no la mejora -- hay que
+// prender ese interruptor. Peor que esto casi siempre es eso; entre 500 m
+// y 1 km sí suele ser falta de señal y sigue el mensaje de siempre.
+const UMBRAL_UBICACION_APROXIMADA_M = 1000;
+
+function pasoUbicacionExacta() {
+  switch (tipoDispositivoUbicacion()) {
+    case 'iphone_safari': return '<b>Ajustes → Privacidad y seguridad → Localización → Sitios web de Safari</b> → activa <b>Ubicación exacta</b>.';
+    case 'iphone_chrome': return '<b>Ajustes → Privacidad y seguridad → Localización → Chrome</b> → activa <b>Ubicación exacta</b>.';
+    case 'android_app':   return '<b>Ajustes → Aplicaciones → Visitas → Permisos → Ubicación</b> → activa <b>Usar ubicación precisa</b>.';
+    case 'android_chrome': return '<b>Ajustes → Aplicaciones → Chrome → Permisos → Ubicación</b> → activa <b>Usar ubicación precisa</b>.';
+    default: return 'En la configuración de ubicación del teléfono, activa la <b>ubicación exacta/precisa</b>.';
+  }
+}
+
+function htmlUbicacionAproximada(precision) {
+  return `<div class="alert alert-warning py-2 mb-0" style="font-size:.84rem;">
+      <div class="fw-bold mb-1">⚠️ Tu teléfono está dando una ubicación aproximada (±${Math.round(precision)} m), no la exacta.</div>
+      <ol class="mb-2 ps-3"><li>${pasoUbicacionExacta()}</li><li>Si ya está activada, sal a espacio abierto o acércate a una ventana.</li></ol>
+      <button type="button" id="btn-reintentar-gps" class="v26-btn v26-btn-primary" style="padding:6px 14px;font-size:.8rem;width:auto;display:inline-block;">Ya lo activé, reintentar</button>
+    </div>`;
+}
+
+function textoUbicacionAproximada(precision) {
+  return `Tu teléfono está dando una ubicación aproximada (±${Math.round(precision)} m), no la exacta.\n\n1. ${pasoUbicacionExacta().replace(/<[^>]+>/g, '')}\n2. Si ya está activada, sal a espacio abierto o acércate a una ventana.\n\nDespués vuelve a tocar el botón.`;
+}
+
 // Versión en texto plano (para alert()).
 function textoUbicacionNoDisponible() {
   return 'No se pudo obtener tu ubicación.\n\n' + pasosUbicacionNoDisponible().map((p, i) => `${i + 1}. ${p.replace(/<[^>]+>/g, '')}`).join('\n') + '\n\nDespués vuelve a tocar el botón.';

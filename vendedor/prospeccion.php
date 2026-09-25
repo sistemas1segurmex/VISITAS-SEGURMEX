@@ -181,7 +181,9 @@ function iniciarGps() {
       }
       if (!aceptable) {
         estadoGps.innerHTML = termino
-          ? `<span class="text-danger">⚠️ No se pudo obtener una ubicación confiable (±${Math.round(accuracy)} m). Sal a espacio abierto o acércate a una ventana.</span>` + botonReintentarGps()
+          // Peor que 1 km casi siempre es "Ubicación exacta" apagada (vendedor.js).
+          ? (accuracy > UMBRAL_UBICACION_APROXIMADA_M ? htmlUbicacionAproximada(accuracy)
+            : `<span class="text-danger">⚠️ No se pudo obtener una ubicación confiable (±${Math.round(accuracy)} m). Sal a espacio abierto o acércate a una ventana.</span>` + botonReintentarGps())
           : `<i class="bi bi-geo-alt"></i> Mejorando precisión... (±${Math.round(accuracy)} m)`;
       } else {
         estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(accuracy)} m)` + (termino ? '' : ' · mejorando precisión...');
@@ -195,6 +197,12 @@ function iniciarGps() {
       watchId = null;
       // Si ya había una lectura aceptable, el vendedor puede seguir con esa.
       if (lat && accuracy <= PRECISION_MINIMA_ACEPTABLE_M) return;
+      // Solo llegó una lectura aproximada y el teléfono no mandó más.
+      if (lat && accuracy > UMBRAL_UBICACION_APROXIMADA_M) {
+        estadoGps.innerHTML = htmlUbicacionAproximada(accuracy);
+        document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarGps);
+        return;
+      }
       let msg = '⚠️ No se pudo obtener tu ubicación. Activa el GPS y los permisos de ubicación del navegador.';
       if (err.code === 1) msg = '⚠️ Permiso de ubicación denegado en el navegador.';
       else if (err.code === 2) msg = '⚠️ Posición GPS no disponible.';

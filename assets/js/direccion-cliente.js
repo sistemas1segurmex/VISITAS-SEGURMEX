@@ -621,6 +621,13 @@ window.DireccionCliente = (function () {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         restaurar();
+        // Ubicación aproximada (±1 km o más): el pin quedaría lejos del cliente
+        // -- así nacen los pines mal puestos que luego salen 'Fuera de zona'.
+        // No se pone; se explica cómo activar la ubicación exacta.
+        if (typeof UMBRAL_UBICACION_APROXIMADA_M !== 'undefined' && pos.coords.accuracy > UMBRAL_UBICACION_APROXIMADA_M) {
+          alert(textoUbicacionAproximada(pos.coords.accuracy));
+          return;
+        }
         ponerMarcador(pos.coords.latitude, pos.coords.longitude);
         // Estando en el lugar con buen GPS el pin queda confirmado desde ya
         // (el servidor decide con CORRECCION_PRECISION_MAX_M).
