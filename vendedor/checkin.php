@@ -8,7 +8,8 @@ $u = requireRole('vendedor');
 
 $citaId = (int)($_GET['cita_id'] ?? 0);
 $stmt = getDB()->prepare(
-    'SELECT c.*, cl.nombre AS cliente_nombre, cl.direccion
+    'SELECT c.*, cl.nombre AS cliente_nombre, cl.direccion,
+            cl.lat AS cliente_lat, cl.lng AS cliente_lng, cl.ubicacion_confirmada
      FROM citas c JOIN clientes cl ON cl.id = c.cliente_id
      WHERE c.id = ? AND c.vendedor_id = ?'
 );
@@ -79,9 +80,13 @@ $siguienteTipo = (!$estadoResuelto && !$esFuturo) ? (!$tieneEntrada ? 'entrada' 
     <?php foreach ($checkins as $ch): ?>
       <div class="v26-card mb-2" style="padding:12px 14px;">
         <strong style="font-size:.85rem;"><?= $ch['tipo'] === 'entrada' ? 'Entrada' : 'Salida' ?> registrada</strong>
-        <span class="v26-pill <?= $ch['verificado'] ? 'v26-pill--verificado' : 'v26-pill--noverificado' ?>" style="margin-left:6px;"><?= $ch['verificado'] ? 'GPS verificado' : 'Fuera de zona' ?></span>
+        <span class="v26-pill <?= $ch['verificado'] ? 'v26-pill--verificado' : 'v26-pill--noverificado' ?>" style="margin-left:6px;"><?= $ch['ubicacion_corregida'] ? 'Ubicación corregida' : ($ch['verificado'] ? 'GPS verificado' : 'Fuera de zona') ?></span>
         <div style="font-size:.76rem;color:var(--v26-ink-soft);margin-top:4px;">
-          <?= $ch['distancia_metros'] !== null ? 'Distancia al cliente: ' . round($ch['distancia_metros']) . ' m' : 'Cliente sin coordenadas registradas' ?>
+          <?php if ($ch['ubicacion_corregida']): ?>
+            Estabas a <?= round($ch['distancia_metros']) ?> m del pin anterior; la ubicación del cliente quedó corregida con la tuya.
+          <?php else: ?>
+            <?= $ch['distancia_metros'] !== null ? 'Distancia al cliente: ' . round($ch['distancia_metros']) . ' m' : 'Cliente sin coordenadas registradas' ?>
+          <?php endif; ?>
         </div>
       </div>
     <?php endforeach; ?>
@@ -171,6 +176,12 @@ iniciarTrackingPeriodico();
 const citaId = <?= (int)$citaId ?>;
 const tipo = <?= json_encode($siguienteTipo) ?>;
 const fechaCitaStr = <?= json_encode($cita['fecha_hora']) ?>;
+// Para preguntar "¿Estás en el lugar del cliente?" ANTES de subir la foto
+// (con señal débil no se sube dos veces). Mismas reglas que api/checkin.php,
+// que de todos modos vuelve a preguntar si hiciera falta.
+const clienteNombre = <?= json_encode($cita['cliente_nombre']) ?>;
+const PIN_CLIENTE = <?= json_encode($cita['cliente_lat'] !== null ? ['lat' => (float)$cita['cliente_lat'], 'lng' => (float)$cita['cliente_lng'], 'confirmado' => (bool)$cita['ubicacion_confirmada']] : null) ?>;
+const CORRECCION = <?= json_encode(['radio' => RADIO_VERIFICACION_METROS, 'precision' => CORRECCION_PRECISION_MAX_M, 'max' => CORRECCION_REVISAR_MAX_M]) ?>;
 const ESPERA_NO_SHOW_MIN = 10;
 let lat = null, lng = null, accuracy = null;
 let fotoBlob = null;
@@ -472,12 +483,46 @@ document.querySelectorAll('#chips-interes .v26-chip').forEach(chip => {
   });
 });
 
-async function enviarCheckin(motivoNoShow) {
+// Distancia en metros entre dos puntos (misma fórmula que haversineDistance()).
+function distanciaMetros(lat1, lng1, lat2, lng2) {
+  const r = Math.PI / 180, R = 6371000;
+  const a = Math.sin((lat2 - lat1) * r / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin((lng2 - lng1) * r / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// ¿Corresponde preguntar si el pin del cliente está mal? (ver api/checkin.php)
+function debePreguntarUbicacion() {
+  if (tipo !== 'entrada' || !PIN_CLIENTE || PIN_CLIENTE.confirmado || accuracy === null || accuracy > CORRECCION.precision) return null;
+  const d = distanciaMetros(lat, lng, PIN_CLIENTE.lat, PIN_CLIENTE.lng);
+  return (d > CORRECCION.radio && d <= CORRECCION.max) ? d : null;
+}
+
+// '1' = sí está en el lugar (corregir el pin), '0' = no.
+async function preguntarUbicacion(distancia, nombre) {
+  const txt = distancia >= 1000 ? (distancia / 1000).toFixed(1) + ' km' : Math.round(distancia) + ' m';
+  const r = await v26Sheet({
+    titulo: '¿Estás en el lugar del cliente?',
+    desc: `Tu ubicación está a ${txt} de la que se guardó para ${nombre}. Si estás ahí, la corregimos con tu ubicación actual y esta visita queda verificada.`,
+    pedirMotivo: false,
+    textoConfirmar: 'Sí, estoy aquí',
+    textoCancelar: 'No, registrar así',
+  });
+  return r ? '1' : '0';
+}
+
+async function enviarCheckin(motivoNoShow, corregirUbicacion) {
   const msg = document.getElementById('msg-checkin');
   msg.innerHTML = '';
   if (!lat || !lng) { msg.innerHTML = '<div class="alert alert-danger py-2">Espera a que se obtenga tu ubicación GPS.</div>'; return; }
   if (!fotoBlob) { msg.innerHTML = '<div class="alert alert-danger py-2">Toma la foto de evidencia.</div>'; return; }
   if (tipo === 'salida' && !interesSel) { msg.innerHTML = '<div class="alert alert-danger py-2">Elige qué tan interesado se mostró el cliente.</div>'; return; }
+  if (corregirUbicacion === undefined && motivoNoShow === undefined) {
+    const d = debePreguntarUbicacion();
+    if (d !== null) {
+      btn.disabled = true; // que un segundo toque no abra otra pregunta
+      corregirUbicacion = await preguntarUbicacion(d, clienteNombre);
+    }
+  }
 
   btn.disabled = true;
   btn.textContent = 'Enviando...';
@@ -495,10 +540,18 @@ async function enviarCheckin(motivoNoShow) {
   if (tipo === 'salida') {
     fd.append('interes', interesSel);
   }
+  if (corregirUbicacion !== undefined) fd.append('corregir_ubicacion', corregirUbicacion);
 
   envioEnCurso = true; // pausa el tracking mientras sube (ver vendedor.js)
   try {
     const data = await enviarConTiempoLimite('../api/checkin.php', { method: 'POST', body: fd }, 90000);
+    if (!data.ok && data.pregunta_ubicacion) {
+      // El servidor ve un caso que la pantalla no detectó (p.ej. el pin
+      // cambió mientras tanto): se pregunta y se reenvía con la respuesta.
+      envioEnCurso = false;
+      const r = await preguntarUbicacion(data.distancia_metros, data.cliente_nombre || clienteNombre);
+      return enviarCheckin(motivoNoShow, r);
+    }
     if (data.ok) {
       if (streamCamara) streamCamara.getTracks().forEach(t => t.stop());
       window.location.reload();

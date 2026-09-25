@@ -431,11 +431,13 @@ function badgeInteres(interes) {
 
 // Una línea por check-in (entrada/salida) en vez de una sola píldora
 // ambigua -- antes "Fuera de zona" no decía si fue al llegar o al salir.
-function lineaCheckin(etiqueta, verificado, fechaHora, distancia) {
+// correccion: estado de la corrección del pin que hizo esa entrada (ver
+// admin/ubicaciones.php); distancia es entonces la del pin anterior.
+function lineaCheckin(etiqueta, verificado, fechaHora, distancia, correccion) {
   if (verificado === null || verificado === undefined) return '';
   const claseDot = verificado == 1 ? 'ok' : 'no';
   const estadoTxt = verificado == 1
-    ? 'GPS verificado'
+    ? (correccion === 'por_revisar' ? 'Ubicación por revisar' : correccion ? 'Ubicación corregida' : 'GPS verificado')
     : `Fuera de zona${distancia !== null && distancia !== undefined ? ' (' + Math.round(distancia) + ' m)' : ''}`;
   return `<div class="v26-checkin-linea"><span class="dot ${claseDot}"></span> <b>${etiqueta}</b> ${horaSoloUTC(fechaHora)} · ${estadoTxt}</div>`;
 }
@@ -468,7 +470,7 @@ function lineaDuracion(entradaFechaHora, salidaFechaHora) {
 
 function lineasCheckin(c) {
   const partes = [
-    lineaCheckin('Entrada', c.checkin_verificado, c.entrada_fecha_hora, c.entrada_distancia_metros),
+    lineaCheckin('Entrada', c.checkin_verificado, c.entrada_fecha_hora, c.entrada_distancia_metros, c.checkin_correccion),
     lineaCheckin('Salida', c.checkin_verificado_salida, c.salida_fecha_hora, c.salida_distancia_metros),
     lineaDuracion(c.entrada_fecha_hora, c.salida_fecha_hora),
   ].filter(Boolean);

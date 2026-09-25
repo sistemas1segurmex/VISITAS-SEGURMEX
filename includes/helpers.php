@@ -14,6 +14,35 @@ define('RADIO_VERIFICACION_METROS', 250);
 // (ej. "Fuera de zona" a 29 km estando parado en el mismo estacionamiento).
 define('PRECISION_MINIMA_CHECKIN_METROS', 500);
 
+// Corrección del pin del cliente en la primera visita (api/checkin.php): si
+// el pin aún no está confirmado y el check-in de entrada cae fuera del
+// radio, se le pregunta al vendedor si está en el lugar del cliente. Solo
+// se ofrece con un GPS bueno de verdad, y según qué tan lejos quedó el pin:
+// hasta CORRECCION_DIRECTA_MAX_M se corrige sola; hasta
+// CORRECCION_REVISAR_MAX_M se corrige pero queda "por revisar" para el
+// admin (carreteras, direcciones tipo "Km 12" ubicadas en el pueblo); más
+// lejos es otra ciudad y no se ofrece. Si la salida se registra a más de
+// CORRECCION_SALIDA_MAX_M de la entrada, la corrección pasa a revisión.
+define('CORRECCION_PRECISION_MAX_M', 100);
+define('CORRECCION_DIRECTA_MAX_M', 3000);
+define('CORRECCION_REVISAR_MAX_M', 20000);
+define('CORRECCION_SALIDA_MAX_M', 150);
+
+/**
+ * ¿El pin que llegó en el formulario de cliente (alta/edición) ya está
+ * comprobado? Solo si vino de "Estoy aquí" con buen GPS -- el formulario
+ * manda ubicacion_precision únicamente en ese caso (direccion-cliente.js).
+ * Buscar la dirección o tocar el mapa lo deja por confirmar en la primera
+ * visita (ver api/checkin.php). Regresa [confirmada, fuente].
+ */
+function ubicacionDesdeFormulario(string $fuenteSinGps): array {
+    $precision = $_POST['ubicacion_precision'] ?? '';
+    if (is_numeric($precision) && (float)$precision <= CORRECCION_PRECISION_MAX_M) {
+        return [true, 'estoy_aqui'];
+    }
+    return [false, $fuenteSinGps];
+}
+
 // ---------------------------------------------------------------------
 // Límite de sesiones concurrentes por usuario (login.php). Cada login
 // exitoso registra una fila en usuarios_sesiones; a partir de la 3ra
