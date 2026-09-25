@@ -632,7 +632,7 @@ window.DireccionCliente = (function () {
         // cargado antes en nuevo_cliente.php / editar_cliente.php).
         alert(err.code === 1 && typeof textoUbicacionBloqueada === 'function'
           ? textoUbicacionBloqueada()
-          : 'No se pudo obtener tu ubicación. Sal a espacio abierto o acércate a una ventana e intenta de nuevo.');
+          : (typeof textoUbicacionNoDisponible === 'function' ? textoUbicacionNoDisponible() : 'No se pudo obtener tu ubicación. Sal a espacio abierto o acércate a una ventana e intenta de nuevo.'));
       },
       { enableHighAccuracy: true, timeout: 15000 }
     );

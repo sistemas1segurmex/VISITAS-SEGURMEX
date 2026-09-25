@@ -302,6 +302,33 @@ function htmlUbicacionBloqueada() {
     </div>`;
 }
 
+// Error 2 (no disponible) o 3 (tiempo agotado). En Android con la
+// Ubicación del teléfono APAGADA la WebView/Chrome no contesta "permiso
+// denegado": se queda esperando y termina en tiempo agotado -- igual que
+// sin señal dentro de un edificio, así que no se pueden distinguir y se
+// cubren los dos casos. El primer paso va según el teléfono.
+function pasosUbicacionNoDisponible() {
+  const tipo = tipoDispositivoUbicacion();
+  const activar = tipo.startsWith('iphone')
+    ? 'Revisa que la <b>Localización</b> esté activada: <b>Ajustes → Privacidad y seguridad → Localización</b>.'
+    : 'Revisa que la <b>Ubicación</b> del teléfono esté activada: baja la barra de notificaciones y toca <b>Ubicación</b>.';
+  return [activar, 'Si estás dentro de un edificio o vehículo, sal a espacio abierto o acércate a una ventana.'];
+}
+
+function htmlUbicacionNoDisponible(codigo) {
+  const titulo = codigo === 3 ? 'No llegó tu ubicación a tiempo.' : 'El teléfono no pudo darnos tu ubicación.';
+  return `<div class="alert alert-warning py-2 mb-0" style="font-size:.84rem;">
+      <div class="fw-bold mb-1">⚠️ ${titulo}</div>
+      <ol class="mb-2 ps-3">${pasosUbicacionNoDisponible().map(p => `<li>${p}</li>`).join('')}</ol>
+      <button type="button" id="btn-reintentar-gps" class="v26-btn v26-btn-primary" style="padding:6px 14px;font-size:.8rem;width:auto;display:inline-block;">Reintentar</button>
+    </div>`;
+}
+
+// Versión en texto plano (para alert()).
+function textoUbicacionNoDisponible() {
+  return 'No se pudo obtener tu ubicación.\n\n' + pasosUbicacionNoDisponible().map((p, i) => `${i + 1}. ${p.replace(/<[^>]+>/g, '')}`).join('\n') + '\n\nDespués vuelve a tocar el botón.';
+}
+
 // Versión en texto plano (para alert()).
 function textoUbicacionBloqueada() {
   const { titulo, pasos } = pasosPermisoUbicacion();

@@ -200,7 +200,10 @@ function iniciarGps() {
       else if (err.code === 2) msg = '⚠️ Posición GPS no disponible.';
       else if (err.code === 3) msg = '⚠️ Tiempo de espera agotado al obtener GPS.';
       // Bloqueada en el teléfono: pasos para activarla (ver vendedor.js).
-      estadoGps.innerHTML = err.code === 1 ? htmlUbicacionBloqueada() : msg + botonReintentarGps();
+      // Apagada o sin señal (2/3): cómo activarla o salir a espacio abierto.
+      estadoGps.innerHTML = err.code === 1 ? htmlUbicacionBloqueada()
+        : (err.code === 2 || err.code === 3) ? htmlUbicacionNoDisponible(err.code)
+        : msg + botonReintentarGps();
       document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarGps);
     },
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }

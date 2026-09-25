@@ -245,14 +245,23 @@ function iniciarCapturaGps() {
     },
     (err) => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      // Ya había una lectura aceptable y solo se agotó la espera de una
+      // mejor: se sigue con esa en vez de mostrar un error.
+      if (lat && mejorAccuracy <= PRECISION_MINIMA_ACEPTABLE_M) {
+        estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(mejorAccuracy)} m)`;
+        revisarListoParaEnviar();
+        return;
+      }
       let msg = '⚠️ No se pudo obtener tu ubicación. Activa el GPS y los permisos de ubicación del navegador.';
       if (err.code === 1) msg = '⚠️ Permiso de ubicación denegado en el navegador.';
       else if (err.code === 2) msg = '⚠️ Posición GPS no disponible.';
       else if (err.code === 3) msg = '⚠️ Tiempo de espera agotado al obtener GPS.';
       // Bloqueada en el teléfono: pasos para activarla (ver vendedor.js). La
       // foto ya tomada se conserva: reintentar no recarga la página.
+      // Apagada o sin señal (2/3): cómo activarla o salir a espacio abierto.
       estadoGps.innerHTML = err.code === 1
         ? htmlUbicacionBloqueada()
+        : (err.code === 2 || err.code === 3) ? htmlUbicacionNoDisponible(err.code)
         : `${msg} <button type="button" id="btn-reintentar-gps" class="v26-btn v26-btn-ghost mt-2" style="padding:6px 14px;font-size:.8rem;width:auto;display:inline-block;">Reintentar</button>`;
       document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarCapturaGps);
     },
