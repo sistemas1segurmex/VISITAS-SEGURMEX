@@ -242,6 +242,73 @@ document.addEventListener('click', (e) => {
 });
 
 // ---------------------------------------------------------------------
+// Ubicación bloqueada (error 1 de geolocalización). "Reintentar" solo no
+// sirve: el bloqueo está en la configuración del teléfono, así que se le
+// dan al vendedor los pasos exactos según su teléfono/navegador para que lo
+// resuelva solo (antes mandaban captura por WhatsApp). La pantalla vuelve a
+// pedir la ubicación SIN recargar, para no perder la foto ya tomada.
+// ---------------------------------------------------------------------
+function tipoDispositivoUbicacion() {
+  const ua = navigator.userAgent || '';
+  const esIos = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) {
+    return esIos ? 'iphone_safari' : 'android_app';
+  }
+  if (esIos) return /CriOS/.test(ua) ? 'iphone_chrome' : 'iphone_safari';
+  if (/Android/.test(ua)) return 'android_chrome';
+  return 'otro';
+}
+
+function pasosPermisoUbicacion() {
+  switch (tipoDispositivoUbicacion()) {
+    case 'iphone_safari':
+      return { titulo: 'Tu iPhone no le está dando la ubicación a esta página.', pasos: [
+        '<b>Ajustes → Privacidad y seguridad → Localización</b>: actívala.',
+        'En esa misma pantalla, <b>Sitios web de Safari</b>: elige "Mientras se usa la app" y activa <b>Ubicación exacta</b>.',
+        'Aquí en Safari, toca <b>aA</b> junto a la dirección → <b>Configuración del sitio web → Ubicación → Permitir</b>.',
+      ] };
+    case 'iphone_chrome':
+      return { titulo: 'Tu iPhone no le está dando la ubicación a Chrome.', pasos: [
+        '<b>Ajustes → Privacidad y seguridad → Localización</b>: actívala.',
+        'En esa misma pantalla, <b>Chrome</b>: elige "Mientras se usa la app" y activa <b>Ubicación exacta</b>.',
+      ] };
+    case 'android_app':
+      return { titulo: 'La app Visitas no tiene permiso de ubicación.', pasos: [
+        'Baja la barra de notificaciones y revisa que la <b>Ubicación</b> del teléfono esté activada.',
+        '<b>Ajustes → Aplicaciones → Visitas → Permisos → Ubicación</b>: elige "Permitir solo con la app en uso" y activa <b>Usar ubicación precisa</b>.',
+      ] };
+    case 'android_chrome':
+      return { titulo: 'Chrome no le está dando la ubicación a esta página.', pasos: [
+        'Baja la barra de notificaciones y revisa que la <b>Ubicación</b> del teléfono esté activada.',
+        'Aquí en Chrome, toca el ícono junto a la dirección (candado o ajustes) → <b>Permisos → Ubicación → Permitir</b>.',
+        'Si no aparece: <b>Ajustes → Aplicaciones → Chrome → Permisos → Ubicación</b> → "Permitir solo con la app en uso" y <b>ubicación precisa</b> activada.',
+      ] };
+    default:
+      return { titulo: 'El navegador no le está dando la ubicación a esta página.', pasos: [
+        'Toca el ícono junto a la dirección de la página y en <b>Ubicación</b> elige <b>Permitir</b>.',
+      ] };
+  }
+}
+
+// HTML con los pasos y un botón #btn-reintentar-gps (cada pantalla le pone
+// su propio listener, igual que al "Reintentar" normal).
+function htmlUbicacionBloqueada() {
+  const { titulo, pasos } = pasosPermisoUbicacion();
+  return `<div class="alert alert-warning py-2 mb-0" style="font-size:.84rem;">
+      <div class="fw-bold mb-1">⚠️ ${titulo} Para activarla:</div>
+      <ol class="mb-2 ps-3">${pasos.map(p => `<li>${p}</li>`).join('')}</ol>
+      <button type="button" id="btn-reintentar-gps" class="v26-btn v26-btn-primary" style="padding:6px 14px;font-size:.8rem;width:auto;display:inline-block;">Ya lo activé, reintentar</button>
+      <div class="mt-2" style="font-size:.74rem;opacity:.85;">Si después de activarlo sigue igual, recarga la página (tendrás que tomar la foto otra vez).</div>
+    </div>`;
+}
+
+// Versión en texto plano (para alert()).
+function textoUbicacionBloqueada() {
+  const { titulo, pasos } = pasosPermisoUbicacion();
+  return `${titulo} Para activarla:\n\n` + pasos.map((p, i) => `${i + 1}. ${p.replace(/<[^>]+>/g, '')}`).join('\n') + '\n\nDespués vuelve a tocar el botón.';
+}
+
+// ---------------------------------------------------------------------
 // Envío con tiempo límite (señal débil en campo). fetch() por sí solo espera
 // sin límite: con la señal congelada el botón se quedaba en "Enviando..." y
 // el vendedor tenía que cerrar la app, perdiendo foto y GPS. Aquí se corta a
