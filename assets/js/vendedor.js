@@ -238,6 +238,93 @@ document.addEventListener('click', (e) => {
   if (btn) cancelarCita(btn.dataset.cancelar, btn.dataset.nombre);
 });
 
+// ---------------------------------------------------------------------
+// Envío con tiempo límite (señal débil en campo). fetch() por sí solo espera
+// sin límite: con la señal congelada el botón se quedaba en "Enviando..." y
+// el vendedor tenía que cerrar la app, perdiendo foto y GPS. Aquí se corta a
+// los `ms` y se distingue el motivo (e.tipo): 'timeout' (no hubo respuesta),
+// 'red' (sin conexión) o 'servidor' (respondió algo que no es JSON: un
+// error de PHP, un 502 del proxy) -- antes los tres se veían como "Error de
+// conexión". Una respuesta JSON con ok:false se regresa tal cual.
+// ---------------------------------------------------------------------
+async function enviarConTiempoLimite(url, opciones = {}, ms = 60000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    let res;
+    try {
+      res = await fetch(url, { ...opciones, signal: ctrl.signal });
+    } catch (e) {
+      throw Object.assign(new Error('envio'), { tipo: ctrl.signal.aborted ? 'timeout' : 'red' });
+    }
+    try {
+      return await res.json();
+    } catch (e) {
+      throw Object.assign(new Error('envio'), { tipo: ctrl.signal.aborted ? 'timeout' : 'servidor', status: res.status });
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Texto para el vendedor según el motivo de enviarConTiempoLimite(). Los
+// reintentos son seguros: api/checkin.php y api/prospeccion.php reconocen un
+// registro que ya se había guardado y no lo duplican.
+function mensajeErrorEnvio(e) {
+  if (e && e.tipo === 'timeout') return 'La señal está muy débil y no hubo respuesta. Tu foto y tu ubicación siguen aquí: toca el botón para reintentar (si ya se había guardado, no se duplica).';
+  if (e && e.tipo === 'servidor') return `El servidor tuvo un problema (error ${e.status}). Intenta de nuevo en un momento; si sigue pasando, avisa a Sistemas.`;
+  return 'Sin conexión. Tu foto y tu ubicación siguen aquí: toca el botón para reintentar cuando tengas señal.';
+}
+
+// Mientras una pantalla sube un check-in o una parada, el tracking no pide
+// GPS ni manda nada (compite por el GPS y por la poca señal que haya).
+let envioEnCurso = false;
+
+// ---------------------------------------------------------------------
+// Puntos de tracking que no se pudieron mandar (sin señal): se guardan en
+// el celular y se mandan juntos en cuanto hay conexión, con la hora real
+// del GPS -- antes se perdían y el recorrido del mapa quedaba con huecos.
+// ---------------------------------------------------------------------
+const COLA_TRACKING_KEY = 'visitas_tracking_pendiente';
+const COLA_TRACKING_MAX = 240; // ~2 h de puntos a uno cada 30 s
+let vaciandoColaTracking = false;
+// Copia en memoria por si localStorage no está disponible (bloqueado o
+// lleno): así el tracking sigue saliendo aunque no sobreviva a cerrar la app.
+let colaTrackingMemoria = [];
+
+function leerColaTracking() {
+  try {
+    const guardada = localStorage.getItem(COLA_TRACKING_KEY);
+    if (guardada) return JSON.parse(guardada);
+  } catch (e) {}
+  return colaTrackingMemoria.slice();
+}
+function guardarColaTracking(cola) {
+  colaTrackingMemoria = cola.slice(-COLA_TRACKING_MAX);
+  try { localStorage.setItem(COLA_TRACKING_KEY, JSON.stringify(colaTrackingMemoria)); } catch (e) {}
+}
+
+async function vaciarColaTracking() {
+  if (vaciandoColaTracking || envioEnCurso) return;
+  const cola = leerColaTracking();
+  if (!cola.length) return;
+  vaciandoColaTracking = true;
+  try {
+    const fd = new FormData();
+    fd.append('puntos', JSON.stringify(cola));
+    const data = await enviarConTiempoLimite('../api/tracking.php', { method: 'POST', body: fd }, 20000);
+    // Se quitan solo los que se mandaron (pudieron llegar más mientras tanto).
+    // Un ok:false es un rechazo definitivo (datos inválidos), no se reintenta
+    // -- salvo sesión vencida, que se reintenta tras volver a entrar.
+    if (data.ok || data.error !== 'No autenticado') guardarColaTracking(leerColaTracking().slice(cola.length));
+  } catch (e) {
+    // sin señal todavía: se quedan en la cola
+  } finally {
+    vaciandoColaTracking = false;
+  }
+}
+window.addEventListener('online', vaciarColaTracking);
+
 // Envía la ubicación actual al servidor (tracking en vivo mientras la app
 // esté abierta en el navegador del vendedor).
 function iniciarTrackingPeriodico(intervaloMs = 30000) {
@@ -265,16 +352,18 @@ function iniciarTrackingPeriodico(intervaloMs = 30000) {
   const MAX_PRECISION_ACEPTADA_M = 500;
 
   const enviar = () => {
+    if (envioEnCurso) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const antiguedadMs = Date.now() - pos.timestamp;
         if (antiguedadMs > MAX_ANTIGUEDAD_POSICION_MS) return; // posición vieja/caché -- se descarta
         if (pos.coords.accuracy > MAX_PRECISION_ACEPTADA_M) return; // posición imprecisa (red/IP) -- se descarta
-        const fd = new FormData();
-        fd.append('lat', pos.coords.latitude);
-        fd.append('lng', pos.coords.longitude);
-        fd.append('accuracy', pos.coords.accuracy);
-        fetch('../api/tracking.php', { method: 'POST', body: fd }).catch(() => {});
+        // Siempre por la cola: si hay señal sale de inmediato junto con lo
+        // que hubiera pendiente; si no, espera ahí.
+        const cola = leerColaTracking();
+        cola.push({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, ts: pos.timestamp });
+        guardarColaTracking(cola);
+        vaciarColaTracking();
       },
       () => {},
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }

@@ -48,6 +48,16 @@ if (!$cita) {
     jsonResponse(['ok' => false, 'error' => 'Cita no encontrada'], 404);
 }
 
+// Reintento: con señal débil el servidor puede haber guardado el check-in
+// sin que la respuesta llegara al celular. Si esta cita ya tiene uno de
+// este tipo, se contesta como éxito en vez de duplicarlo (va antes del
+// candado de estado: tras la salida la cita ya quedó "completada").
+$stmt = $db->prepare('SELECT 1 FROM checkins WHERE cita_id = ? AND tipo = ? LIMIT 1');
+$stmt->execute([$citaId, $tipo]);
+if ($stmt->fetchColumn()) {
+    jsonResponse(['ok' => true, 'ya_registrado' => true, 'estado' => $cita['estado']]);
+}
+
 if (in_array($cita['estado'], ['cancelada', 'no_realizada', 'completada'], true)) {
     jsonResponse(['ok' => false, 'error' => 'Esta cita ya no admite check-in (estado: ' . $cita['estado'] . ').'], 400);
 }

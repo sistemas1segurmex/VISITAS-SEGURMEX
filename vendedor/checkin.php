@@ -224,6 +224,10 @@ function iniciarCapturaGps() {
           estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(mejorAccuracy)} m)`;
         }
         revisarListoParaEnviar();
+      } else if (mejorAccuracy <= PRECISION_MINIMA_ACEPTABLE_M) {
+        // Ya se puede registrar; se sigue escuchando por si mejora.
+        estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación lista (±${Math.round(mejorAccuracy)} m) · mejorando precisión...`;
+        revisarListoParaEnviar();
       } else {
         estadoGps.innerHTML = `<i class="bi bi-geo-alt"></i> Mejorando precisión... (±${Math.round(mejorAccuracy)} m)`;
       }
@@ -280,9 +284,11 @@ function dataURItoBlob(dataURI) {
   return new Blob([ab], { type: mimeString });
 }
 
-// Redimensionar imagen a máximo 1024px para garantizar carga ultrarrápida y peso ligero (~100-200 KB)
+// Redimensionar imagen a máximo 800px (~60-80 KB): con señal débil (25 kbps
+// de subida) una foto de 1024px/0.82 (~150 KB) tardaba cerca de 50 s.
+const CALIDAD_FOTO = 0.7;
 function procesarYGuardarBlob(origen, anchoOriginal, altoOriginal) {
-  const maxDim = 1024;
+  const maxDim = 800;
   let w = anchoOriginal || 640;
   let h = altoOriginal || 480;
 
@@ -306,7 +312,7 @@ function procesarYGuardarBlob(origen, anchoOriginal, altoOriginal) {
     try {
       preview.src = URL.createObjectURL(blob);
     } catch(err) {
-      preview.src = canvas.toDataURL('image/jpeg', 0.82);
+      preview.src = canvas.toDataURL('image/jpeg', CALIDAD_FOTO);
     }
     preview.classList.remove('d-none');
     video.classList.add('d-none');
@@ -323,12 +329,12 @@ function procesarYGuardarBlob(origen, anchoOriginal, altoOriginal) {
       if (blob) {
         finalizarConBlob(blob);
       } else {
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        const dataUrl = canvas.toDataURL('image/jpeg', CALIDAD_FOTO);
         finalizarConBlob(dataURItoBlob(dataUrl));
       }
-    }, 'image/jpeg', 0.82);
+    }, 'image/jpeg', CALIDAD_FOTO);
   } catch (err) {
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    const dataUrl = canvas.toDataURL('image/jpeg', CALIDAD_FOTO);
     finalizarConBlob(dataURItoBlob(dataUrl));
   }
 }
@@ -490,9 +496,9 @@ async function enviarCheckin(motivoNoShow) {
     fd.append('interes', interesSel);
   }
 
+  envioEnCurso = true; // pausa el tracking mientras sube (ver vendedor.js)
   try {
-    const res = await fetch('../api/checkin.php', { method: 'POST', body: fd });
-    const data = await res.json();
+    const data = await enviarConTiempoLimite('../api/checkin.php', { method: 'POST', body: fd }, 90000);
     if (data.ok) {
       if (streamCamara) streamCamara.getTracks().forEach(t => t.stop());
       window.location.reload();
@@ -502,9 +508,11 @@ async function enviarCheckin(motivoNoShow) {
       revisarListoParaEnviar();
     }
   } catch (e) {
-    msg.innerHTML = '<div class="alert alert-danger py-2">Error de conexión. Intenta de nuevo.</div>';
+    msg.innerHTML = `<div class="alert alert-danger py-2">${mensajeErrorEnvio(e)}</div>`;
     btn.disabled = false;
     revisarListoParaEnviar();
+  } finally {
+    envioEnCurso = false;
   }
 }
 
