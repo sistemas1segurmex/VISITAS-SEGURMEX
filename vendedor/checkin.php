@@ -229,7 +229,10 @@ function iniciarCapturaGps() {
       if (mejorAccuracy <= PRECISION_BUENA_M || yaEsperoBastante) {
         navigator.geolocation.clearWatch(watchId);
         if (mejorAccuracy > PRECISION_MINIMA_ACEPTABLE_M) {
-          estadoGps.innerHTML = `<span class="text-danger">⚠️ No se pudo obtener una ubicación confiable (±${Math.round(mejorAccuracy)} m). Sal a espacio abierto o acércate a una ventana.</span> <button type="button" id="btn-reintentar-gps" class="v26-btn v26-btn-ghost mt-2" style="padding:6px 14px;font-size:.8rem;width:auto;display:inline-block;">Reintentar</button>`;
+          // Peor que 1 km casi siempre es "Ubicación exacta" apagada (vendedor.js).
+          estadoGps.innerHTML = mejorAccuracy > UMBRAL_UBICACION_APROXIMADA_M
+            ? htmlUbicacionAproximada(mejorAccuracy)
+            : `<span class="text-danger">⚠️ No se pudo obtener una ubicación confiable (±${Math.round(mejorAccuracy)} m). Sal a espacio abierto o acércate a una ventana.</span> <button type="button" id="btn-reintentar-gps" class="v26-btn v26-btn-ghost mt-2" style="padding:6px 14px;font-size:.8rem;width:auto;display:inline-block;">Reintentar</button>`;
           document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarCapturaGps);
         } else {
           estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(mejorAccuracy)} m)`;
@@ -250,6 +253,12 @@ function iniciarCapturaGps() {
       if (lat && mejorAccuracy <= PRECISION_MINIMA_ACEPTABLE_M) {
         estadoGps.innerHTML = `<i class="bi bi-geo-alt-fill text-success"></i> Ubicación obtenida (precisión ±${Math.round(mejorAccuracy)} m)`;
         revisarListoParaEnviar();
+        return;
+      }
+      // Solo llegó una lectura aproximada y el teléfono no mandó más.
+      if (lat && mejorAccuracy > UMBRAL_UBICACION_APROXIMADA_M) {
+        estadoGps.innerHTML = htmlUbicacionAproximada(mejorAccuracy);
+        document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarCapturaGps);
         return;
       }
       let msg = '⚠️ No se pudo obtener tu ubicación. Activa el GPS y los permisos de ubicación del navegador.';
