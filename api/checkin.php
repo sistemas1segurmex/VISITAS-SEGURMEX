@@ -38,7 +38,8 @@ if ($noShow && $motivo === '') {
 }
 
 $stmt = $db->prepare(
-    'SELECT c.*, cl.lat AS cliente_lat, cl.lng AS cliente_lng, cl.nombre AS cliente_nombre
+    'SELECT c.*, cl.lat AS cliente_lat, cl.lng AS cliente_lng, cl.nombre AS cliente_nombre,
+            cl.ubicacion_confirmada
      FROM citas c JOIN clientes cl ON cl.id = c.cliente_id
      WHERE c.id = ? AND c.vendedor_id = ?'
 );
@@ -83,6 +84,38 @@ if ($cita['cliente_lat'] !== null && $cita['cliente_lng'] !== null) {
     }
     $distancia  = haversineDistance($lat, $lng, (float)$cita['cliente_lat'], (float)$cita['cliente_lng']);
     $verificado = $distancia <= RADIO_VERIFICACION_METROS ? 1 : 0;
+}
+
+// Pin del cliente sin confirmar (casi siempre se registró desde la oficina
+// buscando la dirección) y la entrada cae fuera del radio con un GPS bueno:
+// lo más probable es que el pin esté mal, no el vendedor. Antes de guardar
+// nada se le pregunta si está en el lugar del cliente (corregir_ubicacion
+// sin mandar => se contesta pregunta_ubicacion); '1' = sí, el pin pasa a
+// donde está y la entrada queda verificada; '0' = no, "Fuera de zona" como
+// siempre. Ver CORRECCION_* en includes/helpers.php.
+$correccion = null;
+if ($tipo === 'entrada' && !$noShow && $verificado === 0 && $distancia !== null
+    && !$cita['ubicacion_confirmada']
+    && $accuracy !== null && $accuracy <= CORRECCION_PRECISION_MAX_M
+    && $distancia <= CORRECCION_REVISAR_MAX_M) {
+    $respuesta = $_POST['corregir_ubicacion'] ?? null;
+    if ($respuesta === null) {
+        jsonResponse([
+            'ok'                 => false,
+            'pregunta_ubicacion' => true,
+            'distancia_metros'   => round($distancia),
+            'cliente_nombre'     => $cita['cliente_nombre'],
+            'error'              => 'Tu ubicación no coincide con la guardada para el cliente. Vuelve a intentar.',
+        ]);
+    }
+    if ($respuesta === '1') {
+        $lejos = $distancia > CORRECCION_DIRECTA_MAX_M;
+        $correccion = [
+            'estado' => $lejos ? 'por_revisar' : 'aplicada',
+            'nota'   => $lejos ? 'El pin anterior estaba a más de ' . (CORRECCION_DIRECTA_MAX_M / 1000) . ' km' : null,
+        ];
+        $verificado = 1;
+    }
 }
 
 $fotoPath = null;
@@ -149,10 +182,64 @@ if (!empty($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
     jsonResponse(['ok' => false, 'error' => 'Toma la foto de evidencia'], 400);
 }
 
+// El check-in y la corrección del pin van juntos o no va ninguno.
+$db->beginTransaction();
 $stmt = $db->prepare(
-    'INSERT INTO checkins (cita_id, tipo, lat, lng, accuracy, distancia_metros, foto_path, verificado) VALUES (?,?,?,?,?,?,?,?)'
+    'INSERT INTO checkins (cita_id, tipo, lat, lng, accuracy, distancia_metros, foto_path, verificado, ubicacion_corregida)
+     VALUES (?,?,?,?,?,?,?,?,?) RETURNING id'
 );
-$stmt->execute([$citaId, $tipo, $lat, $lng, $accuracy, $distancia, $fotoPath, $verificado]);
+// distancia_metros se queda con la distancia al pin ANTERIOR (dato útil
+// para el admin); ubicacion_corregida es lo que cambia la etiqueta.
+$stmt->execute([$citaId, $tipo, $lat, $lng, $accuracy, $distancia, $fotoPath, $verificado, $correccion ? 'true' : 'false']);
+$checkinId = (int)$stmt->fetchColumn();
+
+if ($correccion) {
+    $db->prepare(
+        "UPDATE clientes SET lat = ?, lng = ?, ubicacion_confirmada = TRUE, ubicacion_fuente = 'checkin',
+                ubicacion_confirmada_en = CURRENT_TIMESTAMP
+         WHERE id = ?"
+    )->execute([$lat, $lng, $cita['cliente_id']]);
+    $db->prepare(
+        'INSERT INTO correcciones_ubicacion (cliente_id, checkin_id, vendedor_id, lat_anterior, lng_anterior, lat_nueva, lng_nueva, distancia_metros, accuracy, estado, nota)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+    )->execute([
+        $cita['cliente_id'], $checkinId, $u['id'], $cita['cliente_lat'], $cita['cliente_lng'],
+        $lat, $lng, $distancia, $accuracy, $correccion['estado'], $correccion['nota'],
+    ]);
+} elseif ($verificado === 1 && !$cita['ubicacion_confirmada']) {
+    // Cayó dentro del radio: el pin que ya tenía queda comprobado.
+    $db->prepare(
+        "UPDATE clientes SET ubicacion_confirmada = TRUE, ubicacion_fuente = 'checkin_verificado',
+                ubicacion_confirmada_en = CURRENT_TIMESTAMP
+         WHERE id = ?"
+    )->execute([$cita['cliente_id']]);
+}
+$db->commit();
+
+if ($correccion) {
+    registrarCambio($db, $u['id'], 'cliente', (int)$cita['cliente_id'], 'edicion',
+        "Corrigió la ubicación de {$cita['cliente_nombre']} en la visita (el pin estaba a " . round($distancia) . ' m)', [
+        'Ubicación' => [$cita['cliente_lat'] . ', ' . $cita['cliente_lng'], $lat . ', ' . $lng],
+    ]);
+}
+
+// Si la entrada corrigió el pin, la salida debe registrarse en el mismo
+// lugar: si no, la corrección pasa a revisión del admin.
+if ($tipo === 'salida') {
+    $stmt = $db->prepare(
+        "SELECT cu.id, ch.lat, ch.lng FROM correcciones_ubicacion cu
+         JOIN checkins ch ON ch.id = cu.checkin_id
+         WHERE ch.cita_id = ? AND cu.estado = 'aplicada' LIMIT 1"
+    );
+    $stmt->execute([$citaId]);
+    if ($corr = $stmt->fetch()) {
+        $separacion = haversineDistance($lat, $lng, (float)$corr['lat'], (float)$corr['lng']);
+        if ($separacion > CORRECCION_SALIDA_MAX_M) {
+            $db->prepare("UPDATE correcciones_ubicacion SET estado = 'por_revisar', nota = ? WHERE id = ?")
+               ->execute(['La salida se registró a ' . round($separacion) . ' m de la entrada', $corr['id']]);
+        }
+    }
+}
 
 if ($noShow) {
     $nuevoEstado = 'no_realizada';
@@ -189,6 +276,7 @@ if ($tipo === 'entrada' && $verificado === 0 && $distancia !== null) {
 jsonResponse([
     'ok'               => true,
     'verificado'       => (bool)$verificado,
+    'ubicacion_corregida' => (bool)$correccion,
     'distancia_metros' => $distancia !== null ? round($distancia) : null,
     'foto'             => $fotoPath,
     'estado'           => $nuevoEstado,

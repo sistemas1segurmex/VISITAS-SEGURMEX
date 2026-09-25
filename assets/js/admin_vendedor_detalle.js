@@ -8,8 +8,11 @@ function badgeEstado(estado) {
   return `<span class="v26-pill v26-pill--${estado}">${map[estado] || estado}</span>`;
 }
 
-function badgeVerificado(v) {
+function badgeVerificado(v, correccion) {
   if (v === null || v === undefined) return '<span class="text-muted small">Sin check-in</span>';
+  // La entrada corrigió el pin del cliente (ver admin/ubicaciones.php).
+  if (v == 1 && correccion === 'por_revisar') return '<span class="v26-pill v26-pill--pendiente">Ubicación por revisar</span>';
+  if (v == 1 && correccion) return '<span class="v26-pill v26-pill--verificado">Ubicación corregida</span>';
   return v == 1
     ? '<span class="v26-pill v26-pill--verificado">GPS verificado</span>'
     : '<span class="v26-pill v26-pill--noverificado">Fuera de zona</span>';
@@ -239,7 +242,7 @@ function tarjetaCita(c) {
       </div>
       <div class="v26-cita-estado">
         ${badgeEstado(c.estado)}
-        ${badgeVerificado(c.checkin_verificado)}
+        ${badgeVerificado(c.checkin_verificado, c.checkin_correccion)}
         ${pillInteresAdmin(c.interes)}
       </div>
       <div class="v26-cita-fotos">

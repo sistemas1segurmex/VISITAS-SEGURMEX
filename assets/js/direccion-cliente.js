@@ -60,6 +60,9 @@ window.DireccionCliente = (function () {
   function ponerMarcador(lat, lng, autocompletar = true) {
     $('lat').value = lat;
     $('lng').value = lng;
+    // Cualquier pin puesto a mano/por búsqueda es 'por confirmar'; solo
+    // usarMiUbicacion() la llena (ver api/clientes.php).
+    $('ubicacion-precision').value = '';
     if (marcador) {
       marcador.setLatLng([lat, lng]);
     } else {
@@ -616,7 +619,13 @@ window.DireccionCliente = (function () {
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Obteniendo tu ubicación...';
     const restaurar = () => { btn.disabled = false; btn.innerHTML = textoOriginal; };
     navigator.geolocation.getCurrentPosition(
-      (pos) => { restaurar(); ponerMarcador(pos.coords.latitude, pos.coords.longitude); },
+      (pos) => {
+        restaurar();
+        ponerMarcador(pos.coords.latitude, pos.coords.longitude);
+        // Estando en el lugar con buen GPS el pin queda confirmado desde ya
+        // (el servidor decide con CORRECCION_PRECISION_MAX_M).
+        $('ubicacion-precision').value = pos.coords.accuracy;
+      },
       () => { restaurar(); alert('No se pudo obtener tu ubicación. Revisa los permisos del navegador.'); },
       { enableHighAccuracy: true, timeout: 15000 }
     );
@@ -666,6 +675,13 @@ window.DireccionCliente = (function () {
     selectColonia = $('select-colonia');
     inputCp = $('input-cp');
     campoCalle = $('calle-numero');
+    // Precisión del GPS cuando el pin vino de "Estoy aquí" (se manda con el
+    // formulario, junto a lat/lng).
+    if (!$('ubicacion-precision')) {
+      const oculto = document.createElement('input');
+      oculto.type = 'hidden'; oculto.id = 'ubicacion-precision'; oculto.name = 'ubicacion_precision';
+      $('lat').insertAdjacentElement('afterend', oculto);
+    }
     calleEditadaAMano = campoCalle.value.trim() !== '';
 
     mapa = L.map('mapa-cliente').setView([23.6345, -102.5528], 5); // centro de México por defecto

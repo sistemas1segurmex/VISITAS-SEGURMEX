@@ -64,6 +64,18 @@ $stmt->execute([
     $id, $u['id'],
 ]);
 
+// Si movió el pin, vuelve a quedar por confirmar en la próxima visita (así
+// no se "arregla" la zona moviendo el pin desde la oficina) -- salvo que lo
+// haya puesto con "Estoy aquí" estando en el lugar.
+$pinMovido = $antes['lat'] === null || $antes['lng'] === null
+    || abs((float)$antes['lat'] - (float)$lat) > 0.000001 || abs((float)$antes['lng'] - (float)$lng) > 0.000001;
+if ($pinMovido) {
+    [$ubicacionConfirmada, $ubicacionFuente] = ubicacionDesdeFormulario('edicion');
+    $db->prepare(
+        'UPDATE clientes SET ubicacion_confirmada = ?, ubicacion_fuente = ?, ubicacion_confirmada_en = ' . ($ubicacionConfirmada ? 'CURRENT_TIMESTAMP' : 'NULL') . ' WHERE id = ?'
+    )->execute([$ubicacionConfirmada ? 'true' : 'false', $ubicacionFuente, $id]);
+}
+
 // Bitácora del admin: solo se anotan los campos que de verdad cambiaron
 // (comparados contra la fila leída antes del UPDATE), no toda la tarjeta.
 $campos = [
@@ -73,6 +85,7 @@ $campos = [
     'Contacto'   => [$antes['nombre_contacto'], $nombreContacto ?: null],
 ];
 $diff = [];
+if ($pinMovido) $campos['Ubicación'] = [$antes['lat'] . ', ' . $antes['lng'], $lat . ', ' . $lng];
 foreach ($campos as $etiqueta => [$antesValor, $despuesValor]) {
     if ((string)$antesValor !== (string)$despuesValor) $diff[$etiqueta] = [$antesValor, $despuesValor];
 }

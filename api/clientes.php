@@ -58,9 +58,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $partes = array_filter([$calleNumero, $colonia, $municipio, $estado, $codigoPostal]);
     $direccion = implode(', ', $partes);
 
+    [$ubicacionConfirmada, $ubicacionFuente] = ubicacionDesdeFormulario('registro');
     $stmt = $db->prepare(
-        'INSERT INTO clientes (vendedor_id, nombre, direccion, calle_numero, lat, lng, telefono, codigo_postal, estado, municipio, colonia, etapa, etapa_actualizada_en, tipo_cliente, nombre_contacto)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?)'
+        'INSERT INTO clientes (vendedor_id, nombre, direccion, calle_numero, lat, lng, telefono, codigo_postal, estado, municipio, colonia, etapa, etapa_actualizada_en, tipo_cliente, nombre_contacto,
+                               ubicacion_confirmada, ubicacion_fuente, ubicacion_confirmada_en)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,' . ($ubicacionConfirmada ? 'CURRENT_TIMESTAMP' : 'NULL') . ')'
     );
     $stmt->execute([
         $u['id'], $nombre, $direccion, $calleNumero,
@@ -68,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $telefono,
         $codigoPostal ?: null, $estado ?: null, $municipio ?: null, $colonia ?: null,
         $etapaInicial, $tipoCliente, $nombreContacto ?: null,
+        $ubicacionConfirmada ? 'true' : 'false', $ubicacionFuente,
     ]);
     $nuevoId = (int)$db->lastInsertId();
     registrarCambio($db, $u['id'], 'cliente', $nuevoId, 'alta', "Dio de alta al cliente {$nombre}", [
