@@ -788,3 +788,34 @@ async function registrarPushNativo() {
     console.warn('No se pudo registrar para notificaciones push', e);
   }
 }
+
+// ---------------------------------------------------------------------
+// Foto negra: si el vendedor dispara antes de que la cámara en vivo termine
+// de arrancar (o con la lente tapada), el cuadro sale totalmente negro y
+// esa evidencia no sirve. Se reduce la foto a 32x32 y se mide el brillo
+// promedio (luma 0-255); por debajo de FOTO_NEGRA_BRILLO_MAX se considera
+// negra. El umbral es bajo a propósito para no rechazar fotos de noche o
+// en interiores oscuros, que siempre tienen algo de luz.
+// Usada por vendedor/checkin.php y vendedor/prospeccion.php.
+// ---------------------------------------------------------------------
+const FOTO_NEGRA_BRILLO_MAX = 12;
+const MSG_FOTO_NEGRA = '<span class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> La foto salió negra. Espera a que se vea la imagen y tómala de nuevo.</span>';
+
+function fotoEstaNegra(canvasOrigen) {
+  try {
+    const muestra = document.createElement('canvas');
+    muestra.width = 32;
+    muestra.height = 32;
+    const ctx = muestra.getContext('2d');
+    ctx.drawImage(canvasOrigen, 0, 0, 32, 32);
+    const px = ctx.getImageData(0, 0, 32, 32).data;
+    let suma = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      suma += 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+    }
+    return (suma / (px.length / 4)) < FOTO_NEGRA_BRILLO_MAX;
+  } catch (e) {
+    // Si el navegador no deja leer los píxeles, no se bloquea al vendedor.
+    return false;
+  }
+}

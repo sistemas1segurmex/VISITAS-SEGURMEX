@@ -291,6 +291,16 @@ function procesarYGuardarBlob(origen, anchoOriginal, altoOriginal) {
   canvas.width = w; canvas.height = h;
   canvas.getContext('2d').drawImage(origen, 0, 0, w, h);
 
+  // Foto negra (cámara sin arrancar, lente tapada): no se acepta, hay que
+  // repetirla -- ver fotoEstaNegra() en assets/js/vendedor.js.
+  if (fotoEstaNegra(canvas)) {
+    fotoBlob = null;
+    estadoCamara.innerHTML = MSG_FOTO_NEGRA;
+    if (inputArchivo) inputArchivo.value = '';
+    revisarListoParaEnviar();
+    return;
+  }
+
   const finalizarConBlob = (blob) => {
     fotoBlob = blob;
     try { preview.src = URL.createObjectURL(blob); } catch (err) { preview.src = canvas.toDataURL('image/jpeg', 0.7); }
