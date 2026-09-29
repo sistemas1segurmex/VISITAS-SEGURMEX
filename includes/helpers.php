@@ -694,7 +694,7 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
     // citas.fecha_hora es texto local de CDMX (no UTC) — se compara por
     // fecha directa, igual que en el resto del sistema.
     $stmt = $db->prepare(
-        "SELECT c.id, c.fecha_hora, c.estado, c.notas, cl.nombre AS cliente_nombre, cl.direccion,
+        "SELECT c.id, c.cliente_id, c.fecha_hora, c.estado, c.notas, cl.nombre AS cliente_nombre, cl.direccion,
                 (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_entrada_id,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_salida_id
@@ -727,6 +727,7 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
     $ubic = $stmt->fetch();
 
     $paradas = (int)$ubic['n'] > 0 ? detectarParadasDia($db, $vendedorId, $inicioUtc, $finUtc) : [];
+    $paradas = completarParadasConCheckins($db, $paradas, $citas);
 
     // Ciudad/municipio real del último punto GPS del día -- para poder decir
     // "detectado en X" en vez de solo "solo ubicación GPS registrada" a
@@ -875,6 +876,85 @@ function detectarParadasDia(PDO $db, int $vendedorId, string $inicioUtc, string 
         }
     }
 
+    return $paradas;
+}
+
+// Holgura (minutos) al comparar la hora de una parada GPS contra la de un
+// check-in/check-out, para no duplicar una visita que el GPS sí detectó.
+define('PARADA_HOLGURA_CHECKIN_MINUTOS', 15);
+
+/**
+ * El rastro GPS (tracking_ubicaciones) solo se manda mientras la app está
+ * abierta en pantalla (ver iniciarTrackingPeriodico en assets/js/vendedor.js):
+ * si el vendedor bloquea el celular durante la cita, esa visita no junta los
+ * 5 minutos de puntos seguidos que pide detectarParadasDia() y desaparece del
+ * recorrido aunque tenga check-in y check-out con GPS. Aquí se usan esos
+ * check-ins como respaldo: cada cita con check-in que ninguna parada GPS
+ * cubre (misma hora y a menos de RADIO_VERIFICACION_METROS) se agrega como
+ * parada propia; si una parada GPS sí la cubre pero quedó sin cliente, se le
+ * pone el de la cita.
+ *
+ * @param array $citas filas de resumenDiaVendedor (necesitan id, cliente_id y cliente_nombre)
+ */
+function completarParadasConCheckins(PDO $db, array $paradas, array $citas): array {
+    if (count($citas) === 0) return $paradas;
+    $utc  = new DateTimeZone('UTC');
+    $tzMx = new DateTimeZone('America/Mexico_City');
+
+    $ids = array_map(fn($c) => (int)$c['id'], $citas);
+    $marcas = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $db->prepare(
+        "SELECT cita_id, tipo, lat, lng, fecha_hora FROM checkins
+         WHERE cita_id IN ($marcas) ORDER BY id ASC"
+    );
+    $stmt->execute($ids);
+    // Se queda con el último check-in de cada tipo por cita (mismo criterio
+    // que las subconsultas de resumenDiaVendedor).
+    $porCita = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $porCita[(int)$r['cita_id']][$r['tipo']] = $r;
+    }
+
+    $holgura = PARADA_HOLGURA_CHECKIN_MINUTOS * 60;
+    foreach ($citas as $c) {
+        $entrada = $porCita[(int)$c['id']]['entrada'] ?? null;
+        if (!$entrada) continue;
+        $salida = $porCita[(int)$c['id']]['salida'] ?? null;
+
+        $tEntrada = new DateTime($entrada['fecha_hora'], $utc);
+        $tSalida  = $salida ? new DateTime($salida['fecha_hora'], $utc) : clone $tEntrada;
+        if ($tSalida < $tEntrada) $tSalida = clone $tEntrada;
+        $lat = (float)$entrada['lat'];
+        $lng = (float)$entrada['lng'];
+        $cliente = ['id' => (int)$c['cliente_id'], 'nombre' => $c['cliente_nombre']];
+
+        $cubierta = false;
+        foreach ($paradas as &$p) {
+            $pInicio = (new DateTime($p['inicio'], $tzMx))->getTimestamp();
+            $pFin    = (new DateTime($p['fin'], $tzMx))->getTimestamp();
+            $seTraslapan = $pInicio <= $tSalida->getTimestamp() + $holgura
+                        && $pFin >= $tEntrada->getTimestamp() - $holgura;
+            if ($seTraslapan && haversineDistance((float)$p['lat'], (float)$p['lng'], $lat, $lng) <= RADIO_VERIFICACION_METROS) {
+                if (!$p['cliente']) $p['cliente'] = $cliente;
+                $cubierta = true;
+                break;
+            }
+        }
+        unset($p);
+        if ($cubierta) continue;
+
+        $paradas[] = [
+            'lat'     => $lat,
+            'lng'     => $lng,
+            'inicio'  => (clone $tEntrada)->setTimezone($tzMx)->format('Y-m-d H:i:s'),
+            'fin'     => (clone $tSalida)->setTimezone($tzMx)->format('Y-m-d H:i:s'),
+            'minutos' => (int)round(($tSalida->getTimestamp() - $tEntrada->getTimestamp()) / 60),
+            'cliente' => $cliente,
+            'origen'  => 'checkin',
+        ];
+    }
+
+    usort($paradas, fn($a, $b) => strcmp($a['inicio'], $b['inicio']));
     return $paradas;
 }
 
