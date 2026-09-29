@@ -76,6 +76,7 @@ $u = requireRole('vendedor');
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/v26-modal.js<?= assetVer(__DIR__ . '/../assets/js/v26-modal.js') ?>"></script>
 <script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
+<script src="../assets/js/reprogramar-cita.js<?= assetVer(__DIR__ . '/../assets/js/reprogramar-cita.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 // Saludo según la hora local del dispositivo del vendedor (evita el bug de

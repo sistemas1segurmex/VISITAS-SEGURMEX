@@ -479,6 +479,90 @@
 }
 .v26-motivo { font-size: .78rem; color: var(--v26-ink-soft); font-style: italic; margin-top: 6px; }
 
+/* ---------- Reprogramar cita (assets/js/reprogramar-cita.js) ---------- */
+/* Barra de acciones al pie de las citas pendientes: la tarjeta se parte en
+   dos renglones (info + check-in arriba, barra abajo a todo lo ancho). Los
+   márgenes negativos anulan el padding de .v26-cita para que la barra llegue
+   a las orillas; el punto de la línea de tiempo se queda a la altura del
+   contenido y no a la mitad de toda la tarjeta. */
+.v26-cita--con-barra { flex-wrap: wrap; }
+.v26-cita--con-barra::before { bottom: 56px; }
+.v26-cita--con-barra .v26-timeline-dot { top: 30px; transform: none; }
+.v26-cita-barra {
+  flex: 0 0 calc(100% + 30px);
+  display: grid; grid-template-columns: 1fr 1fr;
+  margin: 2px -14px -14px -16px;
+  border-radius: 0 0 var(--v26-r-lg) var(--v26-r-lg); overflow: hidden;
+  border-top: 1px solid var(--v26-border);
+}
+.v26-cita-barra button {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  border: none; background: transparent; padding: 12px 6px; min-height: 46px;
+  font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer;
+  transition: background .15s;
+}
+.v26-cita-barra button + button { border-left: 1px solid var(--v26-border); }
+.v26-cita-barra button i { font-size: .95rem; }
+.v26-cita-barra .reprogramar { color: var(--v26-blue); }
+.v26-cita-barra .reprogramar:active { background: rgba(79,70,229,.10); }
+.v26-cita-barra .cancelar { color: var(--v26-red); }
+.v26-cita-barra .cancelar:active { background: rgba(225,29,72,.10); }
+.v26-cita-barra button:disabled { color: var(--v26-ink-soft); opacity: .7; cursor: not-allowed; }
+@media (hover: hover) {
+  .v26-cita-barra .reprogramar:hover { background: rgba(79,70,229,.08); }
+  .v26-cita-barra .cancelar:hover { background: rgba(225,29,72,.08); }
+}
+.v26-hora-anterior { text-decoration: line-through; color: var(--v26-ink-soft); font-weight: 500; margin-right: 2px; }
+.v26-pill--reprogramada { background: rgba(79,70,229,.12); color: var(--v26-blue); }
+
+.v26-modal.reprog { max-height: 92vh; overflow-y: auto; }
+.reprog-lbl {
+  display: block; font-size: .68rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--v26-ink-soft); margin: 14px 0 6px;
+}
+.reprog-lbl .req { color: var(--v26-red); }
+.reprog-motivos { display: grid; gap: 7px; }
+.reprog-motivo {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: 1.5px solid var(--v26-border); border-radius: var(--v26-r-md); background: var(--v26-surface-solid);
+  padding: 8px 10px; font: inherit; font-size: .86rem; font-weight: 600; color: var(--v26-ink); cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.reprog-motivo i {
+  width: 28px; height: 28px; flex: none; display: grid; place-items: center;
+  border-radius: 9px; background: rgba(20,23,31,.05); font-size: .9rem;
+}
+.reprog-motivo.on { border-color: var(--v26-brand-1); background: rgba(232,164,0,.10); }
+.reprog-motivo.on i { background: var(--v26-brand-1); color: #fff; }
+.reprog-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.reprog-dia-head { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 6px; }
+.reprog-dia-head .reprog-lbl { margin: 0; }
+.reprog-dia-head > span:last-child { font-size: .7rem; color: var(--v26-ink-soft); font-weight: 600; }
+.reprog-barra {
+  position: relative; height: 42px; border-radius: 10px; overflow: hidden;
+  background: #F6F4EF; border: 1px solid var(--v26-border);
+}
+.reprog-pasado { position: absolute; top: 0; bottom: 0; left: 0; background: rgba(20,23,31,.07); border-right: 2px solid var(--v26-red); }
+.reprog-blk {
+  position: absolute; top: 5px; bottom: 5px; border-radius: 7px; padding: 3px 4px;
+  font-size: .6rem; font-weight: 800; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: #fff; border: 1px solid #D9D6CF; color: #4B5563;
+}
+.reprog-blk.nueva { background: var(--v26-brand-1); border-color: var(--v26-brand-2); color: #fff; z-index: 1; }
+.reprog-blk.choque { background: rgba(225,29,72,.10); border: 1.5px dashed var(--v26-red); color: var(--v26-red); }
+.reprog-blk.antes { background: transparent; border: 1.5px dashed #9CA3AF; color: #9CA3AF; }
+.reprog-ticks { position: relative; height: 16px; font-size: .6rem; font-weight: 700; color: var(--v26-ink-soft); }
+.reprog-ticks span { position: absolute; top: 2px; transform: translateX(-50%); }
+.reprog-ticks span:first-child { transform: none; }
+.reprog-ticks span:last-child { transform: translateX(-100%); }
+.reprog-error {
+  display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; padding: 8px 10px;
+  border-radius: 12px; background: rgba(225,29,72,.10); color: var(--v26-red); font-size: .8rem; font-weight: 600;
+}
+.reprog-cuenta { font-size: .74rem; color: var(--v26-ink-soft); text-align: center; margin-top: 10px; }
+.reprog-hint { font-size: .74rem; color: var(--v26-ink-soft); text-align: center; margin-top: 6px; min-height: 1.1em; }
+.v26-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
 /* ---------- Modal / hoja de confirmación ---------- */
 .v26-modal-backdrop {
   position: fixed; inset: 0; z-index: 80;

@@ -198,6 +198,67 @@ function registrarCambio(PDO $db, int $vendedorId, string $entidad, ?int $entida
     }
 }
 
+// ---------------------------------------------------------------------
+// Reprogramar citas (api/reprogramar_cita.php). El conteo de cuántas veces
+// se ha movido una cita NO vive en la tabla citas: se saca de la bitácora
+// (una fila 'edicion' por reprogramación, con LLAVE_MOTIVO_REPROGRAMACION
+// en "cambios") para no tocar el esquema. Ver sqlReprogramaciones().
+// ---------------------------------------------------------------------
+define('MAX_REPROGRAMACIONES', 3);
+define('CHOQUE_CITAS_MIN', 60);          // otra cita a menos de esto = choque, no se puede guardar
+define('HORAS_CITA_VENCIDA', 24);        // pendiente sin check-in pasado esto -> no_realizada sola
+define('LLAVE_MOTIVO_REPROGRAMACION', 'Motivo de reprogramación');
+define('MOTIVO_CITA_VENCIDA', 'Sin atender (automático)');
+
+/**
+ * Columnas extra para un SELECT de citas (alias "c"): cuántas veces se ha
+ * reprogramado, la fecha/hora que tenía antes de la última vez y el motivo
+ * de esa última vez. Se usa ->> en vez del operador ? de jsonb porque PDO
+ * confunde ? con un placeholder.
+ */
+function sqlReprogramaciones(): string {
+    $llave = LLAVE_MOTIVO_REPROGRAMACION;
+    $filtro = "b.entidad = 'cita' AND b.entidad_id = c.id AND b.accion = 'edicion' AND b.cambios->>'$llave' IS NOT NULL";
+    return "(SELECT COUNT(*) FROM bitacora_cambios b WHERE $filtro) AS reprogramaciones,
+            (SELECT b.cambios->'Fecha y hora'->>0 FROM bitacora_cambios b WHERE $filtro ORDER BY b.id DESC LIMIT 1) AS fecha_anterior,
+            (SELECT b.cambios->'$llave'->>1 FROM bitacora_cambios b WHERE $filtro ORDER BY b.id DESC LIMIT 1) AS motivo_reprogramacion";
+}
+
+/**
+ * Pasa a "no_realizada" las citas que siguen pendientes, sin ningún
+ * check-in, cuando ya pasaron HORAS_CITA_VENCIDA desde su hora. No hay cron
+ * confiable para esto (cron_recordatorios.php se sale si no hay Firebase),
+ * así que se llama al listar citas -- es un solo UPDATE y corre una vez por
+ * petición. citas.fecha_hora es hora local de CDMX y la sesión está en UTC
+ * (ver db.php), por eso el AT TIME ZONE.
+ */
+function marcarCitasVencidas(PDO $db): void {
+    static $hecho = false;
+    if ($hecho) return;
+    $hecho = true;
+    try {
+        $stmt = $db->prepare(
+            "UPDATE citas c SET estado = 'no_realizada', motivo = ?
+             FROM clientes cl
+             WHERE cl.id = c.cliente_id
+               AND c.estado = 'pendiente'
+               AND c.fecha_hora < (NOW() AT TIME ZONE 'America/Mexico_City') - make_interval(hours => ?)
+               AND NOT EXISTS (SELECT 1 FROM checkins ch WHERE ch.cita_id = c.id)
+             RETURNING c.id, c.vendedor_id, cl.nombre AS cliente_nombre"
+        );
+        $stmt->execute([MOTIVO_CITA_VENCIDA, HORAS_CITA_VENCIDA]);
+        foreach ($stmt->fetchAll() as $c) {
+            registrarCambio($db, (int)$c['vendedor_id'], 'cita', (int)$c['id'], 'baja',
+                "La cita con {$c['cliente_nombre']} pasó sola a No realizada (sin atender)", [
+                    'Estado' => ['Pendiente', 'No realizada'],
+                    'Motivo' => [null, MOTIVO_CITA_VENCIDA],
+                ]);
+        }
+    } catch (Throwable $e) {
+        error_log('[VISITAS] marcarCitasVencidas: ' . $e->getMessage());
+    }
+}
+
 // Mismas etiquetas que ETAPAS_CLIENTE_ADMIN en admin_vendedor_detalle.js /
 // ETAPAS_CLIENTE en vendedor.js -- duplicado a propósito (mismo criterio que
 // esos dos archivos, ver su comentario), solo para armar el texto legible
