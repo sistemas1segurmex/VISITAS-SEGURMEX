@@ -131,9 +131,26 @@ function fechaParaDia(dia) {
   return d.toISOString().slice(0, 10);
 }
 
-async function cargarCitas(dia = 'hoy') {
+// Día que se está viendo en Inicio (hoy/mañana), para recargar ese mismo
+// después de cancelar o reprogramar. citasPorId guarda las filas de
+// api/citas.php para abrir la hoja de reprogramar sin volver a pedirlas.
+let diaCitasActual = 'hoy';
+const citasPorId = {};
+
+// Hora anterior a la última reprogramación (viene de la bitácora como
+// "YYYY-MM-DD HH:MM"); si cambió de día se antepone el día.
+function horaAnteriorReprog(c) {
+  if (!c.fecha_anterior) return '';
+  const hora = horaCorta(c.fecha_anterior);
+  if (c.fecha_anterior.slice(0, 10) === c.fecha_hora.slice(0, 10)) return hora;
+  const d = new Date(c.fecha_anterior.slice(0, 10) + 'T00:00');
+  return d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' }).replace(/./g, '') + ' · ' + hora;
+}
+
+async function cargarCitas(dia = diaCitasActual) {
   const cont = document.getElementById('lista-citas');
   if (!cont) return;
+  diaCitasActual = dia;
   const esManana = dia === 'manana';
   cont.innerHTML = skeletonCitas();
   try {
@@ -185,19 +202,28 @@ async function cargarCitas(dia = 'hoy') {
     const dotClase = c => c.retrasada ? 'retrasada' : c.estado;
     const esUrgente = c => !esManana && (c.retrasada || (c.tiene_entrada > 0 && c.tiene_salida == 0 && c.estado !== 'no_realizada' && c.estado !== 'cancelada'));
     const sinAccion = c => c.estado === 'cancelada';
+    const reprogs = c => Number(c.reprogramaciones || 0);
+    const topeReprog = typeof REPROG_MAX !== "undefined" ? REPROG_MAX : 3;
+    data.citas.forEach(c => { citasPorId[c.id] = c; });
     cont.innerHTML = data.citas.map(c => `
-      <div class="v26-cita ${c.estado === 'cancelada' ? 'v26-cita--cancelada' : ''}">
+      <div class="v26-cita ${c.estado === 'cancelada' ? 'v26-cita--cancelada' : ''} ${c.estado === 'pendiente' ? 'v26-cita--con-barra' : ''}">
         <span class="v26-timeline-dot ${dotClase(c)}"></span>
         <div class="info">
           <div class="cliente">${c.cliente_nombre}</div>
           <div class="direccion">${c.direccion}</div>
-          <div class="hora"><i class="bi bi-clock"></i> ${horaCorta(c.fecha_hora)}</div>
-          <div class="badges">${badgeEstado(c)} ${badgeVerificado(c)}</div>
+          <div class="hora"><i class="bi bi-clock"></i> ${c.fecha_anterior ? `<span class="v26-hora-anterior">${horaAnteriorReprog(c)}</span> ` : ''}${horaCorta(c.fecha_hora)}</div>
+          <div class="badges">${badgeEstado(c)} ${badgeVerificado(c)} ${reprogs(c) ? `<span class="v26-pill v26-pill--reprogramada"><i class="bi bi-arrow-repeat"></i> Reprogramada ${reprogs(c)}/${topeReprog}</span>` : ''}</div>
+          ${c.motivo_reprogramacion && c.estado === 'pendiente' ? `<div class="v26-motivo"><i class="bi bi-arrow-repeat"></i> "${c.motivo_reprogramacion}"</div>` : ''}
           ${c.motivo ? `<div class="v26-motivo">"${c.motivo}"</div>` : ''}
           ${c.notas ? `<div class="v26-motivo"><i class="bi bi-sticky"></i> ${c.notas}</div>` : ''}
-          ${c.estado === 'pendiente' ? `<button type="button" class="v26-link-cancelar" data-cancelar="${c.id}" data-nombre="${(c.cliente_nombre || '').replace(/"/g, '&quot;')}">Cancelar cita</button>` : ''}
         </div>
         ${sinAccion(c) ? '' : `<a href="checkin.php?cita_id=${c.id}" class="accion v26-tip ${esUrgente(c) ? 'urgente' : ''} ${accionClase(c)}" data-tip="${accionTip(c)}" aria-label="${accionTip(c)}"><i class="bi ${accionIcono(c)}"></i></a>`}
+        ${c.estado === 'pendiente' ? `<div class="v26-cita-barra">
+          ${reprogs(c) < topeReprog
+            ? `<button type="button" class="reprogramar" data-reprogramar="${c.id}"><i class="bi bi-calendar-plus"></i> Reprogramar</button>`
+            : '<button type="button" disabled><i class="bi bi-lock"></i> Límite alcanzado</button>'}
+          <button type="button" class="cancelar" data-cancelar="${c.id}" data-nombre="${(c.cliente_nombre || '').replace(/"/g, '&quot;')}"><i class="bi bi-x-circle"></i> Cancelar cita</button>
+        </div>` : ''}
       </div>
     `).join('');
   } catch (e) {
@@ -239,6 +265,10 @@ async function cancelarCita(id, nombre) {
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-cancelar]');
   if (btn) cancelarCita(btn.dataset.cancelar, btn.dataset.nombre);
+  const rep = e.target.closest('[data-reprogramar]');
+  if (rep && citasPorId[rep.dataset.reprogramar] && typeof reprogramarCita === 'function') {
+    reprogramarCita(citasPorId[rep.dataset.reprogramar], () => cargarCitas());
+  }
 });
 
 // ---------------------------------------------------------------------

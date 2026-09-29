@@ -14,6 +14,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     jsonResponse(['ok' => false, 'error' => 'Método no soportado'], 405);
 }
 
+marcarCitasVencidas($db);
+
 $inicio = $_GET['start'] ?? date('Y-m-01');
 $fin    = $_GET['end'] ?? date('Y-m-t');
 // FullCalendar puede mandar fechas con hora (ISO); nos quedamos solo con la parte de fecha.

@@ -27,6 +27,10 @@ if (!$vendedor) {
     jsonResponse(['ok' => false, 'error' => 'Vendedor no encontrado'], 404);
 }
 
+if ($accion === 'citas_proximas' || $accion === 'citas_todas') {
+    marcarCitasVencidas($db);
+}
+
 if ($accion === 'resumen') {
     // "Clientes" = ya convertidos (mismo filtro que la pestaña Clientes en
     // admin_vendedor_detalle.js); "Prospectos" = el resto del embudo, mismo
