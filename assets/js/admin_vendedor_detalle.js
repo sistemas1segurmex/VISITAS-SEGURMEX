@@ -12,7 +12,8 @@ function badgeVerificado(v, correccion) {
   if (v === null || v === undefined) return '<span class="text-muted small">Sin check-in</span>';
   // La entrada corrigió el pin del cliente (ver admin/ubicaciones.php).
   if (v == 1 && correccion === 'por_revisar') return '<span class="v26-pill v26-pill--pendiente">Ubicación por revisar</span>';
-  if (v == 1 && correccion) return '<span class="v26-pill v26-pill--verificado">Ubicación corregida</span>';
+  if (v == 1 && correccion === 'aprobada') return '<span class="v26-pill v26-pill--verificado">Ubicación corregida por admin</span>';
+  if (v == 1 && correccion) return '<span class="v26-pill v26-pill--verificado">Ubicación corregida por la app</span>';
   return v == 1
     ? '<span class="v26-pill v26-pill--verificado">GPS verificado</span>'
     : '<span class="v26-pill v26-pill--noverificado">Fuera de zona</span>';
