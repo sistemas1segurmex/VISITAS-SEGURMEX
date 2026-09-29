@@ -112,7 +112,7 @@ if ($tipo === 'entrada' && !$noShow && $verificado === 0 && $distancia !== null
         $lejos = $distancia > CORRECCION_DIRECTA_MAX_M;
         $correccion = [
             'estado' => $lejos ? 'por_revisar' : 'aplicada',
-            'nota'   => $lejos ? 'El pin anterior estaba a más de ' . (CORRECCION_DIRECTA_MAX_M / 1000) . ' km' : null,
+            'nota'   => $lejos ? 'La ubicación registrada estaba a más de ' . (CORRECCION_DIRECTA_MAX_M / 1000) . ' km' : null,
         ];
         $verificado = 1;
     }
