@@ -90,11 +90,11 @@ async function cargar() {
           <strong>${esc(c.cliente_nombre)}</strong> <span class="v26-pill ${clase}" style="margin-left:6px;">${texto}</span>
           <div class="linea">${esc(c.direccion)}</div>
           <div class="linea"><i class="bi bi-person"></i> ${esc(c.vendedor_nombre)} · ${formatearFechaUTC(c.creado_en)}</div>
-          <div class="linea"><i class="bi bi-arrows-move"></i> El pin anterior estaba a <b>${metros(c.distancia_metros)}</b> · GPS del vendedor ±${Math.round(c.accuracy)} m</div>
-          ${c.nota ? `<div class="linea text-danger"><i class="bi bi-exclamation-triangle"></i> ${esc(c.nota)}</div>` : ''}
+          <div class="linea"><i class="bi bi-arrows-move"></i> La ubicación registrada estaba a <b>${metros(c.distancia_metros)}</b> · GPS del vendedor ±${Math.round(c.accuracy)} m</div>
+          ${c.nota ? `<div class="linea text-danger"><i class="bi bi-exclamation-triangle"></i> ${esc(c.nota.replace(/^El pin anterior/, 'La ubicación registrada'))}</div>` : ''}
           ${c.revisado_por_nombre ? `<div class="linea">Revisó: ${esc(c.revisado_por_nombre)} · ${formatearFechaUTC(c.revisado_en)}</div>` : ''}
           <div class="corr-acciones">
-            <a class="v26-btn v26-btn-ghost" href="${mapa(c.lat_anterior, c.lng_anterior)}" target="_blank" rel="noopener"><i class="bi bi-geo"></i> Pin anterior</a>
+            <a class="v26-btn v26-btn-ghost" href="${mapa(c.lat_anterior, c.lng_anterior)}" target="_blank" rel="noopener"><i class="bi bi-geo"></i> Ubicación registrada</a>
             <a class="v26-btn v26-btn-ghost" href="${mapa(c.lat_nueva, c.lng_nueva)}" target="_blank" rel="noopener"><i class="bi bi-geo-alt-fill"></i> Donde estaba el vendedor</a>
             ${revisable ? `
               <button type="button" class="v26-btn v26-btn-primary" data-accion="aprobar" data-id="${c.id}"><i class="bi bi-check-lg"></i> Aprobar</button>
@@ -109,7 +109,7 @@ document.getElementById('lista').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-accion]');
   if (!btn) return;
   const accion = btn.dataset.accion;
-  if (accion === 'revertir' && !confirm('¿Revertir? El cliente regresa al pin anterior y esa visita queda "Fuera de zona".')) return;
+  if (accion === 'revertir' && !confirm('¿Revertir? El cliente regresa a la ubicación registrada y esa visita queda "Fuera de zona".')) return;
   btn.disabled = true;
   const fd = new FormData();
   fd.append('action', accion);
