@@ -570,52 +570,156 @@ async function cargarCitasHoy() {
   }
 }
 
-// Clasificación de alertas en 2 pestañas — el dato base (a.tipo) ya viene de
-// la BD; esta agrupación es una convención nuestra, no algo definido antes:
-//   Críticas    → fuera_de_zona, sin_actividad (algo urgente, requiere acción ya)
-//   Sin solución → retraso, sin_checkin (para dar seguimiento, menos urgente)
-// Pestañas ocultas por mientras (ver "d-none" en admin/index.php) -- la
-// lista se muestra completa, sin filtrar. Para reactivarlas: quitar el
-// "d-none" del HTML y regresar MOSTRAR_TABS_ALERTAS a true.
-const TIPOS_ALERTA_CRITICAS = ['fuera_de_zona', 'sin_actividad'];
-const MOSTRAR_TABS_ALERTAS = false;
+// ---------------------------------------------------------------------
+// Alertas (recuadro derecho) -- rediseño etapa 1, 30-sep-2026. El servidor
+// (includes/alertas.php) genera las alertas, les pone prioridad y cierra
+// solas las que ya no aplican; aquí solo se filtran, se agrupan por
+// vendedor y se les ponen botones según el tipo.
+// ---------------------------------------------------------------------
+const ICONO_ALERTA = {
+  ubicacion_por_revisar: 'bi-geo-alt-fill',
+  visita_sin_cerrar: 'bi-door-open',
+  fuera_de_zona: 'bi-bullseye',
+  sin_gps: 'bi-reception-0',
+  visita_corta: 'bi-stopwatch',
+  interesado_sin_cotizacion: 'bi-star-fill',
+  reprogramaciones: 'bi-arrow-left-right',
+  cita_perdida: 'bi-calendar-x',
+  sin_seguimiento: 'bi-arrow-repeat',
+  sin_actividad: 'bi-person-dash',
+};
+const ORDEN_PRIORIDAD = { crit: 0, warn: 1, info: 2 };
+const ETIQUETA_PRIORIDAD = { crit: 'atender', warn: 'revisar', info: 'info' };
 
 let alertasCache = [];
-let tabAlertaActiva = 'criticas';
+let alertasSolasCache = [];
+let filtroAlertas = 'todas';
+let vistaAlertas = 'grupo';
+const gruposAlertaCerrados = new Set(); // vendedor_id que el admin plegó (se respeta en cada refresco)
 
-function cambiarTabAlertas(tab) {
-  tabAlertaActiva = tab;
-  document.querySelectorAll('.v26-alert-tab').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === tab);
-  });
-  renderizarAlertas();
+function urlDetalleVendedor(a, tab) {
+  const extra = tab === 'prospeccion' ? `&dia=${encodeURIComponent(a.dia)}` : '';
+  return `vendedor_detalle.php?id=${a.vendedor_id}&tab=${tab}${extra}`;
+}
+
+function botonesAlerta(a) {
+  const b = [];
+  const link = (texto, href, prim) => `<a class="v26-al-btn${prim ? ' prim' : ''}" href="${href}">${texto}</a>`;
+  const foto = (id, etiqueta, prim) => `<button type="button" class="v26-al-btn${prim ? ' prim' : ''}" data-foto-alerta="${id}" data-foto-titulo="${escapeAttr(`Foto de ${etiqueta} — ${a.cliente_nombre || ''}`)}">Ver foto de ${etiqueta}</button>`;
+  switch (a.tipo) {
+    case 'ubicacion_por_revisar':
+      if (a.correccion_id) {
+        b.push(`<button type="button" class="v26-al-btn prim" data-ubicacion="aprobar" data-correccion="${a.correccion_id}">Aprobar ubicación</button>`);
+        b.push(`<button type="button" class="v26-al-btn peligro" data-ubicacion="revertir" data-correccion="${a.correccion_id}">Revertir</button>`);
+      }
+      b.push(link('Ver en Ubicaciones', 'ubicaciones.php'));
+      break;
+    case 'fuera_de_zona':
+      if (a.foto_entrada_id) b.push(foto(a.foto_entrada_id, 'entrada', true));
+      b.push(link('Ver recorrido', urlDetalleVendedor(a, 'prospeccion')));
+      break;
+    case 'visita_corta':
+      if (a.foto_entrada_id) b.push(foto(a.foto_entrada_id, 'entrada', true));
+      if (a.foto_salida_id) b.push(foto(a.foto_salida_id, 'salida'));
+      b.push(link('Ver cita', urlDetalleVendedor(a, 'todas')));
+      break;
+    case 'visita_sin_cerrar':
+    case 'cita_perdida':
+    case 'reprogramaciones':
+      b.push(link('Ver cita', urlDetalleVendedor(a, 'todas'), true));
+      if (a.tipo === 'visita_sin_cerrar') b.push(link('Ver recorrido', urlDetalleVendedor(a, 'prospeccion')));
+      break;
+    case 'sin_gps':
+    case 'sin_actividad':
+      b.push(link('Ver su día', urlDetalleVendedor(a, 'prospeccion'), true));
+      break;
+    case 'interesado_sin_cotizacion':
+    case 'sin_seguimiento':
+      b.push(link('Ver clientes', urlDetalleVendedor(a, 'clientes'), true));
+      break;
+  }
+  return b.join('');
+}
+
+function tarjetaAlerta(a, conVendedor) {
+  const icono = ICONO_ALERTA[a.tipo] || 'bi-exclamation-circle';
+  return `
+    <div class="v26-al-item ${a.prioridad}">
+      <span class="v26-al-ico"><i class="bi ${icono}"></i></span>
+      <div class="v26-al-txt">
+        <div class="v26-al-tipo">${a.titulo}</div>
+        ${a.cliente_nombre ? `<div class="v26-al-tit">${a.cliente_nombre}</div>` : ''}
+        ${conVendedor ? `<div class="v26-al-vend">${a.vendedor_nombre}</div>` : ''}
+        <div class="v26-al-det">${a.mensaje}</div>
+        <div class="v26-al-acciones">${botonesAlerta(a)}</div>
+        <div class="v26-al-pie">
+          <span>${formatearFechaUTC(a.created_at)}</span>
+          <button type="button" class="v26-al-resolver" data-resolver="${a.id}">Marcar resuelta</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderizarAlertas() {
   const cont = document.getElementById('lista-alertas');
-  const filtradas = !MOSTRAR_TABS_ALERTAS ? alertasCache : alertasCache.filter(a =>
-    tabAlertaActiva === 'criticas'
-      ? TIPOS_ALERTA_CRITICAS.includes(a.tipo)
-      : !TIPOS_ALERTA_CRITICAS.includes(a.tipo)
-  );
+  const cuenta = (p) => alertasCache.filter(a => a.prioridad === p).length;
+  ['crit', 'warn', 'info'].forEach(p => { document.getElementById(`alertas-n-${p}`).textContent = cuenta(p); });
+  document.getElementById('alertas-n-todas').textContent = alertasCache.length;
+  document.querySelectorAll('.v26-al-filtros .opt').forEach(b => b.classList.toggle('active', b.dataset.filtro === filtroAlertas));
+  document.querySelectorAll('.v26-al-vista .opt').forEach(b => b.classList.toggle('active', b.dataset.vista === vistaAlertas));
 
-  const nCriticas = alertasCache.filter(a => TIPOS_ALERTA_CRITICAS.includes(a.tipo)).length;
-  const nSeguimiento = alertasCache.length - nCriticas;
-  const elCriticas = document.getElementById('conteo-tab-criticas');
-  const elSeguimiento = document.getElementById('conteo-tab-seguimiento');
-  if (elCriticas) elCriticas.textContent = nCriticas ? `(${nCriticas})` : '';
-  if (elSeguimiento) elSeguimiento.textContent = nSeguimiento ? `(${nSeguimiento})` : '';
+  const visibles = alertasCache
+    .filter(a => filtroAlertas === 'todas' || a.prioridad === filtroAlertas)
+    .sort((x, y) => ORDEN_PRIORIDAD[x.prioridad] - ORDEN_PRIORIDAD[y.prioridad]);
 
-  if (filtradas.length === 0) {
-    cont.innerHTML = '<p class="text-muted small mb-0">Sin alertas por ahora.</p>';
-    return;
+  if (visibles.length === 0) {
+    cont.innerHTML = `<p class="text-muted small mb-0">${alertasCache.length ? 'No hay alertas con este filtro.' : 'Sin alertas por ahora.'}</p>`;
+  } else if (vistaAlertas === 'lista') {
+    cont.innerHTML = `<div class="v26-al-grupo"><div class="v26-al-cuerpo">${visibles.map(a => tarjetaAlerta(a, true)).join('')}</div></div>`;
+  } else {
+    const grupos = new Map();
+    visibles.forEach(a => {
+      if (!grupos.has(a.vendedor_id)) grupos.set(a.vendedor_id, []);
+      grupos.get(a.vendedor_id).push(a);
+    });
+    const peor = (lista) => Math.min(...lista.map(a => ORDEN_PRIORIDAD[a.prioridad]));
+    const ordenados = [...grupos.entries()].sort((x, y) => peor(x[1]) - peor(y[1]) || y[1].length - x[1].length);
+    cont.innerHTML = ordenados.map(([vid, lista]) => {
+      const v = lista[0];
+      const chips = ['crit', 'warn', 'info'].map(p => {
+        const n = lista.filter(a => a.prioridad === p).length;
+        return n ? `<span class="v26-al-chip ${p}">${n} ${ETIQUETA_PRIORIDAD[p]}</span>` : '';
+      }).join('');
+      // Misma ruta de foto que las tarjetas de visitas (ver tarjetaVisita).
+      const avatar = v.vendedor_foto
+        ? `<img class="v26-al-avatar" src="../${v.vendedor_foto}" alt="">`
+        : `<span class="v26-al-avatar">${inicialesAlerta(v.vendedor_nombre)}</span>`;
+      return `
+        <details class="v26-al-grupo" data-vendedor="${vid}" ${gruposAlertaCerrados.has(String(vid)) ? '' : 'open'}>
+          <summary>
+            ${avatar}
+            <span class="v26-al-quien"><b>${v.vendedor_nombre}</b><span>${lista.length} alerta${lista.length === 1 ? '' : 's'}</span></span>
+            <span class="v26-al-chips">${chips}</span>
+            <i class="bi bi-chevron-down v26-al-flecha"></i>
+          </summary>
+          <div class="v26-al-cuerpo">${lista.map(a => tarjetaAlerta(a, false)).join('')}</div>
+        </details>`;
+    }).join('');
   }
-  cont.innerHTML = filtradas.map(a => `
-    <div class="alert alert-warning py-2 d-flex justify-content-between align-items-start">
-      <div><strong>${a.vendedor_nombre}</strong> — ${a.mensaje}<br><span class="text-muted small">${formatearFechaUTC(a.created_at)}</span></div>
-      <button class="btn btn-sm btn-outline-secondary" onclick="resolverAlerta(${a.id})">Marcar vista</button>
-    </div>
-  `).join('');
+
+  const solasWrap = document.getElementById('alertas-solas-wrap');
+  solasWrap.hidden = alertasSolasCache.length === 0;
+  document.getElementById('alertas-n-solas').textContent = alertasSolasCache.length;
+  document.getElementById('alertas-solas').innerHTML = alertasSolasCache.map(s => `
+    <div class="v26-al-sola">
+      <div><b>${s.titulo}${s.cliente_nombre ? ' · ' + s.cliente_nombre : ''}</b>
+        <span>${s.vendedor_nombre}: ${s.mensaje}</span></div>
+    </div>`).join('');
+}
+
+function inicialesAlerta(nombre) {
+  const partes = String(nombre || '?').trim().split(/\s+/);
+  return ((partes[0] || '?')[0] + (partes[1] ? partes[1][0] : '')).toUpperCase();
 }
 
 async function cargarAlertas() {
@@ -623,7 +727,10 @@ async function cargarAlertas() {
     const res = await fetch('../api/alertas.php');
     const data = await res.json();
     if (!data.ok) return;
-    alertasCache = data.alertas;
+    alertasCache = data.alertas || [];
+    alertasSolasCache = data.resueltas_solas || [];
+    const rev = document.getElementById('alertas-revisadas');
+    if (rev) rev.innerHTML = `<span class="dot"></span> Revisadas a las ${new Date().toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })}`;
     renderizarAlertas();
   } catch (e) { /* silencioso */ }
 }
@@ -634,6 +741,50 @@ async function resolverAlerta(id) {
   await fetch('../api/alertas.php', { method: 'POST', body: fd });
   cargarAlertas();
 }
+
+// Aprobar / revertir la corrección de ubicación desde la misma alerta (misma
+// API que admin/ubicaciones.php); la alerta se cierra sola en la siguiente
+// revisión del servidor, aquí se quita de una vez para que se note.
+async function accionUbicacionAlerta(accion, correccionId, btn) {
+  if (accion === 'revertir' && !confirm('¿Revertir? El cliente regresa a la ubicación registrada y esa visita queda "Fuera de zona".')) return;
+  btn.disabled = true;
+  const fd = new FormData();
+  fd.append('action', accion);
+  fd.append('id', correccionId);
+  try {
+    const res = await fetch('../api/admin_ubicaciones.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.ok) { alert(data.error || 'No se pudo guardar.'); btn.disabled = false; return; }
+    alertasCache = alertasCache.filter(a => String(a.correccion_id) !== String(correccionId));
+    renderizarAlertas();
+    cargarAlertas();
+  } catch (e) {
+    alert('No se pudo guardar. Revisa tu conexión.');
+    btn.disabled = false;
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const filtro = e.target.closest('[data-filtro]');
+  if (filtro && filtro.closest('.v26-al')) { filtroAlertas = filtro.dataset.filtro; renderizarAlertas(); return; }
+  const vista = e.target.closest('.v26-al-vista [data-vista]');
+  if (vista) { vistaAlertas = vista.dataset.vista; renderizarAlertas(); return; }
+  const res = e.target.closest('[data-resolver]');
+  if (res) { res.disabled = true; resolverAlerta(res.dataset.resolver); return; }
+  const ubi = e.target.closest('[data-ubicacion]');
+  if (ubi) { accionUbicacionAlerta(ubi.dataset.ubicacion, ubi.dataset.correccion, ubi); return; }
+  const foto = e.target.closest('[data-foto-alerta]');
+  if (foto) { verFoto(`../api/foto.php?checkin_id=${foto.dataset.fotoAlerta}`, foto.dataset.fotoTitulo); }
+});
+
+// Recordar qué grupos plegó el admin, para que el refresco de cada 20 s no
+// los vuelva a abrir.
+document.addEventListener('toggle', (e) => {
+  const g = e.target;
+  if (!g.classList || !g.classList.contains('v26-al-grupo') || !g.dataset.vendedor) return;
+  if (g.open) gruposAlertaCerrados.delete(g.dataset.vendedor);
+  else gruposAlertaCerrados.add(g.dataset.vendedor);
+}, true);
 
 function refrescarTodo() {
   actualizarUbicaciones();
