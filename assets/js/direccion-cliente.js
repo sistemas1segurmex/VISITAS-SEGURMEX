@@ -699,18 +699,9 @@ window.DireccionCliente = (function () {
     calleEditadaAMano = campoCalle.value.trim() !== '';
 
     mapa = L.map('mapa-cliente').setView([23.6345, -102.5528], 5); // centro de México por defecto
-    // Mapa normal (OpenStreetMap) y satélite (Esri, gratis y sin clave). El
-    // satélite sirve para ubicar la nave/local cuando la calle no tiene
-    // nombre en el mapa (carreteras, parques industriales).
-    const capaMapa = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 });
-    const esri = (servicio) => `https://server.arcgisonline.com/ArcGIS/rest/services/${servicio}/MapServer/tile/{z}/{y}/{x}`;
-    const capaSatelite = L.layerGroup([
-      L.tileLayer(esri('World_Imagery'), { attribution: 'Imágenes © Esri, Maxar, Earthstar Geographics', maxZoom: 19 }),
-      L.tileLayer(esri('Reference/World_Transportation'), { maxZoom: 19, opacity: .8 }),
-      L.tileLayer(esri('Reference/World_Boundaries_and_Places'), { maxZoom: 19 }),
-    ]);
-    capaMapa.addTo(mapa);
-    L.control.layers({ 'Mapa': capaMapa, 'Satélite': capaSatelite }, null, { position: 'topright', collapsed: false }).addTo(mapa);
+    // Mapa normal / satélite (Esri): mismas capas que el resto de los mapas,
+    // ver assets/js/capas_mapa.js.
+    agregarCapasBase(mapa);
     mapa.on('click', (e) => ponerMarcador(e.latlng.lat, e.latlng.lng));
 
     campoCalle.addEventListener('input', () => { calleEditadaAMano = campoCalle.value.trim() !== ''; });

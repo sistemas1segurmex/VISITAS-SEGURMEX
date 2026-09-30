@@ -724,10 +724,7 @@ function renderMapaParadas(paradas) {
   // reutiliza un div que ya "invalidó" al reemplazar innerHTML.
   if (mapaParadasDia) { mapaParadasDia.remove(); mapaParadasDia = null; }
   mapaParadasDia = L.map('mapa-paradas-dia', { zoomControl: true, scrollWheelZoom: true });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap',
-    maxZoom: 19,
-  }).addTo(mapaParadasDia);
+  agregarCapasBase(mapaParadasDia); // Mapa / Satélite, ver assets/js/capas_mapa.js
 
   const pinIcon = (num) => L.divIcon({
     className: '',

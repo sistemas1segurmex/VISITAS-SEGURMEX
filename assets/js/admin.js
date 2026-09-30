@@ -8,13 +8,8 @@ let filtroVendedorMapaId = 0;       // 0 = todos los vendedores
 
 function initMapa() {
   mapa = L.map('mapa', { zoomControl: true }).setView([23.6345, -102.5528], 5);
-  // CARTO empezó a exigir API key en su CDN de mapas base (antes era libre);
-  // se cambia a los tiles de OpenStreetMap, gratis y sin key -- mismos que ya
-  // usa el lado del vendedor (nuevo_cliente.php, editar_cliente.php).
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-  }).addTo(mapa);
+  // Mapa (OpenStreetMap) / Satélite (Esri) -- ver assets/js/capas_mapa.js.
+  agregarCapasBase(mapa);
   capaRutas = L.layerGroup().addTo(mapa);
 }
 
