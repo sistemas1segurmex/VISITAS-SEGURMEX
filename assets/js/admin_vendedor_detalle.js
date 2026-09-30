@@ -625,7 +625,7 @@ function bitacoraParadasHtml(data) {
       ? `<strong>${p.cliente.nombre}</strong>`
       : `<span class="text-muted">${etiquetaParadaSinCliente(i)}</span>`;
     return `
-      <div class="v26-parada-item">
+      <div class="v26-parada-item" data-parada-idx="${i}" style="cursor:pointer" title="Ver en el mapa">
         <span class="v26-parada-num">${i + 1}</span>
         <div>
           <div>${nombre}${p.cliente ? '' : ` <span class="text-muted small" data-direccion-parada="${i}"><i class="bi bi-geo-alt"></i> buscando ubicación…</span>`}</div>
@@ -715,6 +715,23 @@ function renderMapaParadas(paradas) {
   } else {
     mapaParadasDia.fitBounds(puntos, { padding: [30, 30] });
   }
+
+  // Zoom con la rueda del mouse solo después de dar clic en el mapa (y se
+  // apaga al salir), para no secuestrar el scroll de la página al pasar
+  // por encima. Los botones + / - y el doble clic funcionan siempre.
+  mapaParadasDia.on('click', () => mapaParadasDia.scrollWheelZoom.enable());
+  cont.addEventListener('mouseleave', () => { if (mapaParadasDia) mapaParadasDia.scrollWheelZoom.disable(); });
+
+  // Clic en una parada de la lista: acerca el mapa a ese pin y abre su globo.
+  document.querySelectorAll('.v26-parada-item[data-parada-idx]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const m = marcadoresParadasDia[Number(el.dataset.paradaIdx)];
+      if (!m || !mapaParadasDia) return;
+      mapaParadasDia.flyTo(m.getLatLng(), 17, { duration: 0.6 });
+      m.openPopup();
+      cont.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
 }
 
 // Vista "Día": aquí sí se ve el detalle completo (citas, jornada de
