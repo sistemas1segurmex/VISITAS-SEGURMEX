@@ -152,6 +152,7 @@ $hoy = date('Y-m-d');
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="../assets/js/estados_mx.js<?= assetVer(__DIR__ . '/../assets/js/estados_mx.js') ?>"></script>
 <script src="../assets/js/fecha_utils.js<?= assetVer(__DIR__ . '/../assets/js/fecha_utils.js') ?>"></script>
+<script src="../assets/js/capas_mapa.js<?= assetVer(__DIR__ . '/../assets/js/capas_mapa.js') ?>"></script>
 <script src="../assets/js/admin.js<?= assetVer(__DIR__ . '/../assets/js/admin.js') ?>"></script>
 <script src="../assets/js/admin_mapa_estados.js<?= assetVer(__DIR__ . '/../assets/js/admin_mapa_estados.js') ?>"></script>
 <script>
