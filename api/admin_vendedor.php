@@ -78,11 +78,22 @@ if ($accion === 'resumen') {
     ]);
 }
 
+// Hora, distancia y verificación de la entrada/salida de cada cita, para
+// las líneas "Entrada 10:09 a.m. · GPS verificado" / "Visita de 36 min"
+// del detalle del vendedor (mismas columnas que api/citas.php).
+$sqlLineasCheckin = "
+                (SELECT fecha_hora FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS entrada_fecha_hora,
+                (SELECT distancia_metros FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS entrada_distancia_metros,
+                (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado_salida,
+                (SELECT fecha_hora FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' ORDER BY ch.id DESC LIMIT 1) AS salida_fecha_hora,
+                (SELECT distancia_metros FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' ORDER BY ch.id DESC LIMIT 1) AS salida_distancia_metros,";
+
 if ($accion === 'citas_proximas') {
     $stmt = $db->prepare(
         "SELECT c.id, c.fecha_hora, c.estado, c.notas, c.interes, cl.nombre AS cliente_nombre, cl.direccion,
                 (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado,
                 (SELECT cu.estado FROM correcciones_ubicacion cu JOIN checkins ch ON ch.id = cu.checkin_id WHERE ch.cita_id = c.id ORDER BY cu.id DESC LIMIT 1) AS checkin_correccion,
+                " . $sqlLineasCheckin . "
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_entrada_id,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_salida_id
          FROM citas c JOIN clientes cl ON cl.id = c.cliente_id
@@ -98,6 +109,7 @@ if ($accion === 'citas_todas') {
         "SELECT c.id, c.fecha_hora, c.estado, c.notas, c.interes, cl.nombre AS cliente_nombre, cl.direccion,
                 (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado,
                 (SELECT cu.estado FROM correcciones_ubicacion cu JOIN checkins ch ON ch.id = cu.checkin_id WHERE ch.cita_id = c.id ORDER BY cu.id DESC LIMIT 1) AS checkin_correccion,
+                " . $sqlLineasCheckin . "
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_entrada_id,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_salida_id
          FROM citas c JOIN clientes cl ON cl.id = c.cliente_id

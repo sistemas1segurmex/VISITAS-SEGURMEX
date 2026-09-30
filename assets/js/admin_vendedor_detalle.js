@@ -8,17 +8,6 @@ function badgeEstado(estado) {
   return `<span class="v26-pill v26-pill--${estado}">${map[estado] || estado}</span>`;
 }
 
-function badgeVerificado(v, correccion) {
-  if (v === null || v === undefined) return '<span class="text-muted small">Sin check-in</span>';
-  // La entrada corrigió el pin del cliente (ver admin/ubicaciones.php).
-  if (v == 1 && correccion === 'por_revisar') return '<span class="v26-pill v26-pill--pendiente">Ubicación por revisar</span>';
-  if (v == 1 && correccion === 'aprobada') return '<span class="v26-pill v26-pill--verificado">Ubicación corregida por admin</span>';
-  if (v == 1 && correccion) return '<span class="v26-pill v26-pill--verificado">Ubicación corregida por la app</span>';
-  return v == 1
-    ? '<span class="v26-pill v26-pill--verificado">GPS verificado</span>'
-    : '<span class="v26-pill v26-pill--noverificado">Fuera de zona</span>';
-}
-
 function iniciales(nombre) {
   const partes = String(nombre).trim().split(/\s+/).filter(Boolean);
   const letras = partes.length > 1 ? partes[0][0] + partes[1][0] : (partes[0] || '?').slice(0, 2);
@@ -227,6 +216,54 @@ document.addEventListener('click', (e) => {
   verFoto(btn.dataset.fotoUrl, btn.dataset.fotoTitulo);
 });
 
+// Líneas de entrada/salida y duración, igual que las tarjetas de citas del
+// panel general (lineaCheckin/lineaDuracion en assets/js/admin.js, que esta
+// página no carga). fecha_hora de checkins viene en UTC.
+const DURACION_MINIMA_SOSPECHOSA_SEG = 120;
+
+function textoEstadoCheckin(verificado, distancia, correccion) {
+  if (verificado == 1) {
+    if (correccion === 'por_revisar') return 'Ubicación por revisar';
+    if (correccion === 'aprobada') return 'Ubicación corregida por admin';
+    if (correccion) return 'Ubicación corregida por la app';
+    return 'GPS verificado';
+  }
+  return `Fuera de zona${distancia !== null && distancia !== undefined ? ' (' + Math.round(distancia) + ' m)' : ''}`;
+}
+
+function lineaCheckinCita(etiqueta, verificado, fechaHora, distancia, correccion) {
+  if (verificado === null || verificado === undefined) return '';
+  const hora = fechaHora ? horaLocalDesdeUTC(fechaHora) : '';
+  return `<div class="v26-checkin-linea"><span class="dot ${verificado == 1 ? 'ok' : 'no'}"></span> <b>${etiqueta}</b> ${hora} · ${textoEstadoCheckin(verificado, distancia, correccion)}</div>`;
+}
+
+function formatoDuracionVisita(segundos) {
+  if (segundos < 60) return `${Math.round(segundos)} seg`;
+  const minutos = Math.round(segundos / 60);
+  if (minutos < 60) return `${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  return `${horas} h${resto ? ' ' + resto + ' min' : ''}`;
+}
+
+function lineaDuracionCita(entrada, salida) {
+  if (!entrada || !salida) return '';
+  const aFecha = (s) => new Date(String(s).replace(' ', 'T') + (String(s).endsWith('Z') ? '' : 'Z'));
+  const segundos = (aFecha(salida) - aFecha(entrada)) / 1000;
+  if (isNaN(segundos) || segundos < 0) return '';
+  const corta = segundos < DURACION_MINIMA_SOSPECHOSA_SEG;
+  return `<div class="v26-duracion ${corta ? 'corta' : 'normal'}"><i class="bi ${corta ? 'bi-exclamation-triangle-fill' : 'bi-clock'}"></i> Visita de ${formatoDuracionVisita(segundos)}${corta ? ' -- revisar' : ''}</div>`;
+}
+
+function lineasCheckinCita(c) {
+  const partes = [
+    lineaCheckinCita('Entrada', c.checkin_verificado, c.entrada_fecha_hora, c.entrada_distancia_metros, c.checkin_correccion),
+    lineaCheckinCita('Salida', c.checkin_verificado_salida, c.salida_fecha_hora, c.salida_distancia_metros),
+    lineaDuracionCita(c.entrada_fecha_hora, c.salida_fecha_hora),
+  ].filter(Boolean);
+  return partes.length ? `<div class="v26-checkin-lineas">${partes.join('')}</div>` : '';
+}
+
 function tarjetaCita(c) {
   const f = partesFecha(c.fecha_hora);
   return `
@@ -237,14 +274,14 @@ function tarjetaCita(c) {
         <span class="hora">${f.hora}</span>
       </div>
       <div class="v26-cita-info">
-        <div class="cliente">${c.cliente_nombre}</div>
+        <div class="cliente">${c.cliente_nombre} ${pillInteresAdmin(c.interes)}</div>
         <div class="direccion"><i class="bi bi-geo-alt"></i> ${c.direccion || 'Sin dirección'}</div>
         ${c.notas ? `<div class="notas"><i class="bi bi-chat-left-text"></i> ${c.notas}</div>` : ''}
+        ${lineasCheckinCita(c)}
       </div>
       <div class="v26-cita-estado">
         ${badgeEstado(c.estado)}
-        ${badgeVerificado(c.checkin_verificado, c.checkin_correccion)}
-        ${pillInteresAdmin(c.interes)}
+        ${c.checkin_verificado == null ? '<span class="text-muted small">Sin check-in</span>' : ''}
       </div>
       <div class="v26-cita-fotos">
         ${fotosCita(c)}
