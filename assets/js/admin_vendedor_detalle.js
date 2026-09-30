@@ -686,7 +686,7 @@ function renderMapaParadas(paradas) {
   // nuevo en el DOM en cada llamada a renderDiaDetalle, y Leaflet no
   // reutiliza un div que ya "invalidó" al reemplazar innerHTML.
   if (mapaParadasDia) { mapaParadasDia.remove(); mapaParadasDia = null; }
-  mapaParadasDia = L.map('mapa-paradas-dia', { zoomControl: true, scrollWheelZoom: false });
+  mapaParadasDia = L.map('mapa-paradas-dia', { zoomControl: true, scrollWheelZoom: true });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap',
     maxZoom: 19,
@@ -716,11 +716,13 @@ function renderMapaParadas(paradas) {
     mapaParadasDia.fitBounds(puntos, { padding: [30, 30] });
   }
 
-  // Zoom con la rueda del mouse solo después de dar clic en el mapa (y se
-  // apaga al salir), para no secuestrar el scroll de la página al pasar
-  // por encima. Los botones + / - y el doble clic funcionan siempre.
-  mapaParadasDia.on('click', () => mapaParadasDia.scrollWheelZoom.enable());
-  cont.addEventListener('mouseleave', () => { if (mapaParadasDia) mapaParadasDia.scrollWheelZoom.disable(); });
+  // Con el mouse sobre el mapa la rueda siempre hace zoom y nunca mueve la
+  // página. Antes el zoom solo se activaba tras un clic y se apagaba al
+  // salir, y la rueda "de repente" movía la página (sin clic previo, al
+  // regresar al mapa, o encima del globo de un pin, donde Leaflet deja
+  // pasar el scroll). Fuera del mapa la página se mueve normal.
+  // En captura para que corra antes de que el globo corte el evento.
+  cont.addEventListener('wheel', (e) => e.preventDefault(), { passive: false, capture: true });
 
   // Clic en una parada de la lista: acerca el mapa a ese pin y abre su globo.
   document.querySelectorAll('.v26-parada-item[data-parada-idx]').forEach((el) => {
