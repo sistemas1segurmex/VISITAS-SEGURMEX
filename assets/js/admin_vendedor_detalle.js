@@ -928,3 +928,23 @@ document.getElementById('tab-clientes').addEventListener('shown.bs.tab', () => c
 document.getElementById('tab-prospectos').addEventListener('shown.bs.tab', () => cargarProspectos(), { once: true });
 document.getElementById('tab-prospeccion').addEventListener('shown.bs.tab', () => cargarVistaProspeccionActual(), { once: true });
 document.getElementById('tab-paradas').addEventListener('shown.bs.tab', () => cargarParadas(), { once: true });
+
+// Abrir directo una pestaña desde los botones de las alertas del panel
+// (assets/js/admin.js, botonesAlerta): ?tab=todas|clientes|prospectos|paradas|prospeccion
+// y, para "prospeccion", &dia=YYYY-MM-DD abre la vista de ese día.
+(function abrirPestanaDesdeUrl() {
+  const tab = params.get('tab');
+  const btn = tab ? document.getElementById(`tab-${tab}`) : null;
+  if (!btn || !window.bootstrap) return;
+  const dia = params.get('dia');
+  if (tab === 'prospeccion' && dia && /^\d{4}-\d{2}-\d{2}$/.test(dia)) {
+    const inputDia = document.getElementById('dia-prospeccion');
+    const optDia = document.querySelector('#vista-prospeccion-tabs .opt[data-vista="dia"]');
+    if (inputDia && optDia) {
+      inputDia.value = dia;
+      // El clic ya carga ese día; el "shown" de la pestaña vuelve a cargar la vista actual (la misma).
+      optDia.click();
+    }
+  }
+  bootstrap.Tab.getOrCreateInstance(btn).show();
+})();

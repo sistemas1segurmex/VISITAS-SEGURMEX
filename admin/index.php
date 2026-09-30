@@ -95,19 +95,36 @@ $hoy = date('Y-m-d');
         <div class="card-body" id="panel-estado"></div>
       </div>
 
-      <div class="card shadow-sm">
+      <!-- Alertas (rediseño etapa 1, ver includes/alertas.php y la sección
+           "Alertas" de assets/js/admin.js). -->
+      <div class="card shadow-sm v26-al">
         <div class="card-body">
-          <h6 class="mb-2">Alertas</h6>
-          <!-- Pestañas Críticas/Sin solución: ocultas por mientras (quitar "d-none" para reactivarlas). -->
-          <div class="v26-alert-tabs d-none">
-            <button type="button" class="v26-alert-tab criticas active" data-tab="criticas" onclick="cambiarTabAlertas('criticas')">
-              Críticas <span class="n" id="conteo-tab-criticas"></span>
-            </button>
-            <button type="button" class="v26-alert-tab" data-tab="seguimiento" onclick="cambiarTabAlertas('seguimiento')">
-              Sin solución <span class="n" id="conteo-tab-seguimiento"></span>
-            </button>
+          <div class="v26-al-cab">
+            <h6 class="mb-0">Alertas</h6>
+            <span class="v26-al-gen" id="alertas-revisadas"></span>
           </div>
-          <div id="lista-alertas"><p class="text-muted small">Cargando...</p></div>
+          <div class="v26-al-resumen">
+            <button type="button" class="v26-al-tile crit" data-filtro="crit"><b id="alertas-n-crit">0</b> Atender hoy</button>
+            <button type="button" class="v26-al-tile warn" data-filtro="warn"><b id="alertas-n-warn">0</b> Revisar</button>
+            <button type="button" class="v26-al-tile info" data-filtro="info"><b id="alertas-n-info">0</b> Info</button>
+          </div>
+          <div class="v26-al-controles">
+            <div class="v26-al-filtros" role="group" aria-label="Filtrar alertas por prioridad">
+              <button type="button" class="opt active" data-filtro="todas">Todas <span id="alertas-n-todas">0</span></button>
+              <button type="button" class="opt" data-filtro="crit">Atender</button>
+              <button type="button" class="opt" data-filtro="warn">Revisar</button>
+              <button type="button" class="opt" data-filtro="info">Info</button>
+            </div>
+            <div class="v26-al-vista" role="group" aria-label="Forma de ver las alertas">
+              <button type="button" class="opt active" data-vista="grupo">Por vendedor</button>
+              <button type="button" class="opt" data-vista="lista">Lista</button>
+            </div>
+          </div>
+          <div id="lista-alertas" class="v26-al-lista"><p class="text-muted small mb-0">Cargando...</p></div>
+          <details class="v26-al-solas" id="alertas-solas-wrap" hidden>
+            <summary><i class="bi bi-check-circle-fill"></i> Se resolvieron solas <span class="v26-al-chip ok" id="alertas-n-solas">0</span></summary>
+            <div id="alertas-solas"></div>
+          </details>
         </div>
       </div>
     </div>

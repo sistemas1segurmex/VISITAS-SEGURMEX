@@ -2,22 +2,16 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/alertas.php';
 
 $u  = requireRole('admin');
 $db = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    generarAlertasSinActividad($db);
-    generarAlertasSinSeguimiento($db);
-
-    $stmt = $db->query(
-        "SELECT a.*, u.nombre AS vendedor_nombre
-         FROM alertas a JOIN usuarios u ON u.id = a.vendedor_id
-         WHERE a.resuelta = 0
-         ORDER BY a.created_at DESC
-         LIMIT 50"
-    );
-    jsonResponse(['ok' => true, 'alertas' => $stmt->fetchAll()]);
+    // Genera las nuevas y cierra solas las que ya no aplican (como máximo
+    // cada minuto, ver revisarAlertas() en includes/alertas.php).
+    revisarAlertas($db);
+    jsonResponse(['ok' => true] + alertasParaPanel($db));
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -25,7 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$id) {
         jsonResponse(['ok' => false, 'error' => 'Id inválido'], 400);
     }
-    $db->prepare('UPDATE alertas SET resuelta = 1 WHERE id = ?')->execute([$id]);
+    // 1 = la marcó el admin (2 es "se resolvió sola", ver includes/alertas.php).
+    $db->prepare('UPDATE alertas SET resuelta = 1 WHERE id = ? AND resuelta = 0')->execute([$id]);
     jsonResponse(['ok' => true]);
 }
 
