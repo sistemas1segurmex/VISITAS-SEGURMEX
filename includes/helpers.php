@@ -210,6 +210,37 @@ define('HORAS_CITA_VENCIDA', 24);        // pendiente sin check-in pasado esto -
 define('LLAVE_MOTIVO_REPROGRAMACION', 'Motivo de reprogramación');
 define('MOTIVO_CITA_VENCIDA', 'Sin atender (automático)');
 
+// Alertas para el admin (tabla alertas, "tipo" es texto libre). Ver
+// api/reprogramar_cita.php y marcarCitasVencidas().
+define('ALERTA_REPROG_LIMITE', 'reprog_limite');           // llegó a MAX_REPROGRAMACIONES
+define('ALERTA_REPROG_POCO_AVISO', 'reprog_poco_aviso');   // se movió a menos de HORAS_AVISO_REPROGRAMACION de la cita
+define('ALERTA_NO_REALIZADA_AUTO', 'no_realizada_auto');   // pasó sola a no_realizada
+define('HORAS_AVISO_REPROGRAMACION', 2);
+// Al marcar citas vencidas solo se avisa al admin de las de los últimos días:
+// la primera vez que corre esto hay citas pendientes viejas (de meses) que
+// se cierran de golpe y no tiene caso llenar el panel de alertas con ellas.
+define('DIAS_ALERTA_NO_REALIZADA', 7);
+
+/** Inserta una alerta para el panel del admin; nunca truena el flujo. */
+function crearAlerta(PDO $db, int $vendedorId, ?int $citaId, string $tipo, string $mensaje): void {
+    try {
+        $db->prepare('INSERT INTO alertas (vendedor_id, cita_id, tipo, mensaje) VALUES (?, ?, ?, ?)')
+           ->execute([$vendedorId, $citaId, $tipo, mb_substr($mensaje, 0, 255)]);
+    } catch (Throwable $e) {
+        error_log('[VISITAS] crearAlerta: ' . $e->getMessage());
+    }
+}
+
+/** "jue 25 sep, 11:00 a.m." a partir de un citas.fecha_hora (hora local, sin convertir). */
+function fechaCitaCorta(string $fechaHora): string {
+    $dias  = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    $meses = ['', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    $ts = strtotime($fechaHora);
+    if ($ts === false) return $fechaHora;
+    return $dias[(int)date('w', $ts)] . ' ' . date('j', $ts) . ' ' . $meses[(int)date('n', $ts)] . ', '
+         . date('g:i', $ts) . ' ' . (date('G', $ts) < 12 ? 'a.m.' : 'p.m.');
+}
+
 /**
  * Columnas extra para un SELECT de citas (alias "c"): cuántas veces se ha
  * reprogramado, la fecha/hora que tenía antes de la última vez y el motivo
@@ -222,6 +253,32 @@ function sqlReprogramaciones(): string {
     return "(SELECT COUNT(*) FROM bitacora_cambios b WHERE $filtro) AS reprogramaciones,
             (SELECT b.cambios->'Fecha y hora'->>0 FROM bitacora_cambios b WHERE $filtro ORDER BY b.id DESC LIMIT 1) AS fecha_anterior,
             (SELECT b.cambios->'$llave'->>1 FROM bitacora_cambios b WHERE $filtro ORDER BY b.id DESC LIMIT 1) AS motivo_reprogramacion";
+}
+
+// ---------------------------------------------------------------------
+// Cancelar citas (api/cancelar_cita.php). Igual que las reprogramaciones,
+// lo extra de una cancelación NO vive en la tabla citas sino en la fila
+// 'baja' de la bitácora: LLAVE_TIPO_CANCELACION cuando el vendedor marca
+// "El cliente canceló" y LLAVE_EVIDENCIA_CANCELACION con la ruta de la foto
+// opcional (uploads/cancelaciones/...). Ver sqlCancelacion().
+// ---------------------------------------------------------------------
+define('LLAVE_TIPO_CANCELACION', 'Tipo de cancelación');
+define('LLAVE_EVIDENCIA_CANCELACION', 'Evidencia');
+define('CANCELACION_CLIENTE', 'El cliente canceló');
+define('DIR_EVIDENCIA_CANCELACION', 'uploads/cancelaciones');
+define('MAX_MB_EVIDENCIA_CANCELACION', 8);
+
+/**
+ * Columnas extra para un SELECT de citas (alias "c"): tipo_cancelacion
+ * ('El cliente canceló' o NULL) y evidencia_cancelacion (true si la
+ * cancelación trae foto, se ve con api/foto.php?cancelacion=ID).
+ */
+function sqlCancelacion(): string {
+    $tipo = LLAVE_TIPO_CANCELACION;
+    $evid = LLAVE_EVIDENCIA_CANCELACION;
+    $filtro = "b.entidad = 'cita' AND b.entidad_id = c.id AND b.accion = 'baja' AND c.estado = 'cancelada'";
+    return "(SELECT b.cambios->'$tipo'->>1 FROM bitacora_cambios b WHERE $filtro ORDER BY b.id DESC LIMIT 1) AS tipo_cancelacion,
+            COALESCE((SELECT b.cambios->'$evid'->>1 IS NOT NULL FROM bitacora_cambios b WHERE $filtro ORDER BY b.id DESC LIMIT 1), false) AS evidencia_cancelacion";
 }
 
 /**
@@ -244,15 +301,24 @@ function marcarCitasVencidas(PDO $db): void {
                AND c.estado = 'pendiente'
                AND c.fecha_hora < (NOW() AT TIME ZONE 'America/Mexico_City') - make_interval(hours => ?)
                AND NOT EXISTS (SELECT 1 FROM checkins ch WHERE ch.cita_id = c.id)
-             RETURNING c.id, c.vendedor_id, cl.nombre AS cliente_nombre"
+             RETURNING c.id, c.vendedor_id, c.fecha_hora, cl.nombre AS cliente_nombre"
         );
         $stmt->execute([MOTIVO_CITA_VENCIDA, HORAS_CITA_VENCIDA]);
+        $limiteAlerta = (new DateTime('now', new DateTimeZone('America/Mexico_City')))
+            ->modify('-' . DIAS_ALERTA_NO_REALIZADA . ' days')->format('Y-m-d H:i:s');
         foreach ($stmt->fetchAll() as $c) {
+            // La bitácora antepone el nombre del vendedor al resumen
+            // ("Oscar dejó pasar..."), por eso va en esa forma.
             registrarCambio($db, (int)$c['vendedor_id'], 'cita', (int)$c['id'], 'baja',
-                "La cita con {$c['cliente_nombre']} pasó sola a No realizada (sin atender)", [
+                "Dejó pasar la cita con {$c['cliente_nombre']} sin atender (pasó sola a No realizada)", [
                     'Estado' => ['Pendiente', 'No realizada'],
                     'Motivo' => [null, MOTIVO_CITA_VENCIDA],
                 ]);
+            if ($c['fecha_hora'] >= $limiteAlerta) {
+                crearAlerta($db, (int)$c['vendedor_id'], (int)$c['id'], ALERTA_NO_REALIZADA_AUTO,
+                    "La cita con {$c['cliente_nombre']} del " . fechaCitaCorta($c['fecha_hora'])
+                    . ' pasó sola a No realizada: no hubo check-in ni se reprogramó.');
+            }
         }
     } catch (Throwable $e) {
         error_log('[VISITAS] marcarCitasVencidas: ' . $e->getMessage());
@@ -694,7 +760,7 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
     // citas.fecha_hora es texto local de CDMX (no UTC) — se compara por
     // fecha directa, igual que en el resto del sistema.
     $stmt = $db->prepare(
-        "SELECT c.id, c.fecha_hora, c.estado, c.notas, cl.nombre AS cliente_nombre, cl.direccion,
+        "SELECT c.id, c.cliente_id, c.fecha_hora, c.estado, c.notas, cl.nombre AS cliente_nombre, cl.direccion,
                 (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_entrada_id,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_salida_id
@@ -727,6 +793,7 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
     $ubic = $stmt->fetch();
 
     $paradas = (int)$ubic['n'] > 0 ? detectarParadasDia($db, $vendedorId, $inicioUtc, $finUtc) : [];
+    $paradas = completarParadasConCheckins($db, $paradas, $citas);
 
     // Ciudad/municipio real del último punto GPS del día -- para poder decir
     // "detectado en X" en vez de solo "solo ubicación GPS registrada" a
@@ -875,6 +942,85 @@ function detectarParadasDia(PDO $db, int $vendedorId, string $inicioUtc, string 
         }
     }
 
+    return $paradas;
+}
+
+// Holgura (minutos) al comparar la hora de una parada GPS contra la de un
+// check-in/check-out, para no duplicar una visita que el GPS sí detectó.
+define('PARADA_HOLGURA_CHECKIN_MINUTOS', 15);
+
+/**
+ * El rastro GPS (tracking_ubicaciones) solo se manda mientras la app está
+ * abierta en pantalla (ver iniciarTrackingPeriodico en assets/js/vendedor.js):
+ * si el vendedor bloquea el celular durante la cita, esa visita no junta los
+ * 5 minutos de puntos seguidos que pide detectarParadasDia() y desaparece del
+ * recorrido aunque tenga check-in y check-out con GPS. Aquí se usan esos
+ * check-ins como respaldo: cada cita con check-in que ninguna parada GPS
+ * cubre (misma hora y a menos de RADIO_VERIFICACION_METROS) se agrega como
+ * parada propia; si una parada GPS sí la cubre pero quedó sin cliente, se le
+ * pone el de la cita.
+ *
+ * @param array $citas filas de resumenDiaVendedor (necesitan id, cliente_id y cliente_nombre)
+ */
+function completarParadasConCheckins(PDO $db, array $paradas, array $citas): array {
+    if (count($citas) === 0) return $paradas;
+    $utc  = new DateTimeZone('UTC');
+    $tzMx = new DateTimeZone('America/Mexico_City');
+
+    $ids = array_map(fn($c) => (int)$c['id'], $citas);
+    $marcas = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $db->prepare(
+        "SELECT cita_id, tipo, lat, lng, fecha_hora FROM checkins
+         WHERE cita_id IN ($marcas) ORDER BY id ASC"
+    );
+    $stmt->execute($ids);
+    // Se queda con el último check-in de cada tipo por cita (mismo criterio
+    // que las subconsultas de resumenDiaVendedor).
+    $porCita = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $porCita[(int)$r['cita_id']][$r['tipo']] = $r;
+    }
+
+    $holgura = PARADA_HOLGURA_CHECKIN_MINUTOS * 60;
+    foreach ($citas as $c) {
+        $entrada = $porCita[(int)$c['id']]['entrada'] ?? null;
+        if (!$entrada) continue;
+        $salida = $porCita[(int)$c['id']]['salida'] ?? null;
+
+        $tEntrada = new DateTime($entrada['fecha_hora'], $utc);
+        $tSalida  = $salida ? new DateTime($salida['fecha_hora'], $utc) : clone $tEntrada;
+        if ($tSalida < $tEntrada) $tSalida = clone $tEntrada;
+        $lat = (float)$entrada['lat'];
+        $lng = (float)$entrada['lng'];
+        $cliente = ['id' => (int)$c['cliente_id'], 'nombre' => $c['cliente_nombre']];
+
+        $cubierta = false;
+        foreach ($paradas as &$p) {
+            $pInicio = (new DateTime($p['inicio'], $tzMx))->getTimestamp();
+            $pFin    = (new DateTime($p['fin'], $tzMx))->getTimestamp();
+            $seTraslapan = $pInicio <= $tSalida->getTimestamp() + $holgura
+                        && $pFin >= $tEntrada->getTimestamp() - $holgura;
+            if ($seTraslapan && haversineDistance((float)$p['lat'], (float)$p['lng'], $lat, $lng) <= RADIO_VERIFICACION_METROS) {
+                if (!$p['cliente']) $p['cliente'] = $cliente;
+                $cubierta = true;
+                break;
+            }
+        }
+        unset($p);
+        if ($cubierta) continue;
+
+        $paradas[] = [
+            'lat'     => $lat,
+            'lng'     => $lng,
+            'inicio'  => (clone $tEntrada)->setTimezone($tzMx)->format('Y-m-d H:i:s'),
+            'fin'     => (clone $tSalida)->setTimezone($tzMx)->format('Y-m-d H:i:s'),
+            'minutos' => (int)round(($tSalida->getTimestamp() - $tEntrada->getTimestamp()) / 60),
+            'cliente' => $cliente,
+            'origen'  => 'checkin',
+        ];
+    }
+
+    usort($paradas, fn($a, $b) => strcmp($a['inicio'], $b['inicio']));
     return $paradas;
 }
 

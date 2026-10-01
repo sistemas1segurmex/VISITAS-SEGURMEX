@@ -231,35 +231,10 @@ async function cargarCitas(dia = diaCitasActual) {
   }
 }
 
-// Cancela una cita (solo aplica mientras sigue "pendiente"); pide
-// confirmación y un motivo opcional con el modal compartido v26Sheet.
-async function cancelarCita(id, nombre) {
-  const respuesta = await v26Sheet({
-    titulo: `¿Cancelar la cita con ${nombre}?`,
-    desc: 'Esta acción no se puede deshacer.',
-    pedirMotivo: true,
-    motivoRequerido: false,
-    placeholderMotivo: 'Motivo (opcional)',
-    textoConfirmar: 'Sí, cancelar',
-    textoCancelar: 'No, volver',
-  });
-  if (!respuesta) return;
-
-  const fd = new FormData();
-  fd.append('cita_id', id);
-  fd.append('motivo', respuesta.motivo);
-
-  try {
-    const res = await fetch('../api/cancelar_cita.php', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (data.ok) {
-      cargarCitas();
-    } else {
-      alert(data.error || 'No se pudo cancelar la cita.');
-    }
-  } catch (e) {
-    alert('Error de conexión. Intenta de nuevo.');
-  }
+// Cancela una cita (solo aplica mientras sigue "pendiente") con la hoja de
+// assets/js/cancelar-cita.js: motivo rápido, texto y evidencia, todo opcional.
+function cancelarCita(id, nombre) {
+  cancelarCitaHoja(id, nombre, cargarCitas);
 }
 
 document.addEventListener('click', (e) => {

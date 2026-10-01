@@ -415,7 +415,7 @@ async function initSparkline() {
 
 function badgeEstado(cita) {
   if (cita.retrasada) return '<span class="v26-pill v26-pill--retrasada">Retrasada</span>';
-  const map = { pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada', no_realizada: 'No realizada' };
+  const map = { pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada', no_realizada: 'No realizada', cancelada: 'Cancelada' };
   return `<span class="v26-pill v26-pill--${cita.estado}">${map[cita.estado] || cita.estado}</span>`;
 }
 
@@ -523,6 +523,7 @@ function horaDeCita(fechaHora) {
 
 function tarjetaVisita(c) {
   const claseEstado = c.retrasada ? 'retrasada' : c.estado;
+  const reprog = piezasReprogramacionCita(c); // assets/js/admin_historial_cita.js
   const avatarVendedor = c.vendedor_foto
     ? `<img class="v26-mini-avatar" src="../${c.vendedor_foto}" alt="">`
     : '<i class="bi bi-person-badge-fill"></i>';
@@ -534,10 +535,12 @@ function tarjetaVisita(c) {
         <div class="cliente">${c.cliente_nombre} ${badgeInteres(c.interes)}</div>
         <div class="direccion"><i class="bi bi-geo-alt"></i> ${c.direccion || 'Sin dirección'}</div>
         ${c.notas ? `<div class="notas"><i class="bi bi-chat-left-text"></i> ${c.notas}</div>` : ''}
+        ${reprog.linea}
         ${lineasCheckin(c)}
       </div>
       <div class="v26-cita-estado">
         ${badgeEstado(c)}
+        ${reprog.pills}
       </div>
       <div class="v26-cita-fotos">
         ${fotosCita(c)}
@@ -578,6 +581,13 @@ async function cargarCitasHoy() {
 // lista se muestra completa, sin filtrar. Para reactivarlas: quitar el
 // "d-none" del HTML y regresar MOSTRAR_TABS_ALERTAS a true.
 const TIPOS_ALERTA_CRITICAS = ['fuera_de_zona', 'sin_actividad'];
+// Alertas sobre reprogramaciones / citas que se cierran solas (ver
+// crearAlerta() en helpers.php): llevan etiqueta y botón "Ver historial".
+const ALERTAS_DE_CITA = {
+  reprog_limite:     { etiqueta: 'Límite de reprogramaciones', icono: 'bi-arrow-repeat' },
+  reprog_poco_aviso: { etiqueta: 'Reprogramada con poco aviso', icono: 'bi-alarm' },
+  no_realizada_auto: { etiqueta: 'No realizada automática',     icono: 'bi-robot' },
+};
 const MOSTRAR_TABS_ALERTAS = false;
 
 let alertasCache = [];
@@ -610,12 +620,20 @@ function renderizarAlertas() {
     cont.innerHTML = '<p class="text-muted small mb-0">Sin alertas por ahora.</p>';
     return;
   }
-  cont.innerHTML = filtradas.map(a => `
-    <div class="alert alert-warning py-2 d-flex justify-content-between align-items-start">
-      <div><strong>${a.vendedor_nombre}</strong> — ${a.mensaje}<br><span class="text-muted small">${formatearFechaUTC(a.created_at)}</span></div>
-      <button class="btn btn-sm btn-outline-secondary" onclick="resolverAlerta(${a.id})">Marcar vista</button>
-    </div>
-  `).join('');
+  cont.innerHTML = filtradas.map(a => {
+    const tipoCita = ALERTAS_DE_CITA[a.tipo];
+    return `
+    <div class="alert alert-warning py-2 d-flex justify-content-between align-items-start gap-2 ${tipoCita ? 'v26-alerta-cita v26-alerta-cita--' + a.tipo : ''}">
+      <div>
+        ${tipoCita ? `<span class="v26-alerta-tipo"><i class="bi ${tipoCita.icono}"></i> ${tipoCita.etiqueta}</span><br>` : ''}
+        <strong>${a.vendedor_nombre}</strong> — ${a.mensaje}<br><span class="text-muted small">${formatearFechaUTC(a.created_at)}</span>
+      </div>
+      <div class="d-flex flex-column gap-1">
+        ${tipoCita && a.cita_id ? `<button class="btn btn-sm btn-outline-primary" data-historial-cita="${a.cita_id}">Ver historial</button>` : ''}
+        <button class="btn btn-sm btn-outline-secondary" onclick="resolverAlerta(${a.id})">Marcar vista</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function cargarAlertas() {

@@ -96,10 +96,13 @@ if ($choque = $chk->fetch()) {
 try {
     $db->beginTransaction();
     // Se vuelve a exigir "pendiente" en el UPDATE por si alguien hizo
-    // check-in entre la validación y aquí. recordatorio_pendiente_enviado_en
-    // se limpia para que el aviso vuelva a salir con la nueva hora.
+    // check-in entre la validación y aquí. Ojo: NO tocar
+    // recordatorio_pendiente_enviado_en -- esa columna no existe en la base
+    // de producción (su migración nunca se corrió ahí) y el UPDATE truena.
+    // Tampoco hace falta: ese aviso es de check-out pendiente, solo aplica
+    // a citas con entrada, y una cita pendiente no tiene.
     $upd = $db->prepare(
-        "UPDATE citas SET fecha_hora = ?, recordatorio_pendiente_enviado_en = NULL
+        "UPDATE citas SET fecha_hora = ?
          WHERE id = ? AND vendedor_id = ? AND estado = 'pendiente'"
     );
     $upd->execute([$nuevaStr, $citaId, $u['id']]);
@@ -125,8 +128,26 @@ try {
     jsonResponse(['ok' => false, 'error' => 'No se pudo reprogramar la cita. Intenta de nuevo.'], 500);
 }
 
+// Alertas para el admin (fuera de la transacción: si fallan, la cita ya se
+// movió y eso no se revierte). Una sola alerta por reprogramación: la del
+// límite gana y, si además fue con poco aviso, lo menciona.
+$usadas    = (int)$cita['reprogramaciones'] + 1;
+$horasAviso = ((new DateTime($anteriorStr, $tzMx))->getTimestamp() - time()) / 3600;
+$pocoAviso = $horasAviso < HORAS_AVISO_REPROGRAMACION;
+$cambio    = fechaCitaCorta($anteriorStr) . ' → ' . fechaCitaCorta($nuevaStr);
+if ($usadas >= MAX_REPROGRAMACIONES) {
+    crearAlerta($db, (int)$u['id'], $citaId, ALERTA_REPROG_LIMITE,
+        "Reprogramó por {$usadas}.ª vez la cita con {$cita['cliente_nombre']}"
+        . ($pocoAviso ? ', con menos de ' . HORAS_AVISO_REPROGRAMACION . ' h de aviso' : '')
+        . " ({$cambio}). Motivo: {$motivo}");
+} elseif ($pocoAviso) {
+    crearAlerta($db, (int)$u['id'], $citaId, ALERTA_REPROG_POCO_AVISO,
+        "Reprogramó la cita con {$cita['cliente_nombre']} con menos de " . HORAS_AVISO_REPROGRAMACION
+        . " h de aviso ({$cambio}). Motivo: {$motivo}");
+}
+
 jsonResponse([
     'ok' => true,
     'fecha_hora' => $nuevaStr,
-    'reprogramaciones' => (int)$cita['reprogramaciones'] + 1,
+    'reprogramaciones' => $usadas,
 ]);
