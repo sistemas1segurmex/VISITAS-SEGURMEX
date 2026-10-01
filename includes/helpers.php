@@ -224,6 +224,32 @@ function sqlReprogramaciones(): string {
             (SELECT b.cambios->'$llave'->>1 FROM bitacora_cambios b WHERE $filtro ORDER BY b.id DESC LIMIT 1) AS motivo_reprogramacion";
 }
 
+// ---------------------------------------------------------------------
+// Cancelar citas (api/cancelar_cita.php). Igual que las reprogramaciones,
+// lo extra de una cancelación NO vive en la tabla citas sino en la fila
+// 'baja' de la bitácora: LLAVE_TIPO_CANCELACION cuando el vendedor marca
+// "El cliente canceló" y LLAVE_EVIDENCIA_CANCELACION con la ruta de la foto
+// opcional (uploads/cancelaciones/...). Ver sqlCancelacion().
+// ---------------------------------------------------------------------
+define('LLAVE_TIPO_CANCELACION', 'Tipo de cancelación');
+define('LLAVE_EVIDENCIA_CANCELACION', 'Evidencia');
+define('CANCELACION_CLIENTE', 'El cliente canceló');
+define('DIR_EVIDENCIA_CANCELACION', 'uploads/cancelaciones');
+define('MAX_MB_EVIDENCIA_CANCELACION', 8);
+
+/**
+ * Columnas extra para un SELECT de citas (alias "c"): tipo_cancelacion
+ * ('El cliente canceló' o NULL) y evidencia_cancelacion (true si la
+ * cancelación trae foto, se ve con api/foto.php?cancelacion=ID).
+ */
+function sqlCancelacion(): string {
+    $tipo = LLAVE_TIPO_CANCELACION;
+    $evid = LLAVE_EVIDENCIA_CANCELACION;
+    $filtro = "b.entidad = 'cita' AND b.entidad_id = c.id AND b.accion = 'baja' AND c.estado = 'cancelada'";
+    return "(SELECT b.cambios->'$tipo'->>1 FROM bitacora_cambios b WHERE $filtro ORDER BY b.id DESC LIMIT 1) AS tipo_cancelacion,
+            COALESCE((SELECT b.cambios->'$evid'->>1 IS NOT NULL FROM bitacora_cambios b WHERE $filtro ORDER BY b.id DESC LIMIT 1), false) AS evidencia_cancelacion";
+}
+
 /**
  * Pasa a "no_realizada" las citas que siguen pendientes, sin ningún
  * check-in, cuando ya pasaron HORAS_CITA_VENCIDA desde su hora. No hay cron
@@ -249,7 +275,9 @@ function marcarCitasVencidas(PDO $db): void {
         $stmt->execute([MOTIVO_CITA_VENCIDA, HORAS_CITA_VENCIDA]);
         foreach ($stmt->fetchAll() as $c) {
             registrarCambio($db, (int)$c['vendedor_id'], 'cita', (int)$c['id'], 'baja',
-                "La cita con {$c['cliente_nombre']} pasó sola a No realizada (sin atender)", [
+                // La bitácora antepone el nombre del vendedor al resumen
+                // ("Oscar dejó pasar..."), por eso va en esa forma.
+                "Dejó pasar la cita con {$c['cliente_nombre']} sin atender (pasó sola a No realizada)", [
                     'Estado' => ['Pendiente', 'No realizada'],
                     'Motivo' => [null, MOTIVO_CITA_VENCIDA],
                 ]);

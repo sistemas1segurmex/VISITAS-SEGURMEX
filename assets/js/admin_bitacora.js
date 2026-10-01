@@ -122,7 +122,45 @@ async function cargarResumen() {
 // ---------------------------------------------------------------------
 // Pestaña Cambios
 // ---------------------------------------------------------------------
+// Reprogramaciones y citas cerradas solas: se reconocen por lo que guardan
+// en "cambios" (ver helpers.php) y se pintan con su propio ícono, con el
+// antes -> después y el motivo siempre a la vista (sin "Ver detalle").
+function resumenCitaEspecial(ev) {
+  const cambios = ev.cambios || {};
+  if (ev.entidad !== 'cita') return null;
+  if (cambios[HIST_LLAVE_MOTIVO]) {
+    const [antes, despues] = cambios['Fecha y hora'] || [];
+    return {
+      clase: 'reprog', icono: 'bi-arrow-repeat', etiqueta: 'Reprogramación',
+      html: `<div class="v26-evento-reprog">
+        <span class="antes">${histEsc(histFechaCita(antes))}</span> <i class="bi bi-arrow-right"></i> <b>${histEsc(histFechaCita(despues))}</b>
+        <div class="motivo"><i class="bi bi-chat-left-quote"></i> <q>${histEsc(cambios[HIST_LLAVE_MOTIVO][1])}</q></div>
+      </div>`,
+    };
+  }
+  if (ev.accion === 'baja' && (cambios['Motivo'] || [])[1] === HIST_MOTIVO_AUTO) {
+    return { clase: 'auto', icono: 'bi-robot', etiqueta: 'No realizada automática', html: '' };
+  }
+  // Cancelación con "El cliente canceló" y/o evidencia (api/cancelar_cita.php).
+  const delCliente = (cambios[HIST_LLAVE_TIPO_CANC] || [])[1];
+  const evidencia = (cambios[HIST_LLAVE_EVIDENCIA] || [])[1];
+  if (ev.accion === 'baja' && (delCliente || evidencia)) {
+    const motivo = (cambios['Motivo'] || [])[1];
+    return {
+      clase: 'baja', icono: delCliente ? 'bi-telephone-x' : 'bi-x-circle',
+      etiqueta: delCliente || 'Cancelación con evidencia',
+      html: `<div class="v26-evento-reprog">
+        ${motivo ? `<div class="motivo"><i class="bi bi-chat-left-quote"></i> <q>${histEsc(motivo)}</q></div>` : ''}
+        ${evidencia ? htmlEvidenciaCancelacion(ev.entidad_id) : ''}
+      </div>`,
+    };
+  }
+  return null;
+}
+
 function tarjetaEvento(ev) {
+  const especial = resumenCitaEspecial(ev);
+  if (especial) return tarjetaEventoCita(ev, especial);
   const accion = ACCION_INFO[ev.accion] || ACCION_INFO.edicion;
   const entidad = ENTIDAD_INFO[ev.entidad] || { icono: 'bi-circle', label: ev.entidad };
   const diff = ev.cambios ? Object.entries(ev.cambios).map(([campo, valores]) => {
@@ -151,6 +189,25 @@ function tarjetaEvento(ev) {
       </div>
     </div>`;
 }
+function tarjetaEventoCita(ev, esp) {
+  const resumenMin = ev.resumen.charAt(0).toLowerCase() + ev.resumen.slice(1);
+  return `
+    <div class="v26-evento v26-evento--${esp.clase}">
+      <div class="v26-evento-icon"><i class="bi ${esp.icono}"></i></div>
+      <div class="v26-evento-body">
+        <div class="v26-evento-top">
+          <div class="v26-evento-texto"><b>${ev.vendedor_nombre}</b> ${resumenMin}</div>
+          <div class="v26-evento-hora">${horaBonita(ev.creado_en)}</div>
+        </div>
+        ${esp.html}
+        <div class="v26-evento-meta">
+          <span class="v26-pill v26-pill--neutro"><i class="bi ${esp.icono}"></i> ${esp.etiqueta}</span>
+          ${ev.entidad_id ? `<button type="button" class="v26-toggle-detalle" data-historial-cita="${ev.entidad_id}">Historial de la cita <i class="bi bi-clock-history"></i></button>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
 function toggleEvento(btn) {
   const ev = btn.closest('.v26-evento');
   const abrir = !ev.classList.contains('abierto');

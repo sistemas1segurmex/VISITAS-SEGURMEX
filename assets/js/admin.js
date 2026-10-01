@@ -410,7 +410,7 @@ async function initSparkline() {
 
 function badgeEstado(cita) {
   if (cita.retrasada) return '<span class="v26-pill v26-pill--retrasada">Retrasada</span>';
-  const map = { pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada', no_realizada: 'No realizada' };
+  const map = { pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada', no_realizada: 'No realizada', cancelada: 'Cancelada' };
   return `<span class="v26-pill v26-pill--${cita.estado}">${map[cita.estado] || cita.estado}</span>`;
 }
 
@@ -518,6 +518,7 @@ function horaDeCita(fechaHora) {
 
 function tarjetaVisita(c) {
   const claseEstado = c.retrasada ? 'retrasada' : c.estado;
+  const reprog = piezasReprogramacionCita(c); // assets/js/admin_historial_cita.js
   const avatarVendedor = c.vendedor_foto
     ? `<img class="v26-mini-avatar" src="../${c.vendedor_foto}" alt="">`
     : '<i class="bi bi-person-badge-fill"></i>';
@@ -529,10 +530,12 @@ function tarjetaVisita(c) {
         <div class="cliente">${c.cliente_nombre} ${badgeInteres(c.interes)}</div>
         <div class="direccion"><i class="bi bi-geo-alt"></i> ${c.direccion || 'Sin dirección'}</div>
         ${c.notas ? `<div class="notas"><i class="bi bi-chat-left-text"></i> ${c.notas}</div>` : ''}
+        ${reprog.linea}
         ${lineasCheckin(c)}
       </div>
       <div class="v26-cita-estado">
         ${badgeEstado(c)}
+        ${reprog.pills}
       </div>
       <div class="v26-cita-fotos">
         ${fotosCita(c)}
@@ -623,6 +626,8 @@ function botonesAlerta(a) {
     case 'reprogramaciones':
       b.push(link('Ver cita', urlDetalleVendedor(a, 'todas'), true));
       if (a.tipo === 'visita_sin_cerrar') b.push(link('Ver recorrido', urlDetalleVendedor(a, 'prospeccion')));
+      // Línea de tiempo con cada reprogramación y su motivo (assets/js/admin_historial_cita.js).
+      else if (a.cita_id) b.push(`<button type="button" class="v26-al-btn" data-historial-cita="${a.cita_id}">Ver historial</button>`);
       break;
     case 'sin_gps':
     case 'sin_actividad':

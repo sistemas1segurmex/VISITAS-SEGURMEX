@@ -170,6 +170,7 @@ $siguienteTipo = (!$estadoResuelto && !$esFuturo) ? (!$tieneEntrada ? 'entrada' 
 
 <script src="../assets/js/fecha_utils.js<?= assetVer(__DIR__ . '/../assets/js/fecha_utils.js') ?>"></script>
 <script src="../assets/js/v26-modal.js<?= assetVer(__DIR__ . '/../assets/js/v26-modal.js') ?>"></script>
+<script src="../assets/js/cancelar-cita.js<?= assetVer(__DIR__ . '/../assets/js/cancelar-cita.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
@@ -652,31 +653,10 @@ if (btnNoShow) {
 // --- Cancelar cita (solo si sigue pendiente y sin entrada registrada) ---
 const btnCancelar = document.getElementById('btn-cancelar');
 if (btnCancelar) {
-  btnCancelar.addEventListener('click', async () => {
-    const respuesta = await v26Sheet({
-      titulo: '¿Cancelar esta cita?',
-      desc: 'Esta acción no se puede deshacer.',
-      pedirMotivo: true,
-      motivoRequerido: false,
-      placeholderMotivo: 'Motivo (opcional)',
-      textoConfirmar: 'Sí, cancelar',
-      textoCancelar: 'No, volver',
-    });
-    if (!respuesta) return;
-    const fd = new FormData();
-    fd.append('cita_id', citaId);
-    fd.append('motivo', respuesta.motivo);
-    try {
-      const res = await fetch('../api/cancelar_cita.php', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (data.ok) {
-        window.location.href = 'index.php';
-      } else {
-        alert(data.error || 'No se pudo cancelar la cita.');
-      }
-    } catch (e) {
-      alert('Error de conexión. Intenta de nuevo.');
-    }
+  // Misma hoja que en Inicio (assets/js/cancelar-cita.js): motivo rápido,
+  // texto y evidencia, todo opcional.
+  btnCancelar.addEventListener('click', () => {
+    cancelarCitaHoja(citaId, clienteNombre, () => { window.location.href = 'index.php'; });
   });
 }
 </script>
