@@ -748,7 +748,9 @@ table.v26-tabla-accesos tr.fallido { background: rgba(225,29,72,.06); }
 .v26-al-vista { align-self: flex-start; }
 .v26-al-vista .opt { padding: 4px 10px; flex: none; }
 .v26-al-lista { display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto; padding-right: 2px; }
-.v26-al-grupo { border: 1px solid var(--v26-border); border-radius: 12px; background: var(--v26-surface-solid); overflow: hidden; }
+/* flex: none -- con overflow:hidden, un hijo de columna flex se deja encoger
+   hasta 0 y las tarjetas salían cortadas en vez de que la lista hiciera scroll. */
+.v26-al-grupo { flex: none; border: 1px solid var(--v26-border); border-radius: 12px; background: var(--v26-surface-solid); overflow: hidden; }
 .v26-al-grupo > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; }
 .v26-al-grupo > summary::-webkit-details-marker { display: none; }
 .v26-al-avatar { width: 28px; height: 28px; border-radius: 50%; flex: none; object-fit: cover; display: grid; place-items: center; background: var(--v26-brand-grad); color: #fff; font-weight: 800; font-size: .68rem; }
