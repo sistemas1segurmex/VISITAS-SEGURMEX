@@ -720,9 +720,21 @@ function resumenDiaVendedor(PDO $db, int $vendedorId, string $fecha): array {
         ->setTimezone($utc)->format('Y-m-d H:i:s');
 
     // citas.fecha_hora es texto local de CDMX (no UTC) — se compara por
-    // fecha directa, igual que en el resto del sistema.
+    // fecha directa, igual que en el resto del sistema. Trae las mismas
+    // columnas que "Todas las citas" (api/admin_vendedor.php) porque la
+    // vista Día de Actividades pinta la misma tarjeta (tarjetaCita en
+    // admin_vendedor_detalle.js): motivo, interés, reprogramaciones,
+    // cancelación con evidencia y líneas de entrada/salida.
     $stmt = $db->prepare(
-        "SELECT c.id, c.cliente_id, c.fecha_hora, c.estado, c.notas, cl.nombre AS cliente_nombre, cl.direccion,
+        "SELECT c.id, c.cliente_id, c.fecha_hora, c.estado, c.notas, c.interes, c.motivo, cl.nombre AS cliente_nombre, cl.direccion,
+                " . sqlReprogramaciones() . ",
+                " . sqlCancelacion() . ",
+                (SELECT cu.estado FROM correcciones_ubicacion cu JOIN checkins ch ON ch.id = cu.checkin_id WHERE ch.cita_id = c.id ORDER BY cu.id DESC LIMIT 1) AS checkin_correccion,
+                (SELECT fecha_hora FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS entrada_fecha_hora,
+                (SELECT distancia_metros FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS entrada_distancia_metros,
+                (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado_salida,
+                (SELECT fecha_hora FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' ORDER BY ch.id DESC LIMIT 1) AS salida_fecha_hora,
+                (SELECT distancia_metros FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' ORDER BY ch.id DESC LIMIT 1) AS salida_distancia_metros,
                 (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_entrada_id,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_salida_id
