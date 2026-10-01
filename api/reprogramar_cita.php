@@ -96,10 +96,13 @@ if ($choque = $chk->fetch()) {
 try {
     $db->beginTransaction();
     // Se vuelve a exigir "pendiente" en el UPDATE por si alguien hizo
-    // check-in entre la validación y aquí. recordatorio_pendiente_enviado_en
-    // se limpia para que el aviso vuelva a salir con la nueva hora.
+    // check-in entre la validación y aquí. Ojo: NO tocar
+    // recordatorio_pendiente_enviado_en -- esa columna no existe en la base
+    // de producción (su migración nunca se corrió ahí) y el UPDATE truena.
+    // Tampoco hace falta: ese aviso es de check-out pendiente, solo aplica
+    // a citas con entrada, y una cita pendiente no tiene.
     $upd = $db->prepare(
-        "UPDATE citas SET fecha_hora = ?, recordatorio_pendiente_enviado_en = NULL
+        "UPDATE citas SET fecha_hora = ?
          WHERE id = ? AND vendedor_id = ? AND estado = 'pendiente'"
     );
     $upd->execute([$nuevaStr, $citaId, $u['id']]);

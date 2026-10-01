@@ -66,6 +66,9 @@ $u = requireRole('admin');
         <option value="alta">Altas</option>
         <option value="edicion">Ediciones</option>
         <option value="baja">Bajas / perdidos</option>
+        <option value="reprogramacion">Citas reprogramadas</option>
+        <option value="no_realizada_auto">Citas no realizadas automáticas</option>
+        <option value="cancelacion_cliente">Citas que canceló el cliente</option>
       </select>
       <select class="v26-select" id="filtro-cambios-entidad">
         <option value="">Todas las entidades</option>
@@ -117,6 +120,7 @@ $u = requireRole('admin');
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/js/admin_historial_cita.js<?= assetVer(__DIR__ . '/../assets/js/admin_historial_cita.js') ?>"></script>
 <script src="../assets/js/admin_bitacora.js<?= assetVer(__DIR__ . '/../assets/js/admin_bitacora.js') ?>"></script>
 </body>
 </html>

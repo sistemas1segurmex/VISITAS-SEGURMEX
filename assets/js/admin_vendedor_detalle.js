@@ -4,7 +4,7 @@ const params = new URLSearchParams(window.location.search);
 const vendedorId = params.get('id');
 
 function badgeEstado(estado) {
-  const map = { pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada', no_realizada: 'No realizada' };
+  const map = { pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada', no_realizada: 'No realizada', cancelada: 'Cancelada' };
   return `<span class="v26-pill v26-pill--${estado}">${map[estado] || estado}</span>`;
 }
 
@@ -266,6 +266,7 @@ function lineasCheckinCita(c) {
 
 function tarjetaCita(c) {
   const f = partesFecha(c.fecha_hora);
+  const reprog = piezasReprogramacionCita(c); // assets/js/admin_historial_cita.js
   return `
     <div class="v26-cita-card">
       <div class="v26-cita-fecha">
@@ -277,10 +278,12 @@ function tarjetaCita(c) {
         <div class="cliente">${c.cliente_nombre} ${pillInteresAdmin(c.interes)}</div>
         <div class="direccion"><i class="bi bi-geo-alt"></i> ${c.direccion || 'Sin dirección'}</div>
         ${c.notas ? `<div class="notas"><i class="bi bi-chat-left-text"></i> ${c.notas}</div>` : ''}
+        ${reprog.linea}
         ${lineasCheckinCita(c)}
       </div>
       <div class="v26-cita-estado">
         ${badgeEstado(c.estado)}
+        ${reprog.pills}
         ${c.checkin_verificado == null ? '<span class="text-muted small">Sin check-in</span>' : ''}
       </div>
       <div class="v26-cita-fotos">
