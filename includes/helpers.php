@@ -149,6 +149,26 @@ function cerrarSesionActual(PDO $db, ?int $usuarioId = null): void {
     }
 }
 
+/**
+ * Libera las sesiones previas del usuario abiertas desde este mismo
+ * teléfono/navegador (mismo user_agent). cerrarSesionActual() solo
+ * alcanza cuando la cookie sobrevivió; si la app Android se cerró de golpe
+ * la cookie se pierde y la sesión vieja quedaba huérfana ocupando un lugar
+ * -- tras 2 cierres el vendedor quedaba bloqueado por SESION_MAX_ACTIVAS
+ * (2-oct-2026). El user_agent de la WebView incluye modelo y versión de
+ * Android, así que un celular distinto no se ve afectado.
+ */
+function cerrarSesionesMismoDispositivo(PDO $db, int $usuarioId): void {
+    $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+    if ($ua === '') return;
+    try {
+        $stmt = $db->prepare('DELETE FROM usuarios_sesiones WHERE usuario_id = ? AND user_agent = ?');
+        $stmt->execute([$usuarioId, $ua]);
+    } catch (Throwable $e) {
+        error_log('[VISITAS] cerrarSesionesMismoDispositivo: ' . $e->getMessage());
+    }
+}
+
 /** Cierra todas las sesiones activas de un usuario (para forzar nuevo login). */
 function cerrarTodasLasSesionesDelUsuario(PDO $db, int $usuarioId): void {
     try {
