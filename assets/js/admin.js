@@ -579,6 +579,7 @@ const ICONO_ALERTA = {
   visita_sin_cerrar: 'bi-door-open',
   fuera_de_zona: 'bi-bullseye',
   sin_gps: 'bi-reception-0',
+  problemas_acceso: 'bi-shield-exclamation',
   visita_corta: 'bi-stopwatch',
   interesado_sin_cotizacion: 'bi-star-fill',
   reprogramaciones: 'bi-arrow-left-right',
@@ -632,6 +633,9 @@ function botonesAlerta(a) {
     case 'sin_gps':
     case 'sin_actividad':
       b.push(link('Ver su día', urlDetalleVendedor(a, 'prospeccion'), true));
+      break;
+    case 'problemas_acceso':
+      b.push(link('Ver accesos', `bitacora.php?tab=accesos&vendedor=${a.vendedor_id}`, true));
       break;
     case 'interesado_sin_cotizacion':
     case 'sin_seguimiento':
