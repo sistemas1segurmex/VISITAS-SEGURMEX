@@ -741,9 +741,18 @@ async function programarRecordatoriosLocales(citas) {
 // --- Push: registra este celular para avisos que manda el servidor (ej.
 // "se te olvidó cerrar una visita") -- ver api/push_registrar_token.php +
 // api/cron_recordatorios.php + includes/fcm.php. ---
+//
+// APAGADO (2-oct-2026): el APK instalado trae el plugin de push pero se
+// compiló SIN google-services.json (Firebase nunca se configuró), y así
+// PN.register() TIRA LA APP de forma nativa ("Visitas se cerró debido a un
+// error") -- no es una excepción de JS, el try/catch no la atrapa. Cada
+// cierre además dejaba una sesión huérfana y tras 2 el vendedor quedaba
+// bloqueado por SESION_MAX_ACTIVAS. Volver a true SOLO con un APK nuevo
+// compilado con google-services.json.
+const PUSH_HABILITADO = false;
 let pushYaRegistrado = false;
 async function registrarPushNativo() {
-  if (!esAppNativa() || pushYaRegistrado) return;
+  if (!PUSH_HABILITADO || !esAppNativa() || pushYaRegistrado) return;
   pushYaRegistrado = true;
   await asegurarPermisoNotificaciones();
   const PN = Capacitor.Plugins.PushNotifications;
