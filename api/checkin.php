@@ -39,7 +39,8 @@ if ($noShow && $motivo === '') {
 
 $stmt = $db->prepare(
     'SELECT c.*, cl.lat AS cliente_lat, cl.lng AS cliente_lng, cl.nombre AS cliente_nombre,
-            cl.ubicacion_confirmada
+            cl.ubicacion_confirmada,
+            EXISTS (SELECT 1 FROM correcciones_ubicacion cu WHERE cu.cliente_id = cl.id AND cu.estado = \'por_revisar\') AS aviso_pendiente
      FROM citas c JOIN clientes cl ON cl.id = c.cliente_id
      WHERE c.id = ? AND c.vendedor_id = ?'
 );
@@ -99,7 +100,8 @@ if ($cita['cliente_lat'] !== null && $cita['cliente_lng'] !== null) {
 $correccion = null;
 if ($tipo === 'entrada' && !$noShow && $verificado === 0 && $distancia !== null
     && !$cita['ubicacion_confirmada']
-    && $accuracy !== null && $accuracy <= CORRECCION_PRECISION_MAX_M) {
+    && $accuracy !== null && $accuracy <= CORRECCION_PRECISION_MAX_M
+    && !($distancia > CORRECCION_REVISAR_MAX_M && $cita['aviso_pendiente'])) {
     $respuesta = $_POST['corregir_ubicacion'] ?? null;
     if ($respuesta === null) {
         jsonResponse([
