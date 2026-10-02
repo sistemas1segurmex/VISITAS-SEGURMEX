@@ -11,6 +11,8 @@ if (currentUser()) {
 $error = null;
 $puedeForzar = false;
 $emailIngresado = '';
+// "celular" o "computadora" en el aviso de sesión abierta en otro lado.
+$aparato = preg_match('/Android|iPhone|iPad|Mobile/i', $_SERVER['HTTP_USER_AGENT'] ?? '') ? 'celular' : 'computadora';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
@@ -37,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $activas = contarSesionesActivas($db, (int)$u['id']);
         if ($activas >= SESION_MAX_ACTIVAS) {
-            $error = 'Ya tienes ' . SESION_MAX_ACTIVAS . ' sesiones activas en otros dispositivos o navegadores.';
+            $error = 'Tu cuenta ya está abierta en otro celular o computadora.';
             $puedeForzar = true;
             registrarAcceso($db, (int)$u['id'], $email, 'bloqueado_limite', $error);
         } else {
@@ -364,10 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div style="flex:1;">
           <div><?= htmlspecialchars($error) ?></div>
           <?php if ($puedeForzar): ?>
-            <div style="font-size:.72rem;margin-top:6px;opacity:.85;">Por seguridad no guardamos tu contraseña -- vuelve a escribirla y presiona el botón.</div>
-            <button type="submit" form="vlg-form" name="forzar_login" value="1" class="v26-btn v26-btn-ghost mt-2" style="font-size:.76rem;font-weight:700;padding:6px 12px;border-radius:10px;background:#fff;border:1px solid #b91c3c;color:#b91c3c;cursor:pointer;display:inline-flex;align-items:center;gap:6px;width:100%;justify-content:center;">
-              <i class="bi bi-box-arrow-in-right"></i> Cerrar otras sesiones y entrar aquí
-            </button>
+            <div style="font-size:.78rem;margin-top:6px;font-weight:500;">Escribe otra vez tu contraseña y toca <b>Entrar en este <?= $aparato ?></b>. Se cerrará en los otros.</div>
           <?php endif; ?>
         </div>
       </div>
@@ -387,8 +386,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <i class="bi bi-eye"></i>
         </button>
       </div>
+      <?php if ($puedeForzar): ?>
+        <!-- Un solo botón: antes había uno rojo "Cerrar otras sesiones y
+             entrar aquí" además de "Entrar", y los vendedores tocaban
+             "Entrar" y volvían a quedar bloqueados (2-oct-2026). -->
+        <input type="hidden" name="forzar_login" value="1">
+      <?php endif; ?>
       <button type="submit" class="vlg-btn" id="vlg-submit">
-        <span class="vlg-btn-text">Entrar</span>
+        <span class="vlg-btn-text"><?= $puedeForzar ? 'Entrar en este ' . $aparato : 'Entrar' ?></span>
         <i class="bi bi-arrow-right"></i>
         <span class="spinner"></span>
       </button>
@@ -420,7 +425,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   const vlgPass = document.getElementById('vlg-pass');
   <?php if ($puedeForzar): ?>
   // El campo de contraseña nunca se rellena de vuelta (por seguridad), así
-  // que si el usuario va a usar "Cerrar otras sesiones y entrar aquí" hay
+  // que si el usuario va a usar "Entrar en este celular" hay
   // que ponerle el cursor listo para que la vuelva a escribir.
   vlgPass.focus();
   <?php endif; ?>
