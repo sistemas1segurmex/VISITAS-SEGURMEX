@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // (vencida o revocada), se libera su lugar antes de contar -- que
         // volver a entrar desde el mismo dispositivo no ocupe un lugar más.
         cerrarSesionActual($db);
+        cerrarSesionesMismoDispositivo($db, (int)$u['id']);
         session_regenerate_id(true);
 
         if ($forzar) {
