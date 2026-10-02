@@ -28,6 +28,8 @@ define('SIN_GPS_HORARIO', [8, 19]);            // solo en horario laboral (hora 
 define('REPROGRAMACIONES_ALERTA', 2);          // la misma cita movida esto o más veces
 define('INTERESADO_SIN_COTIZAR_DIAS', 3);      // "muy interesado" sin cotización en el ERP
 define('ALERTAS_DIAS_ATRAS', 7);               // no se revisa historia más vieja que esto
+define('ACCESO_ENTRADAS_SEGUIDAS', 3);         // entradas correctas en ACCESO_VENTANA_MIN = algo la saca
+define('ACCESO_VENTANA_MIN', 60);
 
 // tipo => [prioridad, título corto]. Prioridad: 'crit' (atender hoy),
 // 'warn' (revisar), 'info' (informativa).
@@ -36,6 +38,7 @@ const ALERTA_TIPOS = [
     'visita_sin_cerrar'         => ['crit', 'Visita sin cerrar'],
     'fuera_de_zona'             => ['crit', 'Fuera de zona'],
     'sin_gps'                   => ['crit', 'Sin GPS en horario laboral'],
+    'problemas_acceso'          => ['crit', 'Problemas para entrar'],
     'visita_corta'              => ['warn', 'Visita muy corta'],
     'interesado_sin_cotizacion' => ['warn', 'Muy interesado sin cotización'],
     'reprogramaciones'          => ['warn', 'Reprogramaciones repetidas'],
@@ -93,6 +96,7 @@ function revisarAlertas(PDO $db): void {
         'generarAlertaReprogramaciones',
         'generarAlertaSinGps',
         'generarAlertaInteresadoSinCotizacion',
+        'generarAlertaProblemasAcceso',
         'autoResolverAlertas',
     ] as $fn) {
         try {
@@ -279,6 +283,52 @@ function generarAlertaInteresadoSinCotizacion(PDO $db): void {
     }
 }
 
+// ── Problemas para entrar (2-oct-2026) ───────────────────────────────────
+// La app Android se cerraba sola al entrar y cada cierre dejaba una sesión
+// ocupada: el vendedor entraba una y otra vez y terminaba bloqueado por
+// SESION_MAX_ACTIVAS, sin que nadie se enterara (Oscar el 24-sep, Marcela
+// el 2-oct). Señales, sacadas de usuarios_accesos_historial (hoy, hora MX):
+//   - algún bloqueo por límite de sesiones, o
+//   - ACCESO_ENTRADAS_SEGUIDAS entradas correctas en ACCESO_VENTANA_MIN
+//     (quien usa la app normal entra una vez al día, no cada pocos minutos).
+// Una por vendedor por día; se sigue mostrando solo la de hoy (alertasParaPanel).
+function generarAlertaProblemasAcceso(PDO $db): void {
+    $tzMx = new DateTimeZone('America/Mexico_City');
+    $inicioUtc = (new DateTime('today', $tzMx))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+
+    $stmt = $db->prepare(
+        "SELECT u.id,
+                COUNT(*) FILTER (WHERE h.resultado = 'bloqueado_limite') AS bloqueos,
+                COUNT(*) FILTER (WHERE h.resultado = 'correcto') AS correctas,
+                MAX(h.creado_en) AS ultima,
+                BOOL_OR(h.user_agent LIKE '%; wv)%') AS desde_app,
+                (SELECT MAX(n) FROM (
+                    SELECT COUNT(*) OVER (ORDER BY h2.creado_en
+                                          RANGE BETWEEN INTERVAL '" . (int)ACCESO_VENTANA_MIN . " minutes' PRECEDING AND CURRENT ROW) AS n
+                    FROM usuarios_accesos_historial h2
+                    WHERE h2.usuario_id = u.id AND h2.resultado = 'correcto' AND h2.creado_en >= ?
+                 ) v) AS max_en_ventana
+         FROM usuarios u
+         JOIN usuarios_accesos_historial h ON h.usuario_id = u.id AND h.creado_en >= ?
+         WHERE u.rol = 'vendedor' AND u.activo = 1
+           AND NOT EXISTS (SELECT 1 FROM alertas a WHERE a.vendedor_id = u.id AND a.tipo = 'problemas_acceso' AND a.created_at >= ?)
+         GROUP BY u.id"
+    );
+    $stmt->execute([$inicioUtc, $inicioUtc, $inicioUtc]);
+    foreach ($stmt->fetchAll() as $r) {
+        $bloqueos = (int)$r['bloqueos'];
+        $seguidas = (int)$r['max_en_ventana'];
+        if ($bloqueos === 0 && $seguidas < ACCESO_ENTRADAS_SEGUIDAS) continue;
+
+        $partes = [];
+        if ($seguidas >= ACCESO_ENTRADAS_SEGUIDAS) $partes[] = "entró {$seguidas} veces en menos de una hora";
+        if ($bloqueos > 0) $partes[] = "quedó bloqueado {$bloqueos} " . ($bloqueos === 1 ? 'vez' : 'veces') . " por sesiones abiertas";
+        $donde = $r['desde_app'] === true || $r['desde_app'] === 't' ? ' desde la app' : '';
+        insertarAlerta($db, (int)$r['id'], null, 'problemas_acceso',
+            'Hoy ' . implode(' y ', $partes) . "{$donde} (último intento a las " . horaMxDesdeUtc($r['ultima']) . '). Puede que la app se le esté cerrando; llámale para ver si pudo trabajar.');
+    }
+}
+
 // ── 9. Se resuelven solas ────────────────────────────────────────────────
 function cerrarSola(PDO $db, int $id, string $motivo): void {
     $db->prepare('UPDATE alertas SET resuelta = 2, mensaje = ? WHERE id = ? AND resuelta = 0')
@@ -385,15 +435,15 @@ function alertasParaPanel(PDO $db): array {
              LEFT JOIN citas c ON c.id = a.cita_id
              LEFT JOIN clientes cl ON cl.id = c.cliente_id";
 
-    // "Sin actividad" y "Sin GPS" hablan de un día concreto: las de días
-    // anteriores ya no se pueden atender, así que solo se muestran las de hoy
-    // (se quedan en la tabla sin tocar).
+    // "Sin actividad", "Sin GPS" y "Problemas para entrar" hablan de un día
+    // concreto: las de días anteriores ya no se pueden atender, así que solo
+    // se muestran las de hoy (se quedan en la tabla sin tocar).
     $tzMx = new DateTimeZone('America/Mexico_City');
     $inicioHoyUtc = (new DateTime('today', $tzMx))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
     $stmt = $db->prepare(
         "SELECT $sqlCampos $from
          WHERE a.resuelta = 0
-           AND NOT (a.tipo IN ('sin_actividad', 'sin_gps') AND a.created_at < ?)
+           AND NOT (a.tipo IN ('sin_actividad', 'sin_gps', 'problemas_acceso') AND a.created_at < ?)
          ORDER BY a.created_at DESC LIMIT 150"
     );
     $stmt->execute([$inicioHoyUtc]);

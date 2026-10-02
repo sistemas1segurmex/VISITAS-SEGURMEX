@@ -338,8 +338,22 @@ document.getElementById('buscar-accesos').addEventListener('input', () => {
 // Las 4 cargas son independientes a propósito -- si una falla (por ejemplo
 // el combo de vendedores) las otras tres deben renderizar igual, no
 // quedarse en "Cargando..." por una promesa encadenada que nunca resuelve.
+// ?tab=accesos&vendedor=ID -- desde el botón "Ver accesos" de la alerta
+// "Problemas para entrar" (assets/js/admin.js): abre directo esa pestaña
+// filtrada por el vendedor.
+const paramsUrl = new URLSearchParams(location.search);
+if (paramsUrl.get('tab') === 'accesos') {
+  document.querySelector('#filtro-tab .opt[data-tab="accesos"]')?.click();
+}
 posicionarSlider(document.querySelector('#filtro-tab .opt.active'));
-cargarVendedoresFiltro();
+cargarVendedoresFiltro().then(() => {
+  const vendedorUrl = paramsUrl.get('vendedor');
+  const combo = document.getElementById('filtro-accesos-vendedor');
+  if (vendedorUrl && combo.querySelector(`option[value="${CSS.escape(vendedorUrl)}"]`)) {
+    combo.value = vendedorUrl;
+    cargarAccesos();
+  }
+});
 cargarResumen();
 cargarCambios();
 cargarAccesos();
