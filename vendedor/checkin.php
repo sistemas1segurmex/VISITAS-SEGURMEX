@@ -9,7 +9,8 @@ $u = requireRole('vendedor');
 $citaId = (int)($_GET['cita_id'] ?? 0);
 $stmt = getDB()->prepare(
     'SELECT c.*, cl.nombre AS cliente_nombre, cl.direccion,
-            cl.lat AS cliente_lat, cl.lng AS cliente_lng, cl.ubicacion_confirmada
+            cl.lat AS cliente_lat, cl.lng AS cliente_lng, cl.ubicacion_confirmada,
+            EXISTS (SELECT 1 FROM correcciones_ubicacion cu WHERE cu.cliente_id = cl.id AND cu.estado = \'por_revisar\') AS aviso_pendiente
      FROM citas c JOIN clientes cl ON cl.id = c.cliente_id
      WHERE c.id = ? AND c.vendedor_id = ?'
 );
@@ -181,7 +182,7 @@ const fechaCitaStr = <?= json_encode($cita['fecha_hora']) ?>;
 // (con señal débil no se sube dos veces). Mismas reglas que api/checkin.php,
 // que de todos modos vuelve a preguntar si hiciera falta.
 const clienteNombre = <?= json_encode($cita['cliente_nombre']) ?>;
-const PIN_CLIENTE = <?= json_encode($cita['cliente_lat'] !== null ? ['lat' => (float)$cita['cliente_lat'], 'lng' => (float)$cita['cliente_lng'], 'confirmado' => (bool)$cita['ubicacion_confirmada']] : null) ?>;
+const PIN_CLIENTE = <?= json_encode($cita['cliente_lat'] !== null ? ['lat' => (float)$cita['cliente_lat'], 'lng' => (float)$cita['cliente_lng'], 'confirmado' => (bool)$cita['ubicacion_confirmada'], 'avisoPendiente' => (bool)$cita['aviso_pendiente']] : null) ?>;
 const CORRECCION = <?= json_encode(['radio' => RADIO_VERIFICACION_METROS, 'precision' => CORRECCION_PRECISION_MAX_M, 'max' => CORRECCION_REVISAR_MAX_M]) ?>;
 const ESPERA_NO_SHOW_MIN = 10;
 let lat = null, lng = null, accuracy = null;
@@ -527,17 +528,23 @@ function distanciaMetros(lat1, lng1, lat2, lng2) {
 function debePreguntarUbicacion() {
   if (tipo !== 'entrada' || !PIN_CLIENTE || PIN_CLIENTE.confirmado || accuracy === null || accuracy > CORRECCION.precision) return null;
   const d = distanciaMetros(lat, lng, PIN_CLIENTE.lat, PIN_CLIENTE.lng);
-  return (d > CORRECCION.radio && d <= CORRECCION.max) ? d : null;
+  // Lejísimos y ya hay una corrección esperando al admin: no se vuelve a avisar.
+  if (d > CORRECCION.max && PIN_CLIENTE.avisoPendiente) return null;
+  return d > CORRECCION.radio ? d : null;
 }
 
-// '1' = sí está en el lugar (corregir el pin), '0' = no.
+// '1' = sí está en el lugar (corregir el pin), '0' = no. Más lejos que
+// CORRECCION.max el pin no se corrige solo: el "sí" solo avisa al admin.
 async function preguntarUbicacion(distancia, nombre) {
   const txt = distancia >= 1000 ? (distancia / 1000).toFixed(1) + ' km' : Math.round(distancia) + ' m';
+  const soloAviso = distancia > CORRECCION.max;
   const r = await v26Sheet({
     titulo: '¿Estás en el lugar del cliente?',
-    desc: `Tu ubicación está a ${txt} de la que se guardó para ${nombre}. Si estás ahí, la corregimos con tu ubicación actual y esta visita queda verificada.`,
+    desc: soloAviso
+      ? `Tu ubicación está a ${txt} de la que se guardó para ${nombre}. Es demasiado lejos para corregirla sola: si estás ahí, le avisamos al admin para que la revise y la corrija.`
+      : `Tu ubicación está a ${txt} de la que se guardó para ${nombre}. Si estás ahí, la corregimos con tu ubicación actual y esta visita queda verificada.`,
     pedirMotivo: false,
-    textoConfirmar: 'Sí, estoy aquí',
+    textoConfirmar: soloAviso ? 'Sí, avisar al admin' : 'Sí, estoy aquí',
     textoCancelar: 'No, registrar así',
   });
   return r ? '1' : '0';

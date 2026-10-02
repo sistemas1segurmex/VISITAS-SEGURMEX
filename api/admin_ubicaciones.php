@@ -53,6 +53,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         jsonResponse(['ok' => false, 'error' => 'Esta corrección ya se revisó'], 400);
     }
 
+    // Aviso del vendedor a más de CORRECCION_REVISAR_MAX_M: el pin nunca se
+    // movió en el check-in, se mueve ahora al aprobar (si nadie lo movió
+    // mientras tanto) y esa entrada pasa a verificada.
+    $esAviso = str_starts_with((string)$corr['nota'], CORRECCION_NOTA_AVISO);
+
+    if ($accion === 'aprobar' && $esAviso) {
+        $pinSinTocar = abs((float)$corr['cliente_lat'] - (float)$corr['lat_anterior']) < 0.000001
+                    && abs((float)$corr['cliente_lng'] - (float)$corr['lng_anterior']) < 0.000001;
+        $db->beginTransaction();
+        if ($pinSinTocar) {
+            $db->prepare(
+                "UPDATE clientes SET lat = ?, lng = ?, ubicacion_confirmada = TRUE, ubicacion_fuente = 'checkin',
+                        ubicacion_confirmada_en = CURRENT_TIMESTAMP
+                 WHERE id = ?"
+            )->execute([$corr['lat_nueva'], $corr['lng_nueva'], $corr['cliente_id']]);
+        }
+        $db->prepare('UPDATE checkins SET verificado = 1, ubicacion_corregida = TRUE WHERE id = ?')->execute([$corr['checkin_id']]);
+        $db->prepare("UPDATE correcciones_ubicacion SET estado = 'aprobada', revisado_por = ?, revisado_en = CURRENT_TIMESTAMP WHERE id = ?")
+           ->execute([$u['id'], $id]);
+        $db->commit();
+        registrarCambio($db, (int)$corr['vendedor_id'], 'cliente', (int)$corr['cliente_id'], 'edicion',
+            "{$u['nombre']} aprobó el aviso de ubicación de {$corr['cliente_nombre']} y movió el pin", [
+            'Ubicación' => [$corr['lat_anterior'] . ', ' . $corr['lng_anterior'], $pinSinTocar ? $corr['lat_nueva'] . ', ' . $corr['lng_nueva'] : '(sin cambio: el pin ya se había movido)'],
+        ]);
+        jsonResponse(['ok' => true, 'pin_movido' => $pinSinTocar]);
+    }
+
     if ($accion === 'aprobar') {
         $db->prepare("UPDATE correcciones_ubicacion SET estado = 'aprobada', revisado_por = ?, revisado_en = CURRENT_TIMESTAMP WHERE id = ?")
            ->execute([$u['id'], $id]);
@@ -79,7 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             "{$u['nombre']} revirtió la corrección de ubicación de {$corr['cliente_nombre']}", [
             'Ubicación' => [$corr['lat_nueva'] . ', ' . $corr['lng_nueva'], $pinSigueIgual ? $corr['lat_anterior'] . ', ' . $corr['lng_anterior'] : '(sin cambio: el pin ya se había movido)'],
         ]);
-        jsonResponse(['ok' => true, 'pin_restaurado' => $pinSigueIgual]);
+        // En un aviso el pin nunca se movió: no hay nada que restaurar.
+        jsonResponse(['ok' => true, 'pin_restaurado' => $esAviso ? null : $pinSigueIgual]);
     }
 
     jsonResponse(['ok' => false, 'error' => 'Acción no reconocida'], 400);
