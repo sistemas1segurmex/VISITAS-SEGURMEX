@@ -527,17 +527,21 @@ function distanciaMetros(lat1, lng1, lat2, lng2) {
 function debePreguntarUbicacion() {
   if (tipo !== 'entrada' || !PIN_CLIENTE || PIN_CLIENTE.confirmado || accuracy === null || accuracy > CORRECCION.precision) return null;
   const d = distanciaMetros(lat, lng, PIN_CLIENTE.lat, PIN_CLIENTE.lng);
-  return (d > CORRECCION.radio && d <= CORRECCION.max) ? d : null;
+  return d > CORRECCION.radio ? d : null;
 }
 
-// '1' = sí está en el lugar (corregir el pin), '0' = no.
+// '1' = sí está en el lugar (corregir el pin), '0' = no. Más lejos que
+// CORRECCION.max el pin no se corrige solo: el "sí" solo avisa al admin.
 async function preguntarUbicacion(distancia, nombre) {
   const txt = distancia >= 1000 ? (distancia / 1000).toFixed(1) + ' km' : Math.round(distancia) + ' m';
+  const soloAviso = distancia > CORRECCION.max;
   const r = await v26Sheet({
     titulo: '¿Estás en el lugar del cliente?',
-    desc: `Tu ubicación está a ${txt} de la que se guardó para ${nombre}. Si estás ahí, la corregimos con tu ubicación actual y esta visita queda verificada.`,
+    desc: soloAviso
+      ? `Tu ubicación está a ${txt} de la que se guardó para ${nombre}. Es demasiado lejos para corregirla sola: si estás ahí, le avisamos al admin para que la revise y la corrija.`
+      : `Tu ubicación está a ${txt} de la que se guardó para ${nombre}. Si estás ahí, la corregimos con tu ubicación actual y esta visita queda verificada.`,
     pedirMotivo: false,
-    textoConfirmar: 'Sí, estoy aquí',
+    textoConfirmar: soloAviso ? 'Sí, avisar al admin' : 'Sí, estoy aquí',
     textoCancelar: 'No, registrar así',
   });
   return r ? '1' : '0';

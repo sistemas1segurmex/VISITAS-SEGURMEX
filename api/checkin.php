@@ -93,11 +93,13 @@ if ($cita['cliente_lat'] !== null && $cita['cliente_lng'] !== null) {
 // sin mandar => se contesta pregunta_ubicacion); '1' = sí, el pin pasa a
 // donde está y la entrada queda verificada; '0' = no, "Fuera de zona" como
 // siempre. Ver CORRECCION_* en includes/helpers.php.
+// Más lejos que CORRECCION_REVISAR_MAX_M también se pregunta, pero el "sí"
+// NO mueve el pin ni verifica la entrada: solo le avisa al admin
+// ('aplicar' => false, ver CORRECCION_NOTA_AVISO).
 $correccion = null;
 if ($tipo === 'entrada' && !$noShow && $verificado === 0 && $distancia !== null
     && !$cita['ubicacion_confirmada']
-    && $accuracy !== null && $accuracy <= CORRECCION_PRECISION_MAX_M
-    && $distancia <= CORRECCION_REVISAR_MAX_M) {
+    && $accuracy !== null && $accuracy <= CORRECCION_PRECISION_MAX_M) {
     $respuesta = $_POST['corregir_ubicacion'] ?? null;
     if ($respuesta === null) {
         jsonResponse([
@@ -108,11 +110,19 @@ if ($tipo === 'entrada' && !$noShow && $verificado === 0 && $distancia !== null
             'error'              => 'Tu ubicación no coincide con la guardada para el cliente. Vuelve a intentar.',
         ]);
     }
-    if ($respuesta === '1') {
+    if ($respuesta === '1' && $distancia > CORRECCION_REVISAR_MAX_M) {
+        $correccion = [
+            'estado'  => 'por_revisar',
+            'nota'    => CORRECCION_NOTA_AVISO . ' dice que sí está en el cliente, pero la ubicación registrada está a '
+                       . number_format($distancia / 1000, 1) . ' km. El pin no se movió: al aprobar se mueve a donde estaba el vendedor.',
+            'aplicar' => false,
+        ];
+    } elseif ($respuesta === '1') {
         $lejos = $distancia > CORRECCION_DIRECTA_MAX_M;
         $correccion = [
-            'estado' => $lejos ? 'por_revisar' : 'aplicada',
-            'nota'   => $lejos ? 'La ubicación registrada estaba a más de ' . (CORRECCION_DIRECTA_MAX_M / 1000) . ' km' : null,
+            'estado'  => $lejos ? 'por_revisar' : 'aplicada',
+            'nota'    => $lejos ? 'La ubicación registrada estaba a más de ' . (CORRECCION_DIRECTA_MAX_M / 1000) . ' km' : null,
+            'aplicar' => true,
         ];
         $verificado = 1;
     }
@@ -190,11 +200,12 @@ $stmt = $db->prepare(
 );
 // distancia_metros se queda con la distancia al pin ANTERIOR (dato útil
 // para el admin); ubicacion_corregida es lo que cambia la etiqueta.
-$stmt->execute([$citaId, $tipo, $lat, $lng, $accuracy, $distancia, $fotoPath, $verificado, $correccion ? 'true' : 'false']);
+$pinCorregido = $correccion && $correccion['aplicar'];
+$stmt->execute([$citaId, $tipo, $lat, $lng, $accuracy, $distancia, $fotoPath, $verificado, $pinCorregido ? 'true' : 'false']);
 $checkinId = (int)$stmt->fetchColumn();
 
 if ($correccion) {
-    $db->prepare(
+    if ($pinCorregido) $db->prepare(
         "UPDATE clientes SET lat = ?, lng = ?, ubicacion_confirmada = TRUE, ubicacion_fuente = 'checkin',
                 ubicacion_confirmada_en = CURRENT_TIMESTAMP
          WHERE id = ?"
@@ -216,7 +227,7 @@ if ($correccion) {
 }
 $db->commit();
 
-if ($correccion) {
+if ($pinCorregido) {
     registrarCambio($db, $u['id'], 'cliente', (int)$cita['cliente_id'], 'edicion',
         "Corrigió la ubicación de {$cita['cliente_nombre']} en la visita (el pin estaba a " . round($distancia) . ' m)', [
         'Ubicación' => [$cita['cliente_lat'] . ', ' . $cita['cliente_lng'], $lat . ', ' . $lng],
@@ -263,7 +274,8 @@ if ($noShow) {
     $db->prepare('UPDATE citas SET estado = ? WHERE id = ?')->execute([$nuevoEstado, $citaId]);
 }
 
-if ($tipo === 'entrada' && $verificado === 0 && $distancia !== null) {
+// Con aviso al admin ya sale "Ubicación por revisar": no se duplica con "Fuera de zona".
+if ($tipo === 'entrada' && $verificado === 0 && $distancia !== null && !$correccion) {
     $db->prepare('INSERT INTO alertas (vendedor_id, cita_id, tipo, mensaje) VALUES (?,?,?,?)')
        ->execute([
            $u['id'],
@@ -276,7 +288,7 @@ if ($tipo === 'entrada' && $verificado === 0 && $distancia !== null) {
 jsonResponse([
     'ok'               => true,
     'verificado'       => (bool)$verificado,
-    'ubicacion_corregida' => (bool)$correccion,
+    'ubicacion_corregida' => (bool)$pinCorregido,
     'distancia_metros' => $distancia !== null ? round($distancia) : null,
     'foto'             => $fotoPath,
     'estado'           => $nuevoEstado,

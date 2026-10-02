@@ -121,7 +121,7 @@ function sqlSinAlertaPrevia(string $tipo): string {
 // ── 1. Ubicación por revisar (corrección de pin a más de 3 km) ───────────
 function generarAlertaUbicacionPorRevisar(PDO $db): void {
     $stmt = $db->query(
-        "SELECT c.id, cu.vendedor_id, cu.distancia_metros, cl.nombre AS cliente_nombre
+        "SELECT c.id, cu.vendedor_id, cu.distancia_metros, cu.nota, cl.nombre AS cliente_nombre
          FROM correcciones_ubicacion cu
          JOIN checkins ch ON ch.id = cu.checkin_id
          JOIN citas c ON c.id = ch.cita_id
@@ -130,6 +130,11 @@ function generarAlertaUbicacionPorRevisar(PDO $db): void {
     );
     foreach ($stmt->fetchAll() as $r) {
         $km = number_format(((float)$r['distancia_metros']) / 1000, 1);
+        if (str_starts_with((string)$r['nota'], CORRECCION_NOTA_AVISO)) {
+            insertarAlerta($db, (int)$r['vendedor_id'], (int)$r['id'], 'ubicacion_por_revisar',
+                "Avisó que sí está en {$r['cliente_nombre']}, pero la ubicación guardada está a {$km} km. El pin no se movió: apruébalo para moverlo a donde estuvo o revierte.");
+            continue;
+        }
         insertarAlerta($db, (int)$r['vendedor_id'], (int)$r['id'], 'ubicacion_por_revisar',
             "Movió el pin de {$r['cliente_nombre']} al hacer check-in. El pin anterior estaba a {$km} km, más de los 3 km que se corrigen solos.");
     }

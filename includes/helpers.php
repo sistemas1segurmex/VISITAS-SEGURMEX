@@ -27,6 +27,13 @@ define('CORRECCION_PRECISION_MAX_M', 100);
 define('CORRECCION_DIRECTA_MAX_M', 3000);
 define('CORRECCION_REVISAR_MAX_M', 20000);
 define('CORRECCION_SALIDA_MAX_M', 150);
+// Más lejos que CORRECCION_REVISAR_MAX_M (2-oct-2026): el pin NO se mueve,
+// pero si el vendedor dice que sí está en el cliente se le avisa al admin
+// -- queda una corrección 'por_revisar' cuya nota empieza con esto, y al
+// aprobarla (api/admin_ubicaciones.php) es cuando el pin se mueve. Antes
+// esos casos solo salían "Fuera de zona" en cada visita, sin forma de
+// arreglar el pin desde el panel (Textiles la Providencia, 57 km).
+define('CORRECCION_NOTA_AVISO', 'Aviso del vendedor:');
 
 /**
  * ¿El pin que llegó en el formulario de cliente (alta/edición) ya está
