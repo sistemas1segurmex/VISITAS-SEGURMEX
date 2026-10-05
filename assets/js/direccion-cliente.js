@@ -134,14 +134,28 @@ window.DireccionCliente = (function () {
          .replace(/\b(calz)\b\.?/g, ' calzada ')
          .replace(/\b(prol)\b\.?/g, ' prolongación ')
          .replace(/\b(carr)\b\.?/g, ' carretera ')
+         .replace(/\b(cto|circ)\b\.?/g, ' circuito ')
+         .replace(/\b(priv)\b\.?/g, ' privada ')
+         .replace(/\b(cda)\b\.?/g, ' cerrada ')
+         // Estados abreviados como los escribe Google ("S.L.P.", "Gto.", "N.L.").
+         .replace(/\bs\.\s?l\.\s?p\.?|\bslp\b/g, ' san luis potosí ')
+         .replace(/\bn\.\s?l\.?(?=\s)/g, ' nuevo león ')
+         .replace(/\bgto\b\.?/g, ' guanajuato ')
+         .replace(/\bqro\b\.?/g, ' querétaro ')
+         .replace(/\bags\b\.?/g, ' aguascalientes ')
+         .replace(/\bjal\b\.?/g, ' jalisco ')
+         .replace(/\bcdmx\b/g, ' ciudad de méxico ')
+         .replace(/\bedo\.?\s?(de\s)?m[eé]x\b\.?|\bedomex\b/g, ' estado de méxico ')
          .replace(/[,;]+/g, ' ');
     return s.replace(/\s+/g, ' ').trim();
   }
 
-  async function buscarEnNominatim(q) {
+  // conContexto=false para direcciones completas (las de un link): ya traen
+  // ciudad y estado, y el municipio de la colonia elegida puede ser otro.
+  async function buscarEnNominatim(q, conContexto = true) {
     const palabras = limpiarConsulta(q).split(' ').filter(Boolean);
     if (!palabras.length) return [];
-    const contexto = [selectMunicipio.value, selectEstado.value].filter(Boolean).join(', ');
+    const contexto = conContexto ? [selectMunicipio.value, selectEstado.value].filter(Boolean).join(', ') : '';
     const sinTipo = palabras.filter(p => !['boulevard', 'avenida', 'calzada', 'calle', 'prolongación', 'carretera'].includes(p));
 
     // De lo más completo a lo más corto, hasta que algo aparezca. Nominatim
@@ -202,11 +216,11 @@ window.DireccionCliente = (function () {
     return c ? c.longText : '';
   }
 
-  async function buscarEnGoogle(q) {
+  async function buscarEnGoogle(q, conContexto = true) {
     const { AutocompleteSuggestion, AutocompleteSessionToken } = await cargarGoogle();
     if (googleFallo) throw new Error('clave de Google rechazada');
     if (!sessionToken) sessionToken = new AutocompleteSessionToken();
-    const contexto = [selectColonia.value, selectMunicipio.value, selectEstado.value].filter(Boolean);
+    const contexto = conContexto ? [selectColonia.value, selectMunicipio.value, selectEstado.value].filter(Boolean) : [];
     const yaTraeContexto = contexto.some(c => normalizar(q).includes(normalizar(c)));
     const req = {
       input: (!yaTraeContexto && contexto.length) ? `${q}, ${contexto.join(', ')}` : q,
@@ -270,13 +284,15 @@ window.DireccionCliente = (function () {
     const miBusqueda = ++busquedaActual;
     pintarResultados('<button type="button" disabled>Buscando...</button>');
 
+    // Lo que llega de un link es una dirección completa: sin contexto.
+    const conContexto = typeof textoForzado !== 'string';
     let resultados = null;
     let error = false;
     if (CFG.googleKey && !googleFallo) {
-      try { resultados = await buscarEnGoogle(q); } catch (e) { console.error('Google Places:', e); }
+      try { resultados = await buscarEnGoogle(q, conContexto); } catch (e) { console.error('Google Places:', e); }
     }
     if (!resultados || !resultados.length) {
-      try { resultados = await buscarEnNominatim(q); } catch (e) { error = true; }
+      try { resultados = await buscarEnNominatim(q, conContexto); } catch (e) { error = true; }
     }
     if (miBusqueda !== busquedaActual) return null; // ya escribió otra cosa
 
@@ -384,10 +400,15 @@ window.DireccionCliente = (function () {
     if (nombre) {
       // Típico de "Compartir" desde la búsqueda de Google (share.google):
       // solo trae el nombre del negocio, no dónde está.
-      nota('nota-link', `El link solo trae el nombre ("${nombre}"), no la ubicación. Lo busqué por nombre...`, 'info');
+      // La lista sale arriba, bajo "Calle y número": se lleva al vendedor
+      // hasta ella, si no parece que se quedó buscando.
+      nota('nota-link', `El link solo trae la dirección ("${nombre}"), no el punto exacto. Buscándola en el mapa...`, 'info');
       const encontrados = await buscarDireccion(nombre);
       if (encontrados) {
-        nota('nota-link', `El link solo trae el nombre ("${nombre}"). Elige el resultado correcto de la lista.`, 'info');
+        nota('nota-link', `El link solo trae la dirección ("${nombre}"). Elige el resultado en la lista de arriba y luego ajusta el pin al lugar exacto.`, 'info');
+        $('resultados-busqueda').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (encontrados === null) {
+        nota('nota-link', '', 'info'); // otra búsqueda la reemplazó
       } else if (encontrados === 0) {
         nota('nota-link', 'Ese link solo trae el nombre del negocio y no se encontró en el mapa. Pide la ubicación desde la app de Google Maps (abrir el lugar > Compartir) o por WhatsApp (Adjuntar > Ubicación), o toca el punto en el mapa.', 'error');
       }
