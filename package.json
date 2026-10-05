@@ -1,0 +1,11 @@
+{
+  "name": "visitas-segurmex",
+  "private": true,
+  "description": "Pruebas E2E de Visitas (la app es PHP; esto es solo para Playwright)",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
+  }
+}

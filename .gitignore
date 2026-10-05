@@ -26,3 +26,8 @@ uploads/cache/*
 # Basura de sistema
 .DS_Store
 Thumbs.db
+
+# Playwright (pruebas E2E)
+node_modules/
+test-results/
+playwright-report/
