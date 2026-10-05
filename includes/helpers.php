@@ -2,8 +2,10 @@
 // Margen de tolerancia (en metros) entre el GPS reportado y la dirección
 // registrada del cliente para considerar una visita "verificada". Se subió
 // de 150 a 250 para cubrir casos normales como estar en el estacionamiento
-// de la empresa en vez de exactamente sobre el pin de la entrada.
-define('RADIO_VERIFICACION_METROS', 250);
+// de la empresa en vez de exactamente sobre el pin de la entrada. Se subió a
+// 350 (5-oct-2026): naves de parques industriales salían "Fuera de zona" con
+// el pin bien puesto y GPS de ±9 m (Grupo Urvina, entrada a 266 m).
+define('RADIO_VERIFICACION_METROS', 350);
 
 // El propio checkin.php del vendedor ya reintenta obtener GPS hasta lograr
 // una precisión razonable antes de dejar enviar (ver vendedor/checkin.php).
