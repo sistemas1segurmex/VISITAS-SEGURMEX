@@ -1,0 +1,3 @@
+# Librería dompdf: solo la carga PHP por include (includes/cotizacion_pdf.php).
+# Nada aquí tiene que abrirse desde el navegador.
+Require all denied

@@ -189,6 +189,26 @@ function cerrarTodasLasSesionesDelUsuario(PDO $db, int $usuarioId): void {
     }
 }
 
+/**
+ * Teléfono de México a 10 dígitos (lo que se guarda en clientes.telefono).
+ * Acepta lo que el vendedor suele escribir -- espacios, guiones, paréntesis,
+ * +52, 52, 521 (celular viejo), 044/045 o 01 -- y regresa solo los 10
+ * dígitos. Vacío = '' (el teléfono es opcional). Si no se puede llevar a 10
+ * dígitos válidos regresa null y quien llama rechaza el guardado.
+ * Misma regla que telefonoMx() en assets/js/vendedor.js.
+ */
+function normalizarTelefonoMx(?string $valor): ?string {
+    $d = preg_replace('/\D+/', '', (string)$valor);
+    if ($d === '') return '';
+    if (strlen($d) === 13 && str_starts_with($d, '521')) $d = substr($d, 3);
+    elseif (strlen($d) === 13 && (str_starts_with($d, '044') || str_starts_with($d, '045'))) $d = substr($d, 3);
+    elseif (strlen($d) === 12 && (str_starts_with($d, '52') || str_starts_with($d, '01'))) $d = substr($d, 2);
+    // Los números de México no empiezan con 0 ni 1 (lada de 2-3 dígitos).
+    return preg_match('/^[2-9]\d{9}$/', $d) ? $d : null;
+}
+
+const MSG_TELEFONO_INVALIDO = 'El teléfono debe tener 10 dígitos (sin 52 ni +52). Ejemplo: 477 123 4567.';
+
 function jsonResponse($data, int $code = 200) {
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
