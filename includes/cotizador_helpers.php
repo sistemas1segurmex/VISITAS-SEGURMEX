@@ -84,7 +84,7 @@ function catalogoCotizableErp(array $cfg): array {
     $items = [];
     foreach ($db->query("
         SELECT m.id, m.modelo, m.marca, m.linea_nombre, m.suela, m.corte, m.color, m.colores,
-               m.precio_industria, m.precio_distribuidor, m.foto
+               m.precio_industria, m.precio_distribuidor, m.foto, m.entrega_dias
         FROM legacy_cotizador_fb_modelos m
         WHERE m.activo
           AND NOT EXISTS (SELECT 1 FROM estilos e
@@ -99,6 +99,7 @@ function catalogoCotizableErp(array $cfg): array {
             'nombre' => mb_substr(trim(($m['linea_nombre'] ?: $m['marca']) . ' — ' . ($m['corte'] ?: '')), 0, 150),
             'suela' => $m['suela'], 'colores' => array_values($colores), 'foto' => $m['foto'],
             'precio_industria' => (float)$m['precio_industria'], 'precio_distribuidor' => (float)$m['precio_distribuidor'],
+            'entrega_dias' => $m['entrega_dias'] !== null ? (int)$m['entrega_dias'] : null,
         ];
     }
     foreach ($db->query("
@@ -110,7 +111,7 @@ function catalogoCotizableErp(array $cfg): array {
         $items['e:' . (int)$e['id']] = [
             'item' => 'e:' . (int)$e['id'], 'id_estilo' => (int)$e['id'], 'id_modelo_legacy' => null,
             'clave' => $e['cinterno'], 'marca' => 'SEGURMEX', 'grupo' => 'Estilos del ERP',
-            'nombre' => $e['estilo'], 'suela' => null, 'colores' => [], 'foto' => null,
+            'nombre' => $e['estilo'], 'suela' => null, 'colores' => [], 'foto' => null, 'entrega_dias' => null,
             'precio_industria' => precioBaseEstiloErp($e, 'industria', $cfg),
             'precio_distribuidor' => precioBaseEstiloErp($e, 'distribuidor', $cfg),
         ];
@@ -170,6 +171,7 @@ function resolverRenglonesCotizacionErp(array $catalogo, array $renglones, strin
             'clave_estilo' => $item['clave'], 'nombre_estilo' => $item['nombre'], 'color' => $color,
             'cantidad' => $cantidad, 'precio_lista' => $base, 'precio_minimo' => $minimo,
             'precio_final' => $precio, 'importe' => $importe,
+            'entrega_dias' => $item['entrega_dias'] ?? null,  // solo informativo, no se guarda en cotizacion_detalle
         ];
     }
     if (!$lineas && !$errores) $errores[] = 'Agrega al menos un modelo con cantidad';
@@ -178,7 +180,71 @@ function resolverRenglonesCotizacionErp(array $catalogo, array $renglones, strin
         'lineas' => $lineas, 'errores' => $errores,
         'total_pares' => $totalPares, 'pares_dickies' => $paresDickies,
         'aplica_mayoreo' => $mayoreo, 'subtotal' => round($subtotal, 2),
+        'entrega' => entregaRequeridaDeLineasErp($lineas),
     ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tiempo de entrega por modelo -- COPIA de diasDeTiempoEntrega(),
+// entregaRequeridaDeLineas() y avisoTiempoEntrega() de erp/cotizacion/_helpers.php.
+// Algunos modelos (hoy los Dickies) traen su propio plazo en días hábiles
+// (legacy_cotizador_fb_modelos.entrega_dias: 30 o 75). Solo se muestra y se
+// AVISA (no bloquea) si el tiempo de entrega capturado es menor.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Días que expresa un texto de tiempo de entrega ("15 días hábiles" → 15); null si no trae días. */
+function diasDeTiempoEntregaErp(?string $texto): ?int {
+    if ($texto === null) return null;
+    if (preg_match('/(\d+)\s*d[ií]as?/iu', $texto, $m)) return (int)$m[1];
+    return null;
+}
+
+/** El plazo más largo entre los renglones y qué modelos lo piden: ['dias' => int|null, 'modelos' => string[]]. */
+function entregaRequeridaDeLineasErp(array $lineas): array {
+    $max = null; $modelos = [];
+    foreach ($lineas as $l) {
+        $d = isset($l['entrega_dias']) && $l['entrega_dias'] !== null ? (int)$l['entrega_dias'] : null;
+        if ($d === null || $d <= 0) continue;
+        if ($max === null || $d > $max) { $max = $d; $modelos = []; }
+        if ($d === $max && !in_array($l['clave_estilo'], $modelos, true)) $modelos[] = $l['clave_estilo'];
+    }
+    return ['dias' => $max, 'modelos' => $modelos];
+}
+
+/** Texto de aviso si el tiempo de entrega es menor al del modelo más tardado; null si no hay que avisar. */
+function avisoTiempoEntregaErp(?string $tiempoEntrega, array $entrega): ?string {
+    if (!$entrega['dias']) return null;
+    $dias = diasDeTiempoEntregaErp($tiempoEntrega);
+    if ($dias === null || $dias >= $entrega['dias']) return null;
+    return implode(', ', $entrega['modelos']) . ' se entrega' . (count($entrega['modelos']) > 1 ? 'n' : '')
+         . ' en ' . $entrega['dias'] . ' días hábiles, y el tiempo de entrega de la cotización dice "' . $tiempoEntrega . '".';
+}
+
+/**
+ * Agrega a cada renglón guardado (cotizacion_detalle) la foto y el plazo de
+ * entrega del modelo del catálogo anterior. Los Estilos del ERP no traen
+ * ninguno de los dos. Si algo falla, los deja en null.
+ */
+function agregarFotoYEntregaDetalleErp(PDO $dbErp, array $detalle): array {
+    $info = [];
+    try {
+        $ids = array_values(array_unique(array_filter(array_map(fn($d) => (int)($d['id_modelo_legacy'] ?? 0), $detalle))));
+        if ($ids) {
+            $marcas = implode(',', array_fill(0, count($ids), '?'));
+            $st = $dbErp->prepare("SELECT id, foto, entrega_dias FROM legacy_cotizador_fb_modelos WHERE id IN ($marcas)");
+            $st->execute($ids);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $info[(int)$r['id']] = $r;
+        }
+    } catch (Throwable $e) {
+        error_log('[VISITAS] agregarFotoYEntregaDetalleErp: ' . $e->getMessage());
+    }
+    foreach ($detalle as &$d) {
+        $m = $info[(int)($d['id_modelo_legacy'] ?? 0)] ?? null;
+        $d['foto'] = $m['foto'] ?? null;
+        $d['entrega_dias'] = isset($m['entrega_dias']) && $m['entrega_dias'] !== null ? (int)$m['entrega_dias'] : null;
+    }
+    unset($d);
+    return $detalle;
 }
 
 /**

@@ -47,6 +47,7 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
         $final = (float)($d['precio_final'] ?? 0);
         $tachado = ($lista > 0 && $final < $lista) ? '<div class="tachado">' . money($lista) . '</div>' : '';
         $color = !empty($d['color']) ? '<div class="color">Color: ' . pdfH($d['color']) . '</div>' : '';
+        if (!empty($d['entrega_dias'])) $color .= '<div class="color">Entrega: ' . (int)$d['entrega_dias'] . ' días hábiles</div>';
         $filas .= '<tr>'
             . '<td class="clave">' . pdfH($d['clave_estilo']) . '</td>'
             . '<td><div class="modelo">' . pdfH($d['nombre_estilo']) . '</div>' . $color . '</td>'

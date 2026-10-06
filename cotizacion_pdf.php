@@ -44,6 +44,7 @@ try {
     $det = $db->prepare('SELECT * FROM cotizacion_detalle WHERE id_cotizacion = ? ORDER BY orden');
     $det->execute([$cot['id']]);
     $detalle = $det->fetchAll();
+    $detalle = agregarFotoYEntregaDetalleErp($db, $detalle); // plazo de entrega de los Dickies
 
     $v = $db->prepare('SELECT nombre, apellidos FROM usuarios WHERE id = ?');
     $v->execute([$cot['id_vendedor']]);
