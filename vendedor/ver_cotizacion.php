@@ -113,6 +113,8 @@ if (!$id) { header('Location: cotizaciones.php'); exit; }
 .vc-tag { display: inline-flex; align-items: center; gap: 4px; font-size: .68rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: rgba(20,23,31,.06); color: var(--v26-ink-soft); }
 .vc-tag--desc { background: rgba(22,163,74,.1); color: var(--v26-green); }
 .vc-tag--entrega { background: #E0F2FE; color: #075985; }
+.vc-tag--attr { background: transparent; border: 1px solid #F5A623; color: #92400E; }
+.vc-leyenda-attr { font-size: .72rem; color: var(--v26-ink-soft); margin-top: 8px; line-height: 1.5; }
 .vc-aviso-entrega { display: flex; gap: 8px; align-items: flex-start; font-size: .78rem; font-weight: 600; color: #B45309; background: #FFFBEB; border-radius: 10px; padding: 8px 10px; margin: 2px 0 8px; }
 .vc-tachado { text-decoration: line-through; color: #B8AF9C; }
 
@@ -326,12 +328,20 @@ function renglonHTML(d) {
         <div class="vc-r-top"><span class="vc-r-clave">${escHtml(d.clave_estilo)}</span><span class="vc-r-importe">${money(d.importe)}</span></div>
         <div class="vc-r-nombre">${escHtml(d.nombre_estilo)}</div>
         <div class="vc-r-meta">
+          ${d.atributo ? `<span class="vc-tag vc-tag--attr">${escHtml(d.atributo)}</span>` : ''}
           ${d.color ? `<span class="vc-tag">${escHtml(d.color)}</span>` : ''}
           ${d.entrega_dias ? `<span class="vc-tag vc-tag--entrega"><i class="bi bi-truck"></i>Entrega: ${parseInt(d.entrega_dias)} días hábiles</span>` : ''}
           <span>${pares} ${pares === 1 ? 'par' : 'pares'} × ${tachado} ${money(final)}</span>
         </div>
       </div>
     </div>`;
+}
+
+// Qué significa cada atributo de seguridad que trae ESTA cotización (PP+D, O…).
+function leyendaAtributosHTML(atributos) {
+  const pares = Object.entries(atributos || {});
+  if (!pares.length) return '';
+  return `<div class="vc-leyenda-attr">${pares.map(([c, s]) => `<strong>${escHtml(c)}</strong> = ${escHtml(s)}`).join(' · ')}</div>`;
 }
 
 function datoHTML(icono, etiqueta, valorHtml, extra = '') {
@@ -440,6 +450,7 @@ function render(data) {
     <div class="vc-card">
       <div class="vc-card-titulo"><span>Modelos cotizados</span><span class="cuenta">${pares} ${pares === 1 ? 'par' : 'pares'}</span></div>
       <div class="vc-renglones">${data.detalle.map(renglonHTML).join('')}</div>
+      ${leyendaAtributosHTML(data.atributos)}
       <div class="vc-totales">
         ${descuentos.length ? `<div class="vc-descuentos">${descuentos.map(d => `<span class="vc-tag vc-tag--desc"><i class="bi bi-tag"></i>${d}</span>`).join('')}</div>` : ''}
         <div class="fila"><span>Subtotal</span><span>${money(c.subtotal)}</span></div>

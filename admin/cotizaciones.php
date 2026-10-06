@@ -289,12 +289,13 @@ function pintarFicha(d) {
       <div class="ac-renglon">
         ${r.foto ? `<img class="ac-foto" src="${FOTOS_URL}${encodeURIComponent(r.foto)}" alt="" loading="lazy">` : '<span class="ac-foto"><i class="bi bi-box-seam"></i></span>'}
         <div class="info">
-          <div class="top"><span>${esc(r.clave_estilo)}</span><span>${money(r.importe)}</span></div>
+          <div class="top"><span>${esc(r.clave_estilo)}${r.atributo ? ` <span style="font-size:.66rem;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid #F5A623;color:#92400E">${esc(r.atributo)}</span>` : ''}</span><span>${money(r.importe)}</span></div>
           <div class="nom">${esc(r.nombre_estilo)}</div>
           <div class="text-muted">${r.color ? esc(r.color) + ' · ' : ''}${parseInt(r.cantidad) || 0} pares × ${money(r.precio_final)}</div>
           ${r.entrega_dias ? `<div style="font-size:.75rem;color:#075985;font-weight:600"><i class="bi bi-truck"></i> Entrega: ${parseInt(r.entrega_dias)} días hábiles</div>` : ''}
         </div>
       </div>`).join('')}
+    ${Object.keys(d.atributos || {}).length ? `<div style="font-size:.72rem;color:#6B7280;margin:6px 0">${Object.entries(d.atributos).map(([k, s]) => `<strong>${esc(k)}</strong> = ${esc(s)}`).join(' · ')}</div>` : ''}
     <div class="ac-totales">
       <div class="fila"><span>Subtotal</span><span>${money(c.subtotal)}</span></div>
       <div class="fila"><span>IVA</span><span>${money(c.iva)}</span></div>

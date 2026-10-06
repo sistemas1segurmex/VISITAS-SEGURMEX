@@ -83,6 +83,7 @@ jsonResponse([
     'ok'           => true,
     'cotizacion'   => $cot,
     'detalle'      => $detalle,
+    'atributos'    => leyendaAtributosDeLineasErp($detalle),
     'aviso_entrega'=> avisoTiempoEntregaErp($cot['tiempo_entrega'] ?? null, entregaRequeridaDeLineasErp($detalle)),
     'historial'    => $historial,
     'vencida'      => cotizacionVencidaErp($cot),
