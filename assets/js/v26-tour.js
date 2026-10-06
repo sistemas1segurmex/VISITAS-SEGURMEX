@@ -66,6 +66,13 @@ const V26Tour = (function () {
     window.addEventListener('resize', () => {
       if (document.getElementById('v26TourBubble').classList.contains('show')) posicionar();
     });
+    // El paso hace scrollIntoView suave: si el desplazamiento tarda más de lo
+    // esperado (pantallas largas), el recuadro se vuelve a acomodar al moverse.
+    let rafScroll = 0;
+    window.addEventListener('scroll', () => {
+      if (rafScroll || !document.getElementById('v26TourBubble').classList.contains('show')) return;
+      rafScroll = requestAnimationFrame(() => { rafScroll = 0; posicionar(); });
+    }, { passive: true });
   }
 
   function mostrar(id) { document.getElementById(id).classList.add('show'); }
