@@ -266,6 +266,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
       </div>
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
+        <button type="button" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Tour guiado: cómo hacer una cotización" aria-label="Tour guiado" id="btn-tour-ayuda"><i class="bi bi-question-lg"></i></button>
       </div>
     </div>
   </div>
@@ -468,6 +469,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
@@ -1133,10 +1135,42 @@ window.addEventListener('beforeunload', e => {
   if (renglones.length && !guardada) { e.preventDefault(); e.returnValue = ''; }
 });
 
+// ================= Tour guiado =================
+// Mismo motor que las demás pantallas (assets/js/v26-tour.js). Sale solo la
+// primera vez; después se repite con el botón ? de arriba. Textos cortos y
+// sencillos: es para quien apenas empieza a usar el sistema. En celular el
+// catálogo es una hoja aparte, por eso ese paso señala el botón que la abre.
+function pasosTourNuevaCotizacion() {
+  const pp = Math.round((CFG.descuento_pronto_pago || 0) * 100);
+  return [
+    { selector: '#btn-cliente', texto: 'Primero elige a quién le vas a cotizar. Si no aparece en la lista, regístralo primero.' },
+    { selector: '#seg-tipo-lista', texto: 'Elige la lista de precios que le toca a este cliente: Industria o Distribuidor.' },
+    { selector: '#seg-pronto-pago', texto: `Toca «Sí aplica» solo si el cliente va a pagar de contado o por adelantado. Le baja ${pp}% al precio.` },
+    esEscritorio()
+      ? { selector: '#sheet-catalogo .nc-sheet-search', texto: 'Busca el modelo y tócalo para agregarlo. La etiqueta junto a la clave (PP+D, O…) dice qué protección tiene.' }
+      : { selector: '#btn-abrir-catalogo', texto: 'Toca aquí para abrir el catálogo. Luego toca cada modelo que quieras agregar.' },
+    { selector: '#sec-resumen', texto: 'Aquí ves lo que llevas. Puedes cambiar los pares y el precio; el precio nunca puede quedar abajo del mínimo.' },
+    esEscritorio()
+      ? { selector: '#sec-condiciones', texto: 'Elige vigencia, tiempo de entrega y forma de pago. Si llevas Dickies, aquí te avisa en cuántos días se entregan.' }
+      : { selector: '#chips-entrega', texto: 'Aquí eliges el tiempo de entrega (arriba la vigencia y abajo la forma de pago). Si llevas Dickies, aquí te avisa en cuántos días se entregan.' },
+    { selector: esEscritorio() ? '#btn-guardar' : '#barra-guardar', texto: 'Cuando esté todo, toca Guardar. Después la puedes mandar al cliente.' },
+  ];
+}
+const OPCIONES_TOUR_NUEVA_COTIZACION = {
+  storageKey: 'v26_tour_nueva_cotizacion_visto',
+  saludoTitulo: 'Cómo hacer una cotización',
+  saludoTexto: 'Te enseñamos en 7 pasos rápidos.',
+  finalTexto: 'Repite este recorrido cuando quieras tocando el ícono ? de arriba.',
+};
+$('btn-tour-ayuda').addEventListener('click', () => {
+  if (sheetAbierta) cerrarSheet(false);
+  V26Tour.reiniciar(pasosTourNuevaCotizacion(), OPCIONES_TOUR_NUEVA_COTIZACION);
+});
+
 recalcularTodo();
-cargarConfig();
-cargarClientes();
-cargarEstilos();
+// La primera vez, el tour arranca ya con parámetros, clientes y catálogo cargados.
+Promise.all([cargarConfig(), cargarClientes(), cargarEstilos()])
+  .then(() => V26Tour.iniciar(pasosTourNuevaCotizacion(), OPCIONES_TOUR_NUEVA_COTIZACION));
 </script>
 </body>
 </html>
