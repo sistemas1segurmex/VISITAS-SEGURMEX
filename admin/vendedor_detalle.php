@@ -53,6 +53,7 @@ if (!$vendedorId) {
       </div>
     </div>
     <div class="v26-topbar-right">
+      <a href="metricas.php?vendedor=<?= $vendedorId ?>" class="v26-btn-chip"><i class="bi bi-bar-chart-line"></i> Métricas</a>
       <span class="v26-user"><?= htmlspecialchars($u['nombre']) ?></span>
     </div>
   </div>

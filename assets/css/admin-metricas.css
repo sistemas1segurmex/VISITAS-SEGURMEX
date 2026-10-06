@@ -1,0 +1,100 @@
+/* Métricas del equipo (admin/metricas.php). Celular primero.
+   Colores por función: --mt-s1/--mt-s2 identifican series (visitas /
+   cotizaciones); --mt-seq-* es una escala de un solo tono (magnitud);
+   verde/ámbar/rojo solo para el semáforo y siempre con ícono. */
+.mt-wrap {
+  --mt-s1: #2a78d6; --mt-s2: #eb6834;
+  --mt-seq-1: #e3edfa; --mt-seq-2: #b7d0f1; --mt-seq-3: #7fa9e6; --mt-seq-4: #2a78d6; --mt-seq-5: #1a4f93;
+  --mt-ok: #16A34A; --mt-warn: #D97706; --mt-mal: #E11D48;
+  --mt-grid: rgba(20,23,31,.07);
+}
+.mt-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mt-periodos { display: flex; gap: 6px; overflow-x: auto; max-width: 100%; padding-bottom: 2px; scrollbar-width: thin; }
+.mt-periodos button { flex: none; border: 1px solid var(--v26-border); background: var(--v26-surface-solid); border-radius: 999px; padding: 6px 12px; font-size: .8rem; font-weight: 600; min-height: 38px; color: var(--v26-ink); }
+.mt-periodos button.active { background: var(--v26-ink); color: #fff; border-color: var(--v26-ink); }
+.mt-rango { display: flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--v26-ink-soft); }
+.mt-rango input { width: 145px; font-size: 16px; }
+.mt-select { width: auto; min-width: 180px; min-height: 38px; font-size: 16px; }
+.mt-periodo-txt { font-size: .8rem; color: var(--v26-ink-soft); margin: 8px 0 14px; }
+
+.mt-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.mt-kpi { background: var(--v26-surface-solid); border: 1px solid var(--v26-border); border-radius: 16px; padding: 12px 14px; box-shadow: var(--v26-shadow-sm); min-width: 0; }
+.mt-kpi .l { font-size: .72rem; font-weight: 700; color: var(--v26-ink-soft); display: flex; align-items: center; gap: 6px; }
+.mt-kpi .l i { color: var(--v26-brand-2); }
+.mt-kpi .v { font-size: 1.55rem; font-weight: 800; line-height: 1.15; margin-top: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-kpi .s { font-size: .72rem; color: var(--v26-ink-soft); margin-top: 2px; }
+.mt-delta { display: inline-flex; align-items: center; gap: 2px; font-weight: 700; }
+.mt-delta.sube { color: var(--mt-ok); } .mt-delta.baja { color: var(--mt-mal); } .mt-delta.igual { color: var(--v26-ink-soft); }
+
+.mt-card { background: var(--v26-surface-solid); border: 1px solid var(--v26-border); border-radius: 18px; padding: 14px; box-shadow: var(--v26-shadow-sm); margin-bottom: 14px; min-width: 0; }
+.mt-card-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.mt-card-cab h6 { margin: 0; font-weight: 800; }
+.mt-card-cab p { margin: 2px 0 0; font-size: .76rem; color: var(--v26-ink-soft); }
+.mt-link { border: 0; background: none; color: var(--v26-brand-2); font-weight: 700; font-size: .76rem; white-space: nowrap; padding: 4px 0; }
+.mt-leyenda { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .76rem; color: var(--v26-ink-soft); margin-bottom: 8px; }
+.mt-leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.mt-leyenda i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.mt-chart { position: relative; height: 240px; }
+.mt-tabla-alt { max-height: 260px; overflow: auto; font-size: .8rem; }
+.mt-tabla-alt table { width: 100%; }
+.mt-tabla-alt td, .mt-tabla-alt th { padding: 4px 8px; border-bottom: 1px solid var(--mt-grid); font-variant-numeric: tabular-nums; }
+
+.mt-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--v26-border); margin-bottom: 8px; }
+.mt-tabs button { flex: none; border: 0; background: none; padding: 8px 12px; font-size: .82rem; font-weight: 700; color: var(--v26-ink-soft); border-bottom: 2px solid transparent; min-height: 40px; }
+.mt-tabs button.active { color: var(--v26-ink); border-bottom-color: var(--v26-brand-1); }
+.mt-tabla-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.mt-tabla { width: 100%; border-collapse: collapse; font-size: .82rem; font-variant-numeric: tabular-nums; }
+.mt-tabla th { font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; color: var(--v26-ink-soft); font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--v26-border); white-space: nowrap; text-align: right; cursor: pointer; user-select: none; }
+.mt-tabla th:first-child, .mt-tabla td:first-child { text-align: left; position: sticky; left: 0; background: var(--v26-surface-solid); z-index: 1; }
+.mt-tabla th.orden::after { content: ' ▾'; } .mt-tabla th.orden.asc::after { content: ' ▴'; }
+.mt-tabla td { padding: 9px 10px; border-bottom: 1px solid var(--mt-grid); text-align: right; white-space: nowrap; }
+.mt-tabla tr:last-child td { border-bottom: 0; }
+.mt-tabla tfoot td { font-weight: 700; color: var(--v26-ink-soft); border-top: 1px solid var(--v26-border); }
+.mt-tabla tbody tr:hover td { background: #FBF8F0; }
+.mt-tabla tr.sel td { background: #FFF6DB; }
+.mt-quien { display: flex; align-items: center; gap: 8px; }
+.mt-quien a { color: var(--v26-ink); font-weight: 700; text-decoration: none; }
+.mt-quien a:hover { color: var(--v26-brand-2); }
+.mt-sem { display: inline-flex; align-items: center; gap: 4px; }
+.mt-sem.ok { color: var(--mt-ok); } .mt-sem.warn { color: var(--mt-warn); } .mt-sem.mal { color: var(--mt-mal); }
+.mt-muted { color: var(--v26-ink-soft); }
+
+.mt-grid2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 14px; }
+.mt-barras { display: flex; flex-direction: column; gap: 8px; }
+.mt-barra { display: grid; grid-template-columns: minmax(90px, 38%) minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: .8rem; }
+.mt-barra .et { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-barra .pista { display: block; height: 14px; background: transparent; border-radius: 0 4px 4px 0; position: relative; }
+.mt-barra .relleno { display: block; height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+.mt-barra .n { font-weight: 700; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+.mt-vacio { font-size: .8rem; color: var(--v26-ink-soft); padding: 10px 0; }
+.mt-sub { font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--v26-ink-soft); margin: 14px 0 8px; }
+.mt-mini-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mt-mini { background: #FBF9F4; border-radius: 12px; padding: 9px 11px; }
+.mt-mini .v { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.mt-mini .l { font-size: .72rem; color: var(--v26-ink-soft); }
+
+.mt-calor-wrap { overflow-x: auto; }
+.mt-calor { display: grid; gap: 2px; font-size: .66rem; min-width: 560px; }
+.mt-calor .h { color: var(--v26-ink-soft); text-align: center; }
+.mt-calor .d { color: var(--v26-ink-soft); font-weight: 700; display: flex; align-items: center; }
+.mt-calor .c { height: 26px; border-radius: 4px; background: #F4F2EC; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+
+.mt-embudo { display: flex; flex-direction: column; gap: 10px; }
+.mt-emb-fila { display: grid; grid-template-columns: minmax(90px, 26%) minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: .8rem; }
+.mt-emb-fila .nom { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-emb-barra { display: flex; height: 18px; gap: 2px; }
+.mt-emb-barra span { height: 100%; min-width: 3px; }
+.mt-emb-barra span:first-child { border-radius: 4px 0 0 4px; } .mt-emb-barra span:last-child { border-radius: 0 4px 4px 0; }
+.mt-emb-barra span:only-child { border-radius: 4px; }
+
+/* Tooltip propio para barras, celdas y segmentos */
+.mt-tip { position: fixed; z-index: 2000; pointer-events: none; background: #14171F; color: #fff; font-size: .74rem; padding: 6px 9px; border-radius: 8px; max-width: 240px; box-shadow: 0 8px 20px -8px rgba(0,0,0,.4); }
+
+@media (min-width: 640px) {
+  .mt-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 992px) {
+  .mt-grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mt-card { padding: 18px; }
+  .mt-chart { height: 280px; }
+}
