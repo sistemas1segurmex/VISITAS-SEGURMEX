@@ -6,5 +6,6 @@ require_once __DIR__ . '/../includes/cotizador_helpers.php';
 
 requireRole('vendedor');
 
-$q = trim($_GET['q'] ?? '');
-jsonResponse(['ok' => true, 'estilos' => buscarEstilosErp($q)]);
+// Catálogo completo, el mismo del cotizador del ERP: son pocas decenas de
+// modelos, así que se manda de una vez y el filtro se hace en pantalla.
+jsonResponse(['ok' => true, 'catalogo' => array_values(catalogoCotizableErp(configCotizadorErp()))]);

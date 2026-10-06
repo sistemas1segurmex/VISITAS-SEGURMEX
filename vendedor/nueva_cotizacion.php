@@ -39,6 +39,18 @@ $prospeccionPrellenada  = (int)($_GET['prospeccion_id'] ?? 0);
 .nc-estilo-item .agregar { font-size:1.3rem; color:var(--v26-brand-2); flex-shrink:0; }
 .nc-estilo-item.en-carrito { background:rgba(22,163,74,.07); }
 .nc-estilo-item.en-carrito .agregar { color:var(--v26-green); }
+.nc-estilo-item .info { display:flex; align-items:center; gap:10px; min-width:0; }
+.nc-foto { width:40px; height:40px; object-fit:contain; border:1px solid var(--v26-border); border-radius:8px; background:#fff; flex:none; }
+.nc-foto--vacia { display:flex; align-items:center; justify-content:center; color:var(--v26-ink-soft); font-size:1rem; }
+.nc-grupo { position:sticky; top:0; z-index:1; background:var(--v26-surface-solid); padding:6px 12px; font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.03em; color:var(--v26-ink-soft); border-bottom:1px solid var(--v26-border); }
+.nc-dickies { display:inline-block; font-size:.62rem; font-weight:700; padding:1px 7px; border-radius:999px; background:#FEF9C3; color:#854D0E; margin-top:3px; }
+.nc-color { margin-top:4px; font-size:.74rem; border:1px solid var(--v26-border); border-radius:8px; padding:3px 6px; max-width:130px; }
+.nc-color.falta { border-color:var(--v26-red); }
+.nc-color-fijo { font-size:.72rem; color:var(--v26-ink-soft); }
+.nc-aviso { font-size:.76rem; font-weight:600; margin-top:8px; }
+.nc-aviso:empty { display:none; }
+.nc-aviso.ok { color:var(--v26-green); }
+.nc-aviso.dickies { color:#B45309; }
 
 /* Stepper de cantidad */
 .nc-stepper { display:flex; align-items:center; gap:6px; }
@@ -105,11 +117,11 @@ $prospeccionPrellenada  = (int)($_GET['prospeccion_id'] ?? 0);
         </div>
 
         <div class="v26-field">
-          <label>Estilos</label>
+          <label>Modelos</label>
           <div class="nc-estilos-buscador">
             <div class="v26-search mb-2">
               <i class="bi bi-search"></i>
-              <input type="text" id="input-buscar-estilo" class="v26-input" placeholder="Filtrar por clave o nombre...">
+              <input type="text" id="input-buscar-estilo" class="v26-input" placeholder="Filtrar por modelo, línea o marca...">
             </div>
             <div id="nc-lista-estilos" class="nc-lista-estilos">
               <div class="v26-skel"></div>
@@ -121,10 +133,12 @@ $prospeccionPrellenada  = (int)($_GET['prospeccion_id'] ?? 0);
             <label style="display:block; font-size:.78rem; font-weight:700; color:var(--v26-ink-soft); margin-bottom:6px; text-transform:uppercase; letter-spacing:.03em;">Agregados a la cotización</label>
             <div style="overflow-x:auto;">
               <table class="nc-tabla">
-                <thead><tr><th>Estilo</th><th>Cant.</th><th>Precio</th><th>Importe</th><th></th></tr></thead>
+                <thead><tr><th>Modelo</th><th>Cant.</th><th>Precio</th><th>Importe</th><th></th></tr></thead>
                 <tbody id="tbody-renglones"></tbody>
               </table>
             </div>
+            <div class="nc-aviso" id="aviso-mayoreo"></div>
+            <div class="nc-aviso dickies" id="aviso-dickies"></div>
           </div>
         </div>
 
@@ -205,25 +219,43 @@ $prospeccionPrellenada  = (int)($_GET['prospeccion_id'] ?? 0);
 iniciarTrackingPeriodico();
 
 const CLIENTE_PRELLENADO = <?= (int)$clientePrellenado ?>;
-let CFG = { descuento_distribuidor: 0.15, descuento_pronto_pago: 0.05, descuento_mayoreo: 0.10, minimo_pares_mayoreo: 16, tasa_iva: 0.16, vigencia_default_dias: 15 };
-let renglones = []; // {id_estilo, clave, nombre, precio_industrial, cantidad, precio_final}
+let CFG = { descuento_distribuidor: 0.15, descuento_pronto_pago: 0.05, descuento_mayoreo: 0.10, minimo_pares_mayoreo: 16, minimo_pares_dickies: 16, tasa_iva: 0.16, vigencia_default_dias: 15 };
+// Fotos del catálogo: viven en el ERP (mismo servidor), no se duplican aquí.
+const FOTOS_URL = '/erp/assets/img/cotizador/';
+// Renglón: {it (item del catálogo), cantidad, precio_final, auto, color}.
+// auto = el precio lo pone la lista (true) o lo tecleó el vendedor (false).
+let renglones = [];
 let tipoLista = 'industria';
 let prontoPago = false;
 
 function money(n) { return '$' + Number(n || 0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-function precioBase(precioIndustrial, tl) {
-  if (tl === 'distribuidor') return Math.round(precioIndustrial * (1 - CFG.descuento_distribuidor));
-  return precioIndustrial;
+// Mismas reglas que erp/cotizacion/_renglones_js.php; el servidor vuelve a
+// validar todo al guardar (resolverRenglonesCotizacionErp).
+function esDickies(it) { return !!it && it.marca === 'DICKIES'; }
+function precioLista(it, tl) { return tl === 'distribuidor' ? it.precio_distribuidor : it.precio_industria; }
+function paresPorMarca() {
+  const p = { total: 0, segurmex: 0, dickies: 0 };
+  renglones.forEach(r => {
+    const n = parseInt(r.cantidad) || 0;
+    p.total += n;
+    if (esDickies(r.it)) p.dickies += n; else p.segurmex += n;
+  });
+  return p;
 }
-function totalPares() { return renglones.reduce((s, r) => s + (parseInt(r.cantidad) || 0), 0); }
-function aplicaMayoreo() { return totalPares() >= CFG.minimo_pares_mayoreo; }
-function calcularMinimo(base, pp) {
+function aplicaMayoreo() { return paresPorMarca().segurmex >= CFG.minimo_pares_mayoreo; }
+function calcularMinimo(it, base, pp) {
+  if (esDickies(it)) return base; // Dickies: precio fijo, sin descuentos
   let f = 1;
   if (pp) f *= (1 - CFG.descuento_pronto_pago);
   if (aplicaMayoreo()) f *= (1 - CFG.descuento_mayoreo);
   return Math.round(base * f * 100) / 100;
+}
+function fotoHTML(it) {
+  return it.foto
+    ? `<img src="${FOTOS_URL}${encodeURIComponent(it.foto)}" alt="" loading="lazy" class="nc-foto">`
+    : '<span class="nc-foto nc-foto--vacia"><i class="bi bi-image"></i></span>';
 }
 
 async function cargarConfig() {
@@ -263,34 +295,38 @@ async function cargarSelectClientes() {
   actualizarBadgeEtapa();
 }
 
+// Recalcula lista, mínimo y precio de cada renglón (como recalcTodo() del
+// ERP): el precio arranca en el de lista; si el vendedor lo tecleó y quedó
+// por debajo del mínimo (p. ej. al cambiar de lista), se sube al mínimo.
 function recalcularTodo() {
-  let subtotal = 0;
   renglones.forEach(r => {
-    r.base = precioBase(r.precio_industrial, tipoLista);
-    r.minimo = calcularMinimo(r.base, prontoPago);
-    if (r.precio_final == null || r.precio_final < r.minimo) r.precio_final = r.minimo;
-    r.importe = Math.round(r.cantidad * r.precio_final * 100) / 100;
-    subtotal += r.importe;
+    r.base = precioLista(r.it, tipoLista);
+    r.minimo = calcularMinimo(r.it, r.base, prontoPago);
+    if (r.auto || r.precio_final == null) r.precio_final = r.base;
+    else if (r.precio_final < r.minimo) r.precio_final = r.minimo;
   });
-  const iva = Math.round(subtotal * CFG.tasa_iva * 100) / 100;
-  const total = Math.round((subtotal + iva) * 100) / 100;
-  document.getElementById('tot-subtotal').textContent = money(subtotal);
-  document.getElementById('tot-iva').textContent = money(iva);
-  document.getElementById('tot-total').textContent = money(total);
   renderRenglones();
   marcarEstilosEnCarrito();
-  document.getElementById('input-renglones').value = JSON.stringify(
-    renglones.map(r => ({ id_estilo: r.id_estilo, cantidad: r.cantidad, precio_final: r.precio_final }))
-  );
+  recalcularSoloTotales();
 }
 
 function renderRenglones() {
   const cont = document.getElementById('nc-seleccionados');
   const tbody = document.getElementById('tbody-renglones');
   cont.style.display = renglones.length ? 'block' : 'none';
-  tbody.innerHTML = renglones.map((r, i) => `
+  tbody.innerHTML = renglones.map((r, i) => {
+    const it = r.it;
+    let extra = '';
+    if (it.colores.length > 1) {
+      extra = `<br><select class="nc-color sel-color ${r.color ? '' : 'falta'}" data-i="${i}"><option value="">Color…</option>`
+            + it.colores.map(c => `<option value="${escHtml(c)}" ${c === r.color ? 'selected' : ''}>${escHtml(c)}</option>`).join('') + '</select>';
+    } else if (it.colores.length === 1) {
+      extra = `<br><span class="nc-color-fijo">${escHtml(it.colores[0])}</span>`;
+    }
+    if (esDickies(it)) extra += '<br><span class="nc-dickies">Dickies · precio fijo</span>';
+    return `
     <tr>
-      <td><strong>${escHtml(r.clave)}</strong><br><span class="text-muted" style="font-size:.72rem;">${escHtml(r.nombre)}</span></td>
+      <td><strong>${escHtml(it.clave)}</strong><br><span class="text-muted" style="font-size:.72rem;">${escHtml(it.nombre)}</span>${extra}</td>
       <td>
         <div class="nc-stepper">
           <button type="button" class="nc-menos" data-i="${i}">−</button>
@@ -298,11 +334,11 @@ function renderRenglones() {
           <button type="button" class="nc-mas" data-i="${i}">+</button>
         </div>
       </td>
-      <td><input type="number" step="0.01" min="${r.minimo}" value="${r.precio_final}" data-i="${i}" class="nc-precio input-precio" title="Mínimo: ${money(r.minimo)}"></td>
-      <td>${money(r.importe)}</td>
+      <td><input type="number" step="0.01" min="${r.minimo}" value="${r.precio_final}" data-i="${i}" class="nc-precio input-precio" title="Lista: ${money(r.base)} · Mínimo: ${money(r.minimo)}"></td>
+      <td class="nc-importe" data-i="${i}">${money(r.cantidad * r.precio_final)}</td>
       <td><button type="button" class="nc-quitar" data-i="${i}"><i class="bi bi-x-circle"></i></button></td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 
   tbody.querySelectorAll('.nc-menos').forEach(btn => btn.addEventListener('click', e => {
     const i = +e.currentTarget.dataset.i;
@@ -314,8 +350,19 @@ function renderRenglones() {
     renglones[i].cantidad = (parseInt(renglones[i].cantidad) || 1) + 1;
     recalcularTodo();
   }));
-  tbody.querySelectorAll('.input-precio').forEach(inp => inp.addEventListener('input', e => {
-    renglones[+e.target.dataset.i].precio_final = Math.max(0, parseFloat(e.target.value) || 0);
+  tbody.querySelectorAll('.input-precio').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const r = renglones[+e.target.dataset.i];
+      r.auto = e.target.value.trim() === '';
+      r.precio_final = Math.max(0, parseFloat(e.target.value) || 0);
+      recalcularSoloTotales();
+    });
+    // Al salir del campo: vacío = vuelve al de lista; abajo del mínimo = sube al mínimo.
+    inp.addEventListener('change', () => recalcularTodo());
+  });
+  tbody.querySelectorAll('.sel-color').forEach(sel => sel.addEventListener('change', e => {
+    renglones[+e.target.dataset.i].color = e.target.value;
+    e.target.classList.toggle('falta', !e.target.value);
     recalcularSoloTotales();
   }));
   tbody.querySelectorAll('.nc-quitar').forEach(btn => btn.addEventListener('click', e => {
@@ -324,24 +371,48 @@ function renderRenglones() {
   }));
 }
 
-// Como el usuario puede escribir un precio por encima del mínimo, no lo
-// forzamos de vuelta al mínimo en cada tecleo -- solo recalculamos importes.
+// Totales, avisos y lo que se manda al guardar. No toca los precios: el
+// vendedor puede ir tecleando sin que se le muevan a media escritura.
 function recalcularSoloTotales() {
   let subtotal = 0;
-  renglones.forEach(r => { r.importe = Math.round(r.cantidad * r.precio_final * 100) / 100; subtotal += r.importe; });
+  renglones.forEach((r, i) => {
+    r.importe = Math.round(r.cantidad * r.precio_final * 100) / 100;
+    subtotal += r.importe;
+    const celda = document.querySelector(`.nc-importe[data-i="${i}"]`);
+    if (celda) celda.textContent = money(r.importe);
+  });
   const iva = Math.round(subtotal * CFG.tasa_iva * 100) / 100;
   const total = Math.round((subtotal + iva) * 100) / 100;
   document.getElementById('tot-subtotal').textContent = money(subtotal);
   document.getElementById('tot-iva').textContent = money(iva);
   document.getElementById('tot-total').textContent = money(total);
+  pintarAvisos();
   document.getElementById('input-renglones').value = JSON.stringify(
-    renglones.map(r => ({ id_estilo: r.id_estilo, cantidad: r.cantidad, precio_final: r.precio_final }))
+    renglones.map(r => ({ item: r.it.item, cantidad: r.cantidad, precio_final: r.precio_final, color: r.color || '' }))
   );
 }
 
-// --- Lista de estilos: se muestra completa de una vez (tocar para agregar) ---
-let estilosCache = [];
-let buscarTimeout = null;
+function pintarAvisos() {
+  const p = paresPorMarca();
+  const avM = document.getElementById('aviso-mayoreo');
+  const avD = document.getElementById('aviso-dickies');
+  // Solo Dickies (sin pares SEGURMEX): el mayoreo no aplica, el aviso sobra.
+  if (!renglones.length || (p.segurmex === 0 && p.dickies > 0)) {
+    avM.textContent = '';
+  } else if (p.segurmex >= CFG.minimo_pares_mayoreo) {
+    avM.textContent = `Mayoreo aplicado (${p.segurmex} pares SEGURMEX, mínimo ${CFG.minimo_pares_mayoreo}).`;
+    avM.classList.add('ok');
+  } else {
+    avM.textContent = `Faltan ${CFG.minimo_pares_mayoreo - p.segurmex} pares SEGURMEX para el mayoreo (mínimo ${CFG.minimo_pares_mayoreo}; Dickies no cuenta).`;
+    avM.classList.remove('ok');
+  }
+  avD.textContent = (p.dickies > 0 && p.dickies < CFG.minimo_pares_dickies)
+    ? `Dickies: pedido mínimo de ${CFG.minimo_pares_dickies} pares (llevas ${p.dickies}). Puedes guardar la cotización, pero avísale al cliente.`
+    : '';
+}
+
+// --- Catálogo: el mismo del cotizador del ERP, completo y agrupado por marca · línea ---
+let catalogo = [];
 
 function renderListaEstilos(lista) {
   const cont = document.getElementById('nc-lista-estilos');
@@ -349,54 +420,64 @@ function renderListaEstilos(lista) {
     cont.innerHTML = '<div class="v26-empty" style="padding:24px 0;"><p style="margin:0;font-size:.82rem;">Sin resultados.</p></div>';
     return;
   }
-  cont.innerHTML = lista.map(es => {
-    const enCarrito = renglones.some(r => r.id_estilo === es.id);
-    return `
-    <div class="nc-estilo-item ${enCarrito ? 'en-carrito' : ''}" data-id="${es.id}" data-clave="${escHtml(es.cinterno)}" data-nombre="${escHtml(es.estilo)}" data-precio="${es.precio_industrial}">
-      <div>
-        <div class="clave">${escHtml(es.cinterno)}</div>
-        <div class="nombre">${escHtml(es.estilo)}</div>
+  let grupo = null;
+  cont.innerHTML = lista.map(it => {
+    const enCarrito = renglones.some(r => r.it.item === it.item);
+    let html = '';
+    if (it.grupo !== grupo) { grupo = it.grupo; html += `<div class="nc-grupo">${escHtml(grupo)}</div>`; }
+    return html + `
+    <div class="nc-estilo-item ${enCarrito ? 'en-carrito' : ''}" data-item="${escHtml(it.item)}">
+      <div class="info">
+        ${fotoHTML(it)}
+        <div style="min-width:0;">
+          <div class="clave">${escHtml(it.clave)}</div>
+          <div class="nombre">${escHtml(it.nombre)}</div>
+        </div>
       </div>
       <div class="agregar"><i class="bi ${enCarrito ? 'bi-check-circle-fill' : 'bi-plus-circle'}"></i></div>
     </div>`;
   }).join('');
 
-  cont.querySelectorAll('.nc-estilo-item').forEach(item => item.addEventListener('click', () => {
-    const idEstilo = parseInt(item.dataset.id);
-    const existente = renglones.find(r => r.id_estilo === idEstilo);
+  cont.querySelectorAll('.nc-estilo-item').forEach(el => el.addEventListener('click', () => {
+    const it = catalogo.find(c => c.item === el.dataset.item);
+    if (!it) return;
+    // Un modelo con varios colores agrega otro renglón (puede ir en otro color);
+    // los demás solo suman un par al renglón que ya está.
+    const existente = it.colores.length > 1 ? null : renglones.find(r => r.it.item === it.item);
     if (existente) {
       existente.cantidad++;
     } else {
-      renglones.push({
-        id_estilo: idEstilo, clave: item.dataset.clave, nombre: item.dataset.nombre,
-        precio_industrial: parseFloat(item.dataset.precio), cantidad: 1, precio_final: null,
-      });
+      renglones.push({ it, cantidad: 1, precio_final: null, auto: true, color: it.colores.length === 1 ? it.colores[0] : '' });
     }
     recalcularTodo();
   }));
 }
 
 function marcarEstilosEnCarrito() {
-  document.querySelectorAll('#nc-lista-estilos .nc-estilo-item').forEach(item => {
-    const id = parseInt(item.dataset.id);
-    const en = renglones.some(r => r.id_estilo === id);
-    item.classList.toggle('en-carrito', en);
-    const icon = item.querySelector('.agregar i');
+  document.querySelectorAll('#nc-lista-estilos .nc-estilo-item').forEach(el => {
+    const en = renglones.some(r => r.it.item === el.dataset.item);
+    el.classList.toggle('en-carrito', en);
+    const icon = el.querySelector('.agregar i');
     if (icon) icon.className = 'bi ' + (en ? 'bi-check-circle-fill' : 'bi-plus-circle');
   });
 }
 
-async function cargarEstilos(q) {
-  const res = await fetch('../api/estilos_erp.php?q=' + encodeURIComponent(q || ''));
+function filtrarCatalogo(q) {
+  q = q.toLowerCase();
+  renderListaEstilos(!q ? catalogo : catalogo.filter(it =>
+    (it.clave + ' ' + it.nombre + ' ' + it.grupo).toLowerCase().includes(q)
+  ));
+}
+
+async function cargarEstilos() {
+  const res = await fetch('../api/estilos_erp.php');
   const data = await res.json();
-  estilosCache = data.ok ? data.estilos : [];
-  renderListaEstilos(estilosCache);
+  catalogo = data.ok ? data.catalogo : [];
+  filtrarCatalogo(document.getElementById('input-buscar-estilo').value.trim());
 }
 
 document.getElementById('input-buscar-estilo').addEventListener('input', (e) => {
-  clearTimeout(buscarTimeout);
-  const q = e.target.value.trim();
-  buscarTimeout = setTimeout(() => cargarEstilos(q), 250);
+  filtrarCatalogo(e.target.value.trim());
 });
 
 // --- Segmentados: tipo de lista / pronto pago ---
@@ -451,9 +532,15 @@ document.getElementById('form-cotizacion').addEventListener('submit', async (e) 
   const msg = document.getElementById('msg-cotizacion');
   msg.innerHTML = '';
   if (!renglones.length) {
-    msg.innerHTML = '<div class="alert alert-danger py-2">Agrega al menos un estilo.</div>';
+    msg.innerHTML = '<div class="alert alert-danger py-2">Agrega al menos un modelo.</div>';
     return;
   }
+  const sinColor = renglones.filter(r => r.it.colores.length > 1 && !r.color).map(r => r.it.clave);
+  if (sinColor.length) {
+    msg.innerHTML = `<div class="alert alert-danger py-2">Elige el color de: ${escHtml(sinColor.join(', '))}.</div>`;
+    return;
+  }
+  recalcularTodo();
   const fd = new FormData(e.target);
   fd.set('tipo_lista', tipoLista);
   fd.set('pronto_pago', prontoPago ? '1' : '0');
@@ -468,7 +555,7 @@ document.getElementById('form-cotizacion').addEventListener('submit', async (e) 
 
 cargarConfig();
 cargarSelectClientes();
-cargarEstilos('');
+cargarEstilos();
 </script>
 </body>
 </html>
