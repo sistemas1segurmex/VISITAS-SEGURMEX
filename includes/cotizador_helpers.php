@@ -1,7 +1,8 @@
 <?php
 /**
  * Reglas de precio del Cotizador, COPIADAS de erp/cotizacion/_helpers.php
- * (precioBaseEstilo, aplicaMayoreo, calcularPrecioMinimo, folioCotizacion)
+ * (precioBaseEstilo, aplicaMayoreo, calcularPrecioMinimo, folioCotizacion,
+ * catalogoCotizable, resolverRenglonesCotizacion)
  * para que un vendedor foráneo cotice con las mismas condiciones que uno
  * interno de oficina, sin que VISITAS tenga que llamar al ERP en vivo.
  *
@@ -61,28 +62,123 @@ function folioCotizacionErp(int $id): string {
     return 'COT-' . str_pad((string)$id, 5, '0', STR_PAD_LEFT);
 }
 
-/** Estilos cotizables -- mismo filtro que erp/cotizacion/nuevo.php. */
-function buscarEstilosErp(string $q, int $limite = 30): array {
+// ─────────────────────────────────────────────────────────────────────────────
+// Catálogo cotizable y renglones -- COPIA de catalogoCotizable(),
+// marcaSinDescuentos() y resolverRenglonesCotizacion() de
+// erp/cotizacion/_helpers.php (PRs #455/#457/#458 del ERP, 5-oct-2026).
+//
+// Catálogo = los 53 modelos del cotizador anterior (legacy_cotizador_fb_modelos)
+// + los Estilos reales del ERP con precio. Un modelo ya ligado a su estilo
+// real (con precio) deja de salir. Llave de cada item: 'm:<id>' / 'e:<id>'.
+//
+// Reglas por marca:
+//   * SEGURMEX (y todo Estilo real): mayoreo desde N pares SEGURMEX + pronto pago.
+//   * DICKIES: precio fijo, sin descuentos; pedido mínimo de 16 pares (solo
+//     se avisa, no bloquea -- config_cotizador.minimo_pares_dickies).
+// Si el ERP cambia estas reglas, hay que replicarlas aquí y en
+// vendedor/nueva_cotizacion.php (cálculo en pantalla).
+// ─────────────────────────────────────────────────────────────────────────────
+
+function catalogoCotizableErp(array $cfg): array {
     $db = getDBErp();
-    $limite = max(1, min(100, $limite));
-    if ($q === '') {
-        $stmt = $db->prepare(
-            "SELECT id, cinterno, estilo, precio_industrial FROM estilos
-             WHERE estatus = 1 AND precio_industrial IS NOT NULL
-             ORDER BY cinterno LIMIT $limite"
-        );
-        $stmt->execute();
-        return $stmt->fetchAll();
+    $items = [];
+    foreach ($db->query("
+        SELECT m.id, m.modelo, m.marca, m.linea_nombre, m.suela, m.corte, m.color, m.colores,
+               m.precio_industria, m.precio_distribuidor, m.foto
+        FROM legacy_cotizador_fb_modelos m
+        WHERE m.activo
+          AND NOT EXISTS (SELECT 1 FROM estilos e
+                          WHERE e.id = m.id_estilo AND e.estatus = 1 AND e.precio_industrial IS NOT NULL)
+        ORDER BY m.orden, m.modelo
+    ")->fetchAll(PDO::FETCH_ASSOC) as $m) {
+        $colores = json_decode((string)$m['colores'], true) ?: [];
+        if (!$colores && $m['color'] !== null) $colores = [$m['color']];
+        $items['m:' . (int)$m['id']] = [
+            'item' => 'm:' . (int)$m['id'], 'id_estilo' => null, 'id_modelo_legacy' => (int)$m['id'],
+            'clave' => $m['modelo'], 'marca' => $m['marca'], 'grupo' => $m['marca'] . ' · ' . ($m['linea_nombre'] ?: ''),
+            'nombre' => mb_substr(trim(($m['linea_nombre'] ?: $m['marca']) . ' — ' . ($m['corte'] ?: '')), 0, 150),
+            'suela' => $m['suela'], 'colores' => array_values($colores), 'foto' => $m['foto'],
+            'precio_industria' => (float)$m['precio_industria'], 'precio_distribuidor' => (float)$m['precio_distribuidor'],
+        ];
     }
-    $stmt = $db->prepare(
-        "SELECT id, cinterno, estilo, precio_industrial FROM estilos
-         WHERE estatus = 1 AND precio_industrial IS NOT NULL
-           AND (cinterno ILIKE ? OR estilo ILIKE ?)
-         ORDER BY cinterno LIMIT $limite"
-    );
-    $like = '%' . $q . '%';
-    $stmt->execute([$like, $like]);
-    return $stmt->fetchAll();
+    foreach ($db->query("
+        SELECT id, cinterno, estilo, precio_industrial
+        FROM estilos
+        WHERE estatus = 1 AND precio_industrial IS NOT NULL
+        ORDER BY cinterno
+    ")->fetchAll(PDO::FETCH_ASSOC) as $e) {
+        $items['e:' . (int)$e['id']] = [
+            'item' => 'e:' . (int)$e['id'], 'id_estilo' => (int)$e['id'], 'id_modelo_legacy' => null,
+            'clave' => $e['cinterno'], 'marca' => 'SEGURMEX', 'grupo' => 'Estilos del ERP',
+            'nombre' => $e['estilo'], 'suela' => null, 'colores' => [], 'foto' => null,
+            'precio_industria' => precioBaseEstiloErp($e, 'industria', $cfg),
+            'precio_distribuidor' => precioBaseEstiloErp($e, 'distribuidor', $cfg),
+        ];
+    }
+    return $items;
+}
+
+function marcaSinDescuentosErp(string $marca): bool {
+    return $marca === 'DICKIES';
+}
+
+/**
+ * Valida los renglones que manda nueva_cotizacion.php (JSON: item, cantidad,
+ * precio_final, color) contra el catálogo y calcula lista, mínimo e importe.
+ * Misma lógica que resolverRenglonesCotizacion() del ERP; solo cambia la
+ * forma de la entrada (allá llegan det_item[], det_cantidad[]... del form).
+ *
+ * El mayoreo lo decide la suma de pares SEGURMEX (los Dickies no cuentan ni
+ * reciben descuento). total_pares sigue siendo TODOS los pares.
+ */
+function resolverRenglonesCotizacionErp(array $catalogo, array $renglones, string $tipoLista, bool $prontoPago, array $cfg): array {
+    $totalPares = 0; $paresSegurmex = 0; $paresDickies = 0;
+    foreach ($renglones as $r) {
+        $cant = max(0, (int)($r['cantidad'] ?? 0));
+        $item = $catalogo[(string)($r['item'] ?? '')] ?? null;
+        $totalPares += $cant;
+        if ($item && marcaSinDescuentosErp($item['marca'])) $paresDickies += $cant; else $paresSegurmex += $cant;
+    }
+    $mayoreo = aplicaMayoreoErp($paresSegurmex, $cfg);
+
+    $lineas = []; $errores = []; $subtotal = 0.0;
+    foreach ($renglones as $i => $r) {
+        $llave    = (string)($r['item'] ?? '');
+        $cantidad = (int)($r['cantidad'] ?? 0);
+        $precio   = max(0, (float)($r['precio_final'] ?? 0));
+        $color    = trim((string)($r['color'] ?? ''));
+        if ($llave === '' || $cantidad <= 0) continue;
+
+        $item = $catalogo[$llave] ?? null;
+        if (!$item) { $errores[] = 'El modelo del renglón #' . ($i + 1) . ' ya no está disponible'; continue; }
+
+        if (count($item['colores']) > 1) {
+            if (!in_array($color, $item['colores'], true)) { $errores[] = "{$item['clave']}: elige el color"; $color = null; }
+        } else {
+            $color = $item['colores'][0] ?? null;
+        }
+
+        $base   = $tipoLista === 'distribuidor' ? $item['precio_distribuidor'] : $item['precio_industria'];
+        $minimo = marcaSinDescuentosErp($item['marca']) ? $base : calcularPrecioMinimoErp($base, $mayoreo, $prontoPago, $cfg);
+        if ($precio < $minimo) {
+            $errores[] = "{$item['clave']}: el precio (" . money($precio) . ") está por debajo del mínimo permitido (" . money($minimo) . ")";
+        }
+        $importe = round($cantidad * $precio, 2);
+        $subtotal += $importe;
+        $lineas[] = [
+            'id_estilo' => $item['id_estilo'], 'id_modelo_legacy' => $item['id_modelo_legacy'],
+            'clave_estilo' => $item['clave'], 'nombre_estilo' => $item['nombre'], 'color' => $color,
+            'cantidad' => $cantidad, 'precio_lista' => $base, 'precio_minimo' => $minimo,
+            'precio_final' => $precio, 'importe' => $importe,
+        ];
+    }
+    if (!$lineas && !$errores) $errores[] = 'Agrega al menos un modelo con cantidad';
+
+    return [
+        'lineas' => $lineas, 'errores' => $errores,
+        'total_pares' => $totalPares, 'pares_dickies' => $paresDickies,
+        'aplica_mayoreo' => $mayoreo, 'subtotal' => round($subtotal, 2),
+    ];
 }
 
 /**

@@ -145,11 +145,11 @@ function render(data) {
       <div class="vc-card-titulo">Modelos cotizados</div>
       <div style="overflow-x:auto;">
         <table class="vc-tabla">
-          <thead><tr><th>Estilo</th><th>Cant.</th><th>Precio</th><th>Importe</th></tr></thead>
+          <thead><tr><th>Modelo</th><th>Cant.</th><th>Precio</th><th>Importe</th></tr></thead>
           <tbody>
             ${data.detalle.map(d => `
               <tr>
-                <td><strong>${escHtml(d.clave_estilo)}</strong><br><span class="text-muted" style="font-size:.72rem;">${escHtml(d.nombre_estilo)}</span></td>
+                <td><strong>${escHtml(d.clave_estilo)}</strong><br><span class="text-muted" style="font-size:.72rem;">${escHtml(d.nombre_estilo)}</span>${d.color ? `<br><span style="font-size:.72rem;">Color: ${escHtml(d.color)}</span>` : ''}</td>
                 <td>${parseInt(d.cantidad)}</td>
                 <td>${money(d.precio_final)}</td>
                 <td>${money(d.importe)}</td>

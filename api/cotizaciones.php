@@ -76,50 +76,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$renglones) {
-        jsonResponse(['ok' => false, 'error' => 'Agrega al menos un estilo con cantidad.'], 400);
+        jsonResponse(['ok' => false, 'error' => 'Agrega al menos un modelo con cantidad.'], 400);
     }
 
     $dbErp = getDBErp();
     $cfg   = configCotizadorErp();
 
-    // ── Validar y calcular cada renglón contra el catálogo real del ERP ──────
-    $totalPares = 0;
-    foreach ($renglones as $r) $totalPares += max(0, (int)($r['cantidad'] ?? 0));
-    $mayoreoAplica = aplicaMayoreoErp($totalPares, $cfg);
-
-    $lineas = []; $subtotal = 0.0;
-    foreach ($renglones as $i => $r) {
-        $idEstilo = (int)($r['id_estilo'] ?? 0);
-        $cantidad = (int)($r['cantidad'] ?? 0);
-        if (!$idEstilo || $cantidad <= 0) continue;
-
-        $stmtE = $dbErp->prepare('SELECT id, cinterno, estilo, precio_industrial FROM estilos WHERE id=? AND estatus=1 AND precio_industrial IS NOT NULL');
-        $stmtE->execute([$idEstilo]);
-        $estilo = $stmtE->fetch();
-        if (!$estilo) {
-            jsonResponse(['ok' => false, 'error' => "Uno de los estilos ya no está disponible."], 400);
-        }
-
-        $base   = precioBaseEstiloErp($estilo, $tipoLista, $cfg);
-        $minimo = calcularPrecioMinimoErp($base, $mayoreoAplica, $prontoPago, $cfg);
-        $precioFinal = isset($r['precio_final']) && $r['precio_final'] !== ''
-            ? max(0, (float)$r['precio_final'])
-            : $minimo;
-        if ($precioFinal < $minimo) {
-            jsonResponse(['ok' => false, 'error' => "{$estilo['estilo']}: el precio (" . money($precioFinal) . ") está por debajo del mínimo permitido (" . money($minimo) . ")."], 400);
-        }
-
-        $importe = round($cantidad * $precioFinal, 2);
-        $subtotal += $importe;
-        $lineas[] = [
-            'id_estilo' => $idEstilo, 'clave_estilo' => $estilo['cinterno'], 'nombre_estilo' => $estilo['estilo'],
-            'cantidad' => $cantidad, 'precio_lista' => $base, 'precio_minimo' => $minimo,
-            'precio_final' => $precioFinal, 'importe' => $importe,
-        ];
+    // ── Validar y calcular cada renglón con las reglas del cotizador del ERP ──
+    $res = resolverRenglonesCotizacionErp(catalogoCotizableErp($cfg), $renglones, $tipoLista, $prontoPago, $cfg);
+    if ($res['errores']) {
+        jsonResponse(['ok' => false, 'error' => implode('. ', $res['errores']) . '.'], 400);
     }
-    if (!$lineas) {
-        jsonResponse(['ok' => false, 'error' => 'Agrega al menos un estilo con cantidad válida.'], 400);
-    }
+    $lineas        = $res['lineas'];
+    $subtotal      = $res['subtotal'];
+    $totalPares    = $res['total_pares'];
+    $mayoreoAplica = $res['aplica_mayoreo'];
 
     $tasaIva = (float)($cfg['tasa_iva'] ?? 0.16);
     $iva     = round($subtotal * $tasaIva, 2);
@@ -163,10 +134,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         generarTokenPublicoCotizacionErp($dbErp, $newId);
 
         $insDet = $dbErp->prepare("INSERT INTO cotizacion_detalle
-            (id_cotizacion, id_estilo, clave_estilo, nombre_estilo, cantidad, precio_lista, precio_minimo, precio_final, importe, orden)
-            VALUES (?,?,?,?,?,?,?,?,?,?)");
+            (id_cotizacion, id_estilo, id_modelo_legacy, clave_estilo, nombre_estilo, color, cantidad, precio_lista, precio_minimo, precio_final, importe, orden)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
         foreach ($lineas as $ord => $l) {
-            $insDet->execute([$newId, $l['id_estilo'], $l['clave_estilo'], $l['nombre_estilo'],
+            $insDet->execute([$newId, $l['id_estilo'], $l['id_modelo_legacy'], $l['clave_estilo'], $l['nombre_estilo'], $l['color'],
                 $l['cantidad'], $l['precio_lista'], $l['precio_minimo'], $l['precio_final'], $l['importe'], $ord]);
         }
 
