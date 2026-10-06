@@ -57,10 +57,8 @@ if (!$id) { header('Location: cotizaciones.php'); exit; }
 .vc-acciones-2 .v26-btn { white-space:nowrap; text-decoration:none; }
 .vc-acciones-2 .v26-btn { flex:1; min-height:46px; font-size:.85rem; }
 .vc-link-mini { font-size:.72rem; color:var(--v26-ink-soft); margin-top:10px; word-break:break-all; }
-.vc-preguntar { display:none; margin-top:12px; padding:12px; border-radius:14px; background:#FFFBEB; border:1px solid #FDE68A; }
-.vc-preguntar.show { display:block; }
-.vc-preguntar p { margin:0 0 10px; font-size:.85rem; font-weight:700; color:#78350F; }
-.vc-preguntar .vc-acciones-2 { margin-top:0; }
+.vc-marcada { display:flex; gap:8px; align-items:flex-start; margin-top:12px; padding:10px 12px; border-radius:12px; background:rgba(22,163,74,.08); color:#14532D; font-size:.8rem; font-weight:600; }
+.vc-marcada i { color:var(--v26-green); }
 .vc-estado-ayuda { font-size:.76rem; color:var(--v26-ink-soft); margin:-2px 0 10px; }
 .vc-btn-estado { min-height:42px; }
 .vc-historial-item { padding:9px 0; border-top:1px solid var(--v26-border); font-size:.8rem; }
@@ -107,6 +105,8 @@ const ACCION_ESTADO = {
 };
 const ESTADOS_PARA_ENVIAR = ['pendiente', 'enviada', 'en_negociacion'];
 let mostrarAvisoGenerada = RECIEN_GENERADA;
+let avisoMarcadaEnviada = false;
+let estadoActual = '';
 
 // Lo que se le manda al cliente es el PDF; dentro del PDF va el botón para
 // responder en línea (link público del ERP).
@@ -137,6 +137,7 @@ function fechaHora(iso) { const d = new Date(iso); return d.toLocaleDateString('
 
 function render(data) {
   const c = data.cotizacion;
+  estadoActual = c.estado;
   document.getElementById('titulo-folio').textContent = c.folio;
 
   const cont = document.getElementById('contenido');
@@ -163,7 +164,7 @@ function render(data) {
     ${data.url_pdf && ESTADOS_PARA_ENVIAR.includes(c.estado) ? `
     <div class="vc-enviar" id="vc-enviar">
       <div class="vc-enviar-titulo"><i class="bi bi-send-check" style="color:var(--v26-brand-2)"></i> Enviar al cliente</div>
-      <div class="vc-enviar-sub">El cliente recibe un link a la cotización en PDF. Desde el PDF también puede aceptarla o responder, sin cuenta.</div>
+      <div class="vc-enviar-sub">El cliente recibe un link a la cotización en PDF. Al enviarla se marca como <b>Enviada</b> y desde el PDF el cliente puede aceptarla o rechazarla, sin cuenta.</div>
       <div class="vc-campo">
         <label for="wa-telefono">WhatsApp del cliente</label>
         <input type="text" id="wa-telefono" class="v26-input" value="${escHtml(c.cliente_telefono || '')}">
@@ -179,14 +180,8 @@ function render(data) {
         <button type="button" class="v26-btn v26-btn-ghost" id="btn-copiar-mensaje"><i class="bi bi-clipboard"></i> Copiar mensaje</button>
       </div>
       <div class="vc-link-mini" id="link-publico">${escHtml(data.url_pdf)}</div>
-      ${c.estado === 'pendiente' ? `
-      <div class="vc-preguntar" id="vc-preguntar">
-        <p><i class="bi bi-question-circle"></i> ¿Ya se la enviaste al cliente?</p>
-        <div class="vc-acciones-2">
-          <button type="button" class="v26-btn v26-btn-primary" id="btn-si-enviada">Sí, marcar como enviada</button>
-          <button type="button" class="v26-btn v26-btn-ghost" id="btn-no-enviada">Todavía no</button>
-        </div>
-      </div>` : ''}
+      ${avisoMarcadaEnviada ? `
+      <div class="vc-marcada" role="status"><i class="bi bi-check-circle-fill"></i><span>Se marcó como <b>Enviada</b>. El cliente ya puede aceptarla o rechazarla desde el PDF.</span></div>` : ''}
     </div>` : ''}
     <div class="v26-card mb-3">
       <div class="vc-card-titulo">Cliente</div>
@@ -276,7 +271,7 @@ function copiarTexto(texto, btn) {
   const hecho = () => {
     btn.innerHTML = '<i class="bi bi-check2"></i> Copiado';
     setTimeout(() => { btn.innerHTML = original; }, 1600);
-    preguntarSiEnviada();
+    marcarEnviadaAlCompartir();
   };
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(texto).then(hecho).catch(() => copiarRespaldo(texto) && hecho());
@@ -295,9 +290,15 @@ function copiarRespaldo(texto) {
   return ok;
 }
 
-function preguntarSiEnviada() {
-  const p = document.getElementById('vc-preguntar');
-  if (p) p.classList.add('show');
+// Al compartirla (WhatsApp o copiar) la cotización pasa sola de Pendiente a
+// Enviada: el link del ERP solo deja aceptar/rechazar desde Enviada o En
+// negociación, y antes el cliente abría el PDF y le salía "todavía no está
+// lista para responderse" si el vendedor no la marcaba a mano.
+let marcandoEnviada = false;
+function marcarEnviadaAlCompartir() {
+  if (estadoActual !== 'pendiente' || marcandoEnviada) return;
+  marcandoEnviada = true;
+  cambiarEstado('enviada', { alCompartir: true }).finally(() => { marcandoEnviada = false; });
 }
 
 // Sección "Enviar al cliente": número (10 dígitos), mensaje editable y
@@ -326,26 +327,29 @@ function activarEnvio(c, data) {
       return;
     }
     actualizarLink();
-    // Se pregunta al volver: WhatsApp no avisa si de verdad se envió.
-    setTimeout(preguntarSiEnviada, 600);
+    marcarEnviadaAlCompartir();
   });
   document.getElementById('btn-copiar-link').addEventListener('click', e => copiarTexto(data.url_pdf, e.currentTarget));
   document.getElementById('btn-copiar-mensaje').addEventListener('click', e => copiarTexto(mensaje.value, e.currentTarget));
-  document.getElementById('btn-si-enviada')?.addEventListener('click', () => cambiarEstado('enviada'));
-  document.getElementById('btn-no-enviada')?.addEventListener('click', () => {
-    document.getElementById('vc-preguntar').classList.remove('show');
-  });
 }
 
-async function cambiarEstado(nuevoEstado) {
+async function cambiarEstado(nuevoEstado, { alCompartir = false } = {}) {
   const fd = new FormData();
   fd.set('accion', 'cambiar_estado');
   fd.set('id', ID);
   fd.set('nuevo_estado', nuevoEstado);
-  const res = await fetch('../api/cotizacion_detalle.php', { method: 'POST', body: fd });
-  const data = await res.json();
+  let data;
+  try {
+    // keepalive: en la APK la app se va a segundo plano al abrir WhatsApp y
+    // la petición tiene que terminar de todos modos.
+    const res = await fetch('../api/cotizacion_detalle.php', { method: 'POST', body: fd, keepalive: true });
+    data = await res.json();
+  } catch (e) {
+    data = { ok: false, error: 'No se pudo actualizar el estado (revisa tu conexión).' };
+  }
   if (data.ok) {
     mostrarAvisoGenerada = false;
+    avisoMarcadaEnviada = alCompartir;
     render(data);
   } else {
     alert(data.error || 'No se pudo actualizar el estado.');

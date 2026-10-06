@@ -50,8 +50,11 @@ try {
     $vend = $v->fetch() ?: [];
     $atiende = trim(($vend['nombre'] ?? '') . ' ' . ($vend['apellidos'] ?? ''));
 
-    // El botón "Responder" solo mientras el cliente todavía puede contestar.
-    $abierta = in_array($cot['estado'], ['pendiente', 'enviada', 'en_negociacion'], true) && !cotizacionVencidaErp($cot);
+    // El botón "Responder" solo cuando el link del ERP de verdad deja
+    // aceptar/rechazar: desde Enviada o En negociación (de Pendiente no se
+    // puede pasar directo a Aceptada) y sin vencer. Ver la cotización la
+    // marca como Enviada al compartirla (vendedor/ver_cotizacion.php).
+    $abierta = in_array($cot['estado'], ['enviada', 'en_negociacion'], true) && !cotizacionVencidaErp($cot);
     $pdf = pdfCotizacion($cot, $detalle, $atiende, $abierta ? urlPublicaCotizacionErp($token) : null);
 } catch (Throwable $e) {
     error_log('[VISITAS] cotizacion_pdf.php: ' . $e->getMessage());
