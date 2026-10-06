@@ -50,7 +50,7 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
         if (!empty($d['entrega_dias'])) $color .= '<div class="color">Entrega: ' . (int)$d['entrega_dias'] . ' días hábiles</div>';
         $filas .= '<tr>'
             . '<td class="clave">' . pdfH($d['clave_estilo']) . '</td>'
-            . '<td><div class="modelo">' . pdfH($d['nombre_estilo']) . '</div>' . $color . '</td>'
+            . '<td><div class="modelo">' . pdfH($d['nombre_estilo']) . (!empty($d['atributo']) ? ' <span class="attr">' . pdfH($d['atributo']) . '</span>' : '') . '</div>' . $color . '</td>'
             . '<td class="num">' . (int)$d['cantidad'] . '</td>'
             . '<td class="num">' . $tachado . money($final) . '</td>'
             . '<td class="num fuerte">' . money($d['importe']) . '</td>'
@@ -61,6 +61,9 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
     if (!empty($cot['aplica_mayoreo'])) $descuentos[] = 'mayoreo';
     if (!empty($cot['pronto_pago']))    $descuentos[] = 'pronto pago';
     $lista = ($cot['tipo_lista'] ?? '') === 'distribuidor' ? 'Distribuidor' : 'Industria';
+
+    $leyendaAttr = leyendaAtributosDeLineasErp($detalle);
+    $leyenda = $leyendaAttr ? '<div class="leyenda-attr">' . implode(' · ', array_map(fn($c, $s) => '<b>' . pdfH($c) . '</b> = ' . pdfH($s), array_keys($leyendaAttr), $leyendaAttr)) . '</div>' : '';
 
     $responder = $urlResponder ? '
     <table class="cta"><tr>
@@ -107,6 +110,8 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
   .det .color { font-size: 7.5pt; color: #6B7280; margin-top: 1px; }
   .det .fuerte { font-weight: bold; }
   .tachado { text-decoration: line-through; color: #A79E86; font-size: 7pt; }
+  .attr { font-size: 6.5pt; font-weight: bold; color: #8A6D14; border: 0.6pt solid #C9A227; padding: 0 3px; }
+  .leyenda-attr { font-size: 6.8pt; color: #6B6249; margin: 3px 0 4px; }
   .totales { width: 230px; margin-left: auto; margin-top: 8px; }
   .totales td { padding: 3px 6px; font-size: 8.8pt; color: #4B4536; }
   .totales td.n { text-align: right; }
@@ -160,7 +165,7 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
 <table class="det">
   <thead><tr><th style="width:52px">Clave</th><th>Modelo</th><th class="num" style="width:44px">Pares</th><th class="num" style="width:82px">Precio unitario</th><th class="num" style="width:82px">Importe</th></tr></thead>
   <tbody>' . $filas . '</tbody>
-</table>
+</table>' . $leyenda . '
 <table class="totales">
   <tr><td>Subtotal</td><td class="n">' . money($cot['subtotal']) . '</td></tr>
   <tr><td>IVA (' . $tasa . '%)</td><td class="n">' . money($cot['iva']) . '</td></tr>

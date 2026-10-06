@@ -84,7 +84,7 @@ function catalogoCotizableErp(array $cfg): array {
     $items = [];
     foreach ($db->query("
         SELECT m.id, m.modelo, m.marca, m.linea_nombre, m.suela, m.corte, m.color, m.colores,
-               m.precio_industria, m.precio_distribuidor, m.foto, m.entrega_dias
+               m.precio_industria, m.precio_distribuidor, m.foto, m.entrega_dias, m.atributo
         FROM legacy_cotizador_fb_modelos m
         WHERE m.activo
           AND NOT EXISTS (SELECT 1 FROM estilos e
@@ -100,6 +100,7 @@ function catalogoCotizableErp(array $cfg): array {
             'suela' => $m['suela'], 'colores' => array_values($colores), 'foto' => $m['foto'],
             'precio_industria' => (float)$m['precio_industria'], 'precio_distribuidor' => (float)$m['precio_distribuidor'],
             'entrega_dias' => $m['entrega_dias'] !== null ? (int)$m['entrega_dias'] : null,
+            'atributo' => ($m['atributo'] ?? '') !== '' ? $m['atributo'] : null,
         ];
     }
     foreach ($db->query("
@@ -111,7 +112,7 @@ function catalogoCotizableErp(array $cfg): array {
         $items['e:' . (int)$e['id']] = [
             'item' => 'e:' . (int)$e['id'], 'id_estilo' => (int)$e['id'], 'id_modelo_legacy' => null,
             'clave' => $e['cinterno'], 'marca' => 'SEGURMEX', 'grupo' => 'Estilos del ERP',
-            'nombre' => $e['estilo'], 'suela' => null, 'colores' => [], 'foto' => null, 'entrega_dias' => null,
+            'nombre' => $e['estilo'], 'suela' => null, 'colores' => [], 'foto' => null, 'entrega_dias' => null, 'atributo' => null,
             'precio_industria' => precioBaseEstiloErp($e, 'industria', $cfg),
             'precio_distribuidor' => precioBaseEstiloErp($e, 'distribuidor', $cfg),
         ];
@@ -172,6 +173,7 @@ function resolverRenglonesCotizacionErp(array $catalogo, array $renglones, strin
             'cantidad' => $cantidad, 'precio_lista' => $base, 'precio_minimo' => $minimo,
             'precio_final' => $precio, 'importe' => $importe,
             'entrega_dias' => $item['entrega_dias'] ?? null,  // solo informativo, no se guarda en cotizacion_detalle
+            'atributo'     => $item['atributo'] ?? null,      // idem (PP, PP+D…)
         ];
     }
     if (!$lineas && !$errores) $errores[] = 'Agrega al menos un modelo con cantidad';
@@ -221,9 +223,9 @@ function avisoTiempoEntregaErp(?string $tiempoEntrega, array $entrega): ?string 
 }
 
 /**
- * Agrega a cada renglón guardado (cotizacion_detalle) la foto y el plazo de
- * entrega del modelo del catálogo anterior. Los Estilos del ERP no traen
- * ninguno de los dos. Si algo falla, los deja en null.
+ * Agrega a cada renglón guardado (cotizacion_detalle) la foto, el plazo de
+ * entrega y el atributo de seguridad del modelo del catálogo anterior. Los
+ * Estilos del ERP no traen ninguno. Si algo falla, los deja en null.
  */
 function agregarFotoYEntregaDetalleErp(PDO $dbErp, array $detalle): array {
     $info = [];
@@ -231,7 +233,7 @@ function agregarFotoYEntregaDetalleErp(PDO $dbErp, array $detalle): array {
         $ids = array_values(array_unique(array_filter(array_map(fn($d) => (int)($d['id_modelo_legacy'] ?? 0), $detalle))));
         if ($ids) {
             $marcas = implode(',', array_fill(0, count($ids), '?'));
-            $st = $dbErp->prepare("SELECT id, foto, entrega_dias FROM legacy_cotizador_fb_modelos WHERE id IN ($marcas)");
+            $st = $dbErp->prepare("SELECT id, foto, entrega_dias, atributo FROM legacy_cotizador_fb_modelos WHERE id IN ($marcas)");
             $st->execute($ids);
             foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $info[(int)$r['id']] = $r;
         }
@@ -242,6 +244,7 @@ function agregarFotoYEntregaDetalleErp(PDO $dbErp, array $detalle): array {
         $m = $info[(int)($d['id_modelo_legacy'] ?? 0)] ?? null;
         $d['foto'] = $m['foto'] ?? null;
         $d['entrega_dias'] = isset($m['entrega_dias']) && $m['entrega_dias'] !== null ? (int)$m['entrega_dias'] : null;
+        $d['atributo'] = ($m['atributo'] ?? '') !== '' ? $m['atributo'] : null;
     }
     unset($d);
     return $detalle;
@@ -461,4 +464,33 @@ function cambiarEstadoCotizacionErp(PDO $db, array $cot, string $nuevoEstado, in
         error_log('[VISITAS] cambiarEstadoCotizacionErp: ' . $e->getMessage());
         return ['ok' => false, 'msg' => 'No se pudo actualizar el estado.'];
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Atributo de seguridad -- COPIA de atributosSeguridad(), significadoAtributo()
+// y leyendaAtributosDeLineas() de erp/cotizacion/_helpers.php.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Significado de cada atributo de seguridad (legacy_cotizador_fb_modelos.atributo). */
+function atributosSeguridadErp(): array {
+    return [
+        'PP'      => 'Puntera de protección',
+        'PP+D'    => 'Puntera + Dieléctrico',
+        'PP+A'    => 'Puntera + Antiestático',
+        'O'       => 'Ocupacional (sin puntera)',
+        'D+PP+PM' => 'Dieléctrico + Puntera + Protector metatarsal',
+    ];
+}
+
+/** Leyenda (código => significado) de los atributos presentes en los renglones, en orden fijo. */
+function leyendaAtributosDeLineasErp(array $lineas): array {
+    $presentes = [];
+    foreach ($lineas as $l) {
+        $a = $l['atributo'] ?? null;
+        if ($a !== null && $a !== '') $presentes[$a] = true;
+    }
+    $leyenda = [];
+    foreach (atributosSeguridadErp() as $cod => $sig) if (isset($presentes[$cod])) $leyenda[$cod] = $sig;
+    foreach (array_keys($presentes) as $cod) if (!isset($leyenda[$cod])) $leyenda[$cod] = $cod;
+    return $leyenda;
 }

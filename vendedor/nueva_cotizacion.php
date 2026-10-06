@@ -141,6 +141,8 @@ body.nc-sheet-abierta { overflow: hidden; }
 .nc-tag { display: inline-flex; align-items: center; gap: 4px; font-size: .68rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: rgba(20,23,31,.06); color: var(--v26-ink-soft); }
 .nc-tag--dickies { background: #FEF9C3; color: #854D0E; }
 .nc-tag--entrega { background: #E0F2FE; color: #075985; }
+.nc-tag--attr { background: transparent; border: 1px solid #F5A623; color: #92400E; }
+.nc-attr { display: inline-block; margin-left: 4px; font-size: .62rem; font-weight: 800; padding: 1px 6px; border-radius: 999px; border: 1px solid #F5A623; color: #92400E; vertical-align: 2px; }
 .nc-aviso a.nc-usar-entrega { color: inherit; font-weight: 800; white-space: nowrap; }
 .nc-aviso-guardar { display: flex; flex-direction: column; gap: 10px; font-size: .85rem; font-weight: 600; padding: 12px; border-radius: 12px; background: #FFFBEB; color: #B45309; }
 .nc-aviso-guardar .botones { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -682,7 +684,8 @@ function renderRenglones() {
     } else if (it.colores.length === 1) {
       color = `<span class="nc-tag">${escHtml(it.colores[0])}</span>`;
     }
-    const dickies = (esDickies(it) ? '<span class="nc-tag nc-tag--dickies">Dickies · precio fijo</span>' : '')
+    const attr = it.atributo ? `<span class="nc-tag nc-tag--attr">${escHtml(it.atributo)}${ATRIBUTOS[it.atributo] ? ' · ' + escHtml(ATRIBUTOS[it.atributo]) : ''}</span>` : '';
+    const dickies = attr + (esDickies(it) ? '<span class="nc-tag nc-tag--dickies">Dickies · precio fijo</span>' : '')
                   + (it.entrega_dias ? `<span class="nc-tag nc-tag--entrega"><i class="bi bi-truck"></i>Entrega: ${parseInt(it.entrega_dias)} días hábiles</span>` : '');
     return `
     <div class="nc-renglon" data-i="${i}">
@@ -827,6 +830,7 @@ function pintarAvisos() {
 // ================= Catálogo =================
 // El mismo del cotizador del ERP, completo y agrupado por marca · línea.
 let catalogo = [];
+let ATRIBUTOS = {}; // significado de PP, PP+D… (lo manda api/estilos_erp.php)
 
 function paresDeItem(item) {
   return renglones.reduce((s, r) => s + (r.it.item === item ? (parseInt(r.cantidad) || 0) : 0), 0);
@@ -851,7 +855,7 @@ function renderListaEstilos(lista) {
       <div class="info">
         ${fotoHTML(it)}
         <div style="min-width:0;">
-          <div class="clave">${escHtml(it.clave)}</div>
+          <div class="clave">${escHtml(it.clave)}${it.atributo ? `<span class="nc-attr">${escHtml(it.atributo)}</span>` : ''}</div>
           <div class="nombre">${escHtml(it.nombre)}</div>
         </div>
       </div>
@@ -906,6 +910,7 @@ async function cargarEstilos() {
     const res = await fetch('../api/estilos_erp.php');
     const data = await res.json();
     catalogo = data.ok ? data.catalogo : [];
+    ATRIBUTOS = (data.ok && data.atributos) || {};
   } catch (e) { catalogo = []; }
   filtrarCatalogo();
 }
