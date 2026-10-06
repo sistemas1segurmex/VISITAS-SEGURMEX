@@ -59,6 +59,25 @@ $detalle = $dbErp->prepare('SELECT * FROM cotizacion_detalle WHERE id_cotizacion
 $detalle->execute([$id]);
 $detalle = $detalle->fetchAll();
 
+// Foto de cada modelo (la misma del catálogo de Nueva cotización). Solo los
+// modelos del cotizador anterior tienen foto; si algo falla, sin foto.
+try {
+    $idsLegacy = array_values(array_unique(array_filter(array_map(fn($d) => (int)($d['id_modelo_legacy'] ?? 0), $detalle))));
+    $fotos = [];
+    if ($idsLegacy) {
+        $marcas = implode(',', array_fill(0, count($idsLegacy), '?'));
+        $st = $dbErp->prepare("SELECT id, foto FROM legacy_cotizador_fb_modelos WHERE id IN ($marcas)");
+        $st->execute($idsLegacy);
+        $fotos = $st->fetchAll(PDO::FETCH_KEY_PAIR);
+    }
+    foreach ($detalle as &$d) {
+        $d['foto'] = $fotos[(int)($d['id_modelo_legacy'] ?? 0)] ?? null;
+    }
+    unset($d);
+} catch (Throwable $e) {
+    error_log('[VISITAS] cotizacion_detalle.php fotos: ' . $e->getMessage());
+}
+
 $historial = $dbErp->prepare("
     SELECT h.estado_anterior, h.estado_nuevo, h.origen, h.created_at, u.nombre, u.apellidos
     FROM cotizacion_historial h
