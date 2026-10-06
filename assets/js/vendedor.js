@@ -803,3 +803,97 @@ function fotoEstaNegra(canvasOrigen) {
     return false;
   }
 }
+
+// ---------------------------------------------------------------------
+// Teléfono de México (10 dígitos) y WhatsApp. Misma regla que
+// normalizarTelefonoMx() en includes/helpers.php: se acepta lo que el
+// vendedor suele escribir (+52, 52, 521, 044/045, 01, espacios, guiones)
+// y se lleva a 10 dígitos; si no se puede, el número no es válido.
+// ---------------------------------------------------------------------
+
+function telefonoMx(valor) {
+  let d = String(valor ?? '').replace(/\D/g, '');
+  const escritos = d.length;
+  if (d.length === 13 && d.startsWith('521')) d = d.slice(3);
+  else if (d.length === 13 && (d.startsWith('044') || d.startsWith('045'))) d = d.slice(3);
+  else if (d.length === 12 && (d.startsWith('52') || d.startsWith('01'))) d = d.slice(2);
+  const valido = /^[2-9]\d{9}$/.test(d);
+  return { vacio: escritos === 0, valido, digitos: valido ? d : '', escritos: d.length };
+}
+
+function formatoTelefonoMx(d10) {
+  return String(d10 || '').replace(/^(\d{3})(\d{3})(\d{4})$/, '$1 $2 $3');
+}
+
+// Link de WhatsApp. Sin número válido abre WhatsApp para elegir el contacto.
+function linkWhatsApp(tel10, texto) {
+  const base = tel10 ? `https://wa.me/52${tel10}` : 'https://wa.me/';
+  return texto ? `${base}?text=${encodeURIComponent(texto)}` : base;
+}
+
+const MSG_TELEFONO_INVALIDO = 'El teléfono debe tener 10 dígitos (sin 52 ni +52). Ejemplo: 477 123 4567.';
+
+function motivoTelefonoInvalido(t) {
+  if (t.escritos < 10) return `Faltan ${10 - t.escritos} dígito${10 - t.escritos === 1 ? '' : 's'}: escribe los 10 dígitos, sin 52 ni +52.`;
+  if (t.escritos > 10) return 'Sobran dígitos: escribe solo los 10 del número, sin 52 ni +52.';
+  return 'Revisa el número: no debe empezar con 0 ni con 1.';
+}
+
+/**
+ * Convierte un <input> de teléfono en uno guiado: teclado numérico, aviso
+ * de "10 dígitos" debajo y confirmación en verde cuando está bien. Al salir
+ * del campo lo deja como "477 123 4567". El rojo solo aparece después de
+ * salir del campo o al intentar guardar, para no regañar mientras escribe.
+ * Regresa { input, validar() } -- validar() marca el error y dice si se
+ * puede guardar (vacío también se puede: el teléfono es opcional).
+ */
+function activarCampoTelefono(input, { avisarAlCargar = false } = {}) {
+  if (!input) return { input, validar: () => true };
+  input.type = 'tel';
+  input.inputMode = 'tel';
+  input.autocomplete = 'tel';
+  input.maxLength = 20;
+  if (!input.placeholder) input.placeholder = '477 123 4567';
+  const hint = document.createElement('div');
+  hint.className = 'v26-tel-hint';
+  input.insertAdjacentElement('afterend', hint);
+  let tocado = false;
+
+  function pintar() {
+    const t = telefonoMx(input.value);
+    hint.classList.remove('ok', 'error');
+    input.classList.remove('v26-input--error');
+    if (t.vacio) {
+      hint.innerHTML = '10 dígitos, sin 52 ni +52.';
+    } else if (t.valido) {
+      hint.classList.add('ok');
+      hint.innerHTML = '<i class="bi bi-check-circle-fill"></i> Número válido (10 dígitos)';
+    } else {
+      hint.textContent = motivoTelefonoInvalido(t);
+      if (tocado) { hint.classList.add('error'); input.classList.add('v26-input--error'); }
+    }
+    return t;
+  }
+  input.addEventListener('input', pintar);
+  input.addEventListener('blur', () => {
+    const t = telefonoMx(input.value);
+    if (t.valido) input.value = formatoTelefonoMx(t.digitos);
+    if (!t.vacio) tocado = true;
+    pintar();
+  });
+  if (avisarAlCargar && input.value.trim()) {
+    tocado = true;
+    const t = telefonoMx(input.value);
+    if (t.valido) input.value = formatoTelefonoMx(t.digitos);
+  }
+  pintar();
+
+  return {
+    input,
+    validar() {
+      tocado = true;
+      const t = pintar();
+      return t.vacio || t.valido;
+    },
+  };
+}

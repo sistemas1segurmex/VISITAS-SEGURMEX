@@ -46,6 +46,12 @@ if ($nombre === '' || $calleNumero === '') {
 if ($lat === null || $lat === '' || $lng === null || $lng === '') {
     jsonResponse(['ok' => false, 'error' => 'Marca la ubicación del cliente en el mapa antes de guardar'], 400);
 }
+// El teléfono es opcional, pero si viene se guarda siempre a 10 dígitos
+// (lo usan Llamar y WhatsApp en la cartera y en las cotizaciones).
+$telefono = normalizarTelefonoMx($telefono);
+if ($telefono === null) {
+    jsonResponse(['ok' => false, 'error' => MSG_TELEFONO_INVALIDO], 400);
+}
 
 $partes = array_filter([$calleNumero, $colonia, $municipio, $estado, $codigoPostal]);
 $direccion = implode(', ', $partes);

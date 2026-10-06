@@ -115,6 +115,8 @@ $u = requireRole('vendedor');
 <script src="../assets/js/capas_mapa.js<?= assetVer(__DIR__ . '/../assets/js/capas_mapa.js') ?>"></script>
 <script src="../assets/js/direccion-cliente.js<?= assetVer(__DIR__ . '/../assets/js/direccion-cliente.js') ?>"></script>
 <script>
+// Teléfono a 10 dígitos desde el inicio (ver activarCampoTelefono en vendedor.js).
+const campoTelefono = activarCampoTelefono(document.querySelector('input[name="telefono"]'));
 iniciarTrackingPeriodico();
 DireccionCliente.init();
 
@@ -156,6 +158,13 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
   e.preventDefault();
   const msg = document.getElementById('msg-cliente');
   msg.innerHTML = '';
+
+  // Mismo orden que el formulario: el teléfono va antes que la dirección.
+  if (!campoTelefono.validar()) {
+    msg.innerHTML = `<div class="alert alert-danger py-2">${MSG_TELEFONO_INVALIDO}</div>`;
+    campoTelefono.input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
 
   const { estado, municipio, colonia, cp, lat, lng, calleNumero } = DireccionCliente.valores();
   if (!estado || !municipio || !colonia) {

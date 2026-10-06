@@ -55,7 +55,8 @@ $stmt->execute([$u['id']]);
 $clientes = $stmt->fetchAll();
 
 $nombreObjetivo   = normalizarTexto($nombre);
-$telefonoObjetivo = preg_replace('/\D+/', '', $telefono);
+// Se comparan a 10 dígitos: "52 477…" y "477…" son el mismo número.
+$telefonoObjetivo = normalizarTelefonoMx($telefono) ?: preg_replace('/\D+/', '', $telefono);
 $coloniaObjetivo  = normalizarTexto($colonia);
 $calleObjetivo    = normalizarTexto($calleNumero);
 
@@ -77,7 +78,7 @@ foreach ($clientes as $c) {
         }
     }
 
-    $telefonoExistente = preg_replace('/\D+/', '', (string)($c['telefono'] ?? ''));
+    $telefonoExistente = normalizarTelefonoMx($c['telefono'] ?? '') ?: preg_replace('/\D+/', '', (string)($c['telefono'] ?? ''));
     if ($telefonoObjetivo !== '' && $telefonoExistente !== '' && $telefonoExistente === $telefonoObjetivo) {
         $razones[] = 'Mismo teléfono';
     }

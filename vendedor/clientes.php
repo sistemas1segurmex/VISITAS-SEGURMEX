@@ -190,7 +190,10 @@ function renderClientes(lista) {
   cont.innerHTML = lista.map(c => {
     const inicial = (c.nombre || '?').trim().charAt(0).toUpperCase();
     const tieneGps = !!c.lat;
-    const digitos = soloDigitos(c.telefono);
+    // WhatsApp solo con un número válido de 10 dígitos (antes se armaba
+    // wa.me/5252… si el teléfono ya traía el 52).
+    const tel = telefonoMx(c.telefono);
+    const digitos = tel.valido ? tel.digitos : soloDigitos(c.telefono);
     const distancia = (miPosicion && tieneGps) ? distanciaKm(miPosicion.lat, miPosicion.lng, parseFloat(c.lat), parseFloat(c.lng)) : null;
     return `
     <div class="v26-cliente-card">
@@ -217,7 +220,7 @@ function renderClientes(lista) {
       </div>
       <div class="acciones">
         ${digitos ? `<a href="tel:${digitos}" class="v26-mini-btn primario"><i class="bi bi-telephone-fill"></i>Llamar</a>` : ''}
-        ${digitos ? `<a href="https://wa.me/52${digitos}" target="_blank" rel="noopener" class="v26-mini-btn whatsapp"><i class="bi bi-whatsapp"></i>WhatsApp</a>` : ''}
+        ${tel.valido ? `<a href="${linkWhatsApp(tel.digitos)}" target="_blank" rel="noopener" class="v26-mini-btn whatsapp"><i class="bi bi-whatsapp"></i>WhatsApp</a>` : ''}
         <a href="nueva_cotizacion.php?cliente_id=${c.id}" class="v26-mini-btn"><i class="bi bi-file-earmark-plus"></i>Cotizar</a>
         <a href="historial_cliente.php?id=${c.id}" class="v26-mini-btn"><i class="bi bi-clock-history"></i>Historial</a>
         <a href="editar_cliente.php?id=${c.id}" class="v26-mini-btn"><i class="bi bi-pencil"></i>Editar</a>
