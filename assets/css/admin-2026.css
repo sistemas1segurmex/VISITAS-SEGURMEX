@@ -873,3 +873,29 @@ table.v26-tabla-accesos tr.fallido { background: rgba(225,29,72,.06); }
 }
 .v26-evento-reprog .motivo { margin-top: 4px; color: var(--v26-ink); }
 .v26-evento-reprog .motivo i { color: var(--v26-blue); }
+
+/* ---------- Cotizaciones de hoy (panel, arriba de Alertas) ---------- */
+.v26-cot-hoy-ver { font-size: .74rem; font-weight: 700; color: var(--v26-brand-2); text-decoration: none; }
+.v26-cot-hoy-ver:hover { color: var(--v26-brand-1); }
+.v26-cot-hoy-total { display: flex; align-items: center; gap: 12px; margin: 10px 0 6px; padding: 10px 12px; border-radius: 14px; text-decoration: none; color: var(--v26-ink);
+  background: linear-gradient(160deg, #FFFFFF 0%, #FFF8E6 100%); border: 1px solid rgba(201,136,0,.22); }
+.v26-cot-hoy-total b { font-size: 1.9rem; font-weight: 800; line-height: 1; color: var(--v26-brand-2); font-variant-numeric: tabular-nums; }
+.v26-cot-hoy-total > span { display: flex; flex-direction: column; font-size: .84rem; font-weight: 700; }
+.v26-cot-hoy-total small { font-size: .74rem; font-weight: 500; color: var(--v26-ink-soft); }
+.v26-cot-hoy-nueva { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 6px; padding: 8px 10px; border-radius: 10px; font-size: .78rem;
+  background: rgba(22,163,74,.08); color: #14532D; }
+.v26-cot-hoy-nueva i { color: var(--v26-green); margin-top: 1px; }
+.v26-cot-hoy-lista { display: flex; flex-direction: column; }
+.v26-cot-hoy-fila { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-top: 1px solid var(--v26-border); text-decoration: none; color: var(--v26-ink); min-height: 44px; }
+.v26-cot-hoy-fila:first-child { border-top: 0; }
+.v26-cot-hoy-fila:hover { background: rgba(232,164,0,.06); color: var(--v26-ink); }
+.v26-cot-hoy-fila .quien { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: .84rem; }
+.v26-cot-hoy-fila .quien b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.v26-cot-hoy-fila .quien span { font-size: .72rem; color: var(--v26-ink-soft); }
+.v26-cot-hoy-fila .n { min-width: 28px; height: 26px; padding: 0 8px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,210,63,.18); color: var(--v26-brand-2); font-weight: 800; font-size: .82rem; }
+.v26-cot-hoy-sin { font-size: .74rem; color: var(--v26-ink-soft); padding-top: 8px; border-top: 1px solid var(--v26-border); }
+.v26-cot-hoy-sin:first-child { border-top: 0; padding-top: 0; }
+.v26-cot-hoy--nueva { animation: v26-cot-pulso 1.4s var(--v26-ease) 2; }
+@keyframes v26-cot-pulso { 0%, 100% { box-shadow: var(--v26-shadow-sm); } 50% { box-shadow: 0 0 0 4px rgba(22,163,74,.25); } }
+@media (prefers-reduced-motion: reduce) { .v26-cot-hoy--nueva { animation: none; } }

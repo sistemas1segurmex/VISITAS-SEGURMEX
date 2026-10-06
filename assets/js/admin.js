@@ -796,6 +796,71 @@ function refrescarTodo() {
   cargarAlertas();
   dibujarRutasDia();
   cargarEmbudo();
+  cargarCotizacionesHoy();
+}
+
+// ---------------------------------------------------------------------
+// Cotizaciones de hoy (tarjeta arriba de Alertas): cuántas lleva cada
+// vendedor. Si entre un refresco y otro llega una nueva, se avisa en la
+// misma tarjeta. Detalle completo en admin/cotizaciones.php.
+// ---------------------------------------------------------------------
+let cotHoyIds = null; // ids ya vistos (null = primera carga, no avisar)
+
+// "17:05" (ya en hora de México, ver la API) -> "5:05 p.m."
+function hora12(hhmm) {
+  const [h, m] = String(hhmm || '').split(':').map(Number);
+  if (isNaN(h)) return '';
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'a.m.' : 'p.m.'}`;
+}
+
+function moneyMx(n) {
+  return '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function cargarCotizacionesHoy() {
+  const cont = document.getElementById('cot-hoy-lista');
+  if (!cont) return;
+  try {
+    const res = await fetch('../api/admin_cotizaciones.php');
+    const data = await res.json();
+    if (!data.ok) return;
+
+    document.getElementById('cot-hoy-n').textContent = data.total;
+    document.getElementById('cot-hoy-txt').textContent = data.total === 1 ? 'cotización' : 'cotizaciones';
+    document.getElementById('cot-hoy-monto').textContent = data.total ? `${moneyMx(data.monto)} cotizado` : 'Nadie ha cotizado hoy';
+
+    // ¿Llegaron nuevas desde el último refresco?
+    const ids = new Set((data.cotizaciones || []).map(c => String(c.id)));
+    const aviso = document.getElementById('cot-hoy-nueva');
+    if (cotHoyIds) {
+      const nuevas = (data.cotizaciones || []).filter(c => !cotHoyIds.has(String(c.id)));
+      if (nuevas.length) {
+        const c = nuevas[0];
+        aviso.innerHTML = nuevas.length === 1
+          ? `<i class="bi bi-bell-fill"></i> <span><b>${escapeAttr(c.vendedor_nombre)}</b> generó ${escapeAttr(c.folio)} para ${escapeAttr(c.cliente_nombre)}</span>`
+          : `<i class="bi bi-bell-fill"></i> <span><b>${nuevas.length} cotizaciones nuevas</b></span>`;
+        aviso.hidden = false;
+        const card = document.getElementById('cot-hoy');
+        card.classList.remove('v26-cot-hoy--nueva');
+        void card.offsetWidth; // reinicia la animación
+        card.classList.add('v26-cot-hoy--nueva');
+      }
+    }
+    cotHoyIds = ids;
+
+    const con = data.por_vendedor.filter(v => v.n > 0);
+    const sin = data.por_vendedor.filter(v => v.n === 0);
+    const avatar = v => v.foto_path
+      ? `<img class="v26-al-avatar" src="../${escapeAttr(v.foto_path)}" alt="">`
+      : `<span class="v26-al-avatar">${inicialesAlerta(v.nombre)}</span>`;
+    cont.innerHTML = con.map(v => `
+        <a class="v26-cot-hoy-fila" href="cotizaciones.php?vendedor=${v.id}">
+          ${avatar(v)}
+          <span class="quien"><b>${escapeAttr(v.nombre)}</b><span>${moneyMx(v.monto)} · última ${hora12(v.ultima)}</span></span>
+          <span class="n">${v.n}</span>
+        </a>`).join('')
+      + (sin.length ? `<div class="v26-cot-hoy-sin"><b>Sin cotizar hoy:</b> ${sin.map(v => escapeAttr(v.nombre)).join(', ')}</div>` : '');
+  } catch (e) { /* silencioso, igual que las alertas */ }
 }
 
 // ---------------------------------------------------------------------
