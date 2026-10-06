@@ -53,7 +53,8 @@ if (!$id) { header('Location: cotizaciones.php'); exit; }
 .vc-btn-wa { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; min-height:52px; border-radius:14px; background:#25D366; color:#fff; font-weight:800; font-size:.98rem; text-decoration:none; border:none; box-shadow:0 12px 26px -12px rgba(37,211,102,.7); }
 .vc-btn-wa:hover, .vc-btn-wa:active { color:#fff; background:#1EBE5A; }
 .vc-btn-wa i { font-size:1.25rem; }
-.vc-acciones-2 { display:flex; gap:8px; margin-top:10px; }
+.vc-acciones-2 { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.vc-acciones-2 .v26-btn { white-space:nowrap; text-decoration:none; }
 .vc-acciones-2 .v26-btn { flex:1; min-height:46px; font-size:.85rem; }
 .vc-link-mini { font-size:.72rem; color:var(--v26-ink-soft); margin-top:10px; word-break:break-all; }
 .vc-preguntar { display:none; margin-top:12px; padding:12px; border-radius:14px; background:#FFFBEB; border:1px solid #FDE68A; }
@@ -107,12 +108,14 @@ const ACCION_ESTADO = {
 const ESTADOS_PARA_ENVIAR = ['pendiente', 'enviada', 'en_negociacion'];
 let mostrarAvisoGenerada = RECIEN_GENERADA;
 
+// Lo que se le manda al cliente es el PDF; dentro del PDF va el botón para
+// responder en línea (link público del ERP).
 function mensajeWhatsApp(c, url) {
   const saludo = c.cliente_contacto ? `Hola ${c.cliente_contacto}` : 'Hola';
   return `${saludo}, le comparto la cotización ${c.folio} de Segurmex.\n\n`
     + `Total: ${money(c.total)} (IVA incluido)\n`
     + `Vigencia: ${parseInt(c.vigencia_dias)} días\n\n`
-    + `Puede revisarla y aceptarla aquí:\n${url}\n\n`
+    + `Puede ver la cotización en PDF aquí:\n${url}\n\n`
     + `Quedo atento a sus comentarios.`
     + (NOMBRE_VENDEDOR ? `\n${NOMBRE_VENDEDOR}` : '');
 }
@@ -157,24 +160,25 @@ function render(data) {
       <i class="bi bi-check-circle-fill"></i>
       <div><strong>Cotización ${escHtml(c.folio)} generada</strong><span>Ya quedó guardada. Ahora envíasela al cliente.</span></div>
     </div>` : ''}
-    ${data.url_publica && ESTADOS_PARA_ENVIAR.includes(c.estado) ? `
+    ${data.url_pdf && ESTADOS_PARA_ENVIAR.includes(c.estado) ? `
     <div class="vc-enviar" id="vc-enviar">
       <div class="vc-enviar-titulo"><i class="bi bi-send-check" style="color:var(--v26-brand-2)"></i> Enviar al cliente</div>
-      <div class="vc-enviar-sub">El cliente abre el link, revisa la cotización y la acepta o rechaza ahí mismo, sin cuenta.</div>
+      <div class="vc-enviar-sub">El cliente recibe un link a la cotización en PDF. Desde el PDF también puede aceptarla o responder, sin cuenta.</div>
       <div class="vc-campo">
         <label for="wa-telefono">WhatsApp del cliente</label>
         <input type="text" id="wa-telefono" class="v26-input" value="${escHtml(c.cliente_telefono || '')}">
       </div>
       <div class="vc-campo">
         <label for="wa-mensaje">Mensaje</label>
-        <textarea id="wa-mensaje" rows="6">${escHtml(mensajeWhatsApp(c, data.url_publica))}</textarea>
+        <textarea id="wa-mensaje" rows="6">${escHtml(mensajeWhatsApp(c, data.url_pdf))}</textarea>
       </div>
       <a class="vc-btn-wa" id="btn-whatsapp" href="#" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i><span>Enviar por WhatsApp</span></a>
       <div class="vc-acciones-2">
+        <a class="v26-btn v26-btn-ghost" id="btn-ver-pdf" href="${escHtml(data.url_pdf)}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a>
         <button type="button" class="v26-btn v26-btn-ghost" id="btn-copiar-link"><i class="bi bi-link-45deg"></i> Copiar link</button>
         <button type="button" class="v26-btn v26-btn-ghost" id="btn-copiar-mensaje"><i class="bi bi-clipboard"></i> Copiar mensaje</button>
       </div>
-      <div class="vc-link-mini" id="link-publico">${escHtml(data.url_publica)}</div>
+      <div class="vc-link-mini" id="link-publico">${escHtml(data.url_pdf)}</div>
       ${c.estado === 'pendiente' ? `
       <div class="vc-preguntar" id="vc-preguntar">
         <p><i class="bi bi-question-circle"></i> ¿Ya se la enviaste al cliente?</p>
@@ -325,7 +329,7 @@ function activarEnvio(c, data) {
     // Se pregunta al volver: WhatsApp no avisa si de verdad se envió.
     setTimeout(preguntarSiEnviada, 600);
   });
-  document.getElementById('btn-copiar-link').addEventListener('click', e => copiarTexto(data.url_publica, e.currentTarget));
+  document.getElementById('btn-copiar-link').addEventListener('click', e => copiarTexto(data.url_pdf, e.currentTarget));
   document.getElementById('btn-copiar-mensaje').addEventListener('click', e => copiarTexto(mensaje.value, e.currentTarget));
   document.getElementById('btn-si-enviada')?.addEventListener('click', () => cambiarEstado('enviada'));
   document.getElementById('btn-no-enviada')?.addEventListener('click', () => {

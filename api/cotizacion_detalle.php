@@ -70,8 +70,10 @@ $historial->execute([$id]);
 $historial = $historial->fetchAll();
 
 $urlPublica = null;
+$urlPdf = null;
 if (!empty($cot['token_publico'])) {
     $urlPublica = urlPublicaCotizacionErp($cot['token_publico']);
+    $urlPdf     = urlPdfCotizacionVisitas($cot['token_publico']);
 }
 
 jsonResponse([
@@ -82,4 +84,5 @@ jsonResponse([
     'vencida'      => cotizacionVencidaErp($cot),
     'transiciones' => transicionesPermitidasErp($cot['estado']),
     'url_publica'  => $urlPublica,
+    'url_pdf'      => $urlPdf,
 ]);

@@ -358,6 +358,16 @@ function urlPublicaCotizacionErp(string $token): string {
 }
 
 /**
+ * Link al PDF de la cotización (cotizacion_pdf.php, en VISITAS) -- es lo que
+ * el vendedor le manda al cliente por WhatsApp. Usa el mismo token_publico
+ * que el link del ERP; dentro del PDF va el botón para responder en línea.
+ */
+function urlPdfCotizacionVisitas(string $token): string {
+    $esquema = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    return $esquema . '://' . $_SERVER['HTTP_HOST'] . '/visitas/cotizacion_pdf.php?t=' . urlencode($token);
+}
+
+/**
  * Aplica un cambio de estado validado, transaccional -- copia de
  * cambiarEstadoCotizacion() del ERP, fijado a origen='usuario' (siempre es
  * el vendedor foráneo quien lo dispara desde aquí; el cliente solo puede
