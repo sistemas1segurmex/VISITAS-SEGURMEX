@@ -140,6 +140,12 @@ body.nc-sheet-abierta { overflow: hidden; }
 .nc-color.falta { border-color: var(--v26-red); background: rgba(225,29,72,.05); }
 .nc-tag { display: inline-flex; align-items: center; gap: 4px; font-size: .68rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: rgba(20,23,31,.06); color: var(--v26-ink-soft); }
 .nc-tag--dickies { background: #FEF9C3; color: #854D0E; }
+.nc-tag--entrega { background: #E0F2FE; color: #075985; }
+.nc-aviso a.nc-usar-entrega { color: inherit; font-weight: 800; white-space: nowrap; }
+.nc-aviso-guardar { display: flex; flex-direction: column; gap: 10px; font-size: .85rem; font-weight: 600; padding: 12px; border-radius: 12px; background: #FFFBEB; color: #B45309; }
+.nc-aviso-guardar .botones { display: flex; flex-wrap: wrap; gap: 8px; }
+.nc-aviso-guardar button { min-height: 40px; border-radius: var(--v26-r-pill); padding: 8px 14px; font-weight: 700; font-size: .82rem; font-family: inherit; cursor: pointer; border: 1px solid #F59E0B; background: #fff; color: #92400E; }
+.nc-aviso-guardar button.principal { background: #F59E0B; color: #fff; }
 .nc-tag--desc { background: rgba(22,163,74,.1); color: var(--v26-green); }
 
 .nc-vacio { border: 1.5px dashed rgba(20,23,31,.15); border-radius: 14px; padding: 22px 14px; text-align: center; color: var(--v26-ink-soft); font-size: .85rem; }
@@ -389,6 +395,9 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
               <button type="button" class="nc-chip" data-valor="10 días hábiles">10 días hábiles</button>
               <button type="button" class="nc-chip" data-valor="15 días hábiles">15 días hábiles</button>
               <button type="button" class="nc-chip" data-valor="20 días hábiles">20 días hábiles</button>
+              <button type="button" class="nc-chip" data-valor="30 días hábiles">30 días hábiles</button>
+              <!-- Solo aparece si la cotización lleva un modelo de 75 días (DK-700/702/800/801) -->
+              <button type="button" class="nc-chip" data-valor="75 días hábiles" style="display:none">75 días hábiles</button>
               <button type="button" class="nc-chip" data-valor="A convenir">A convenir</button>
               <button type="button" class="nc-chip" data-otro="1">Otro…</button>
             </div>
@@ -396,6 +405,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
               <input type="text" id="input-entrega-otro" class="v26-input" placeholder="Escribe el tiempo de entrega…">
             </div>
             <input type="hidden" name="tiempo_entrega" id="input-tiempo-entrega" value="">
+            <div class="nc-aviso" id="aviso-entrega"></div>
           </div>
 
           <div class="v26-field">
@@ -672,7 +682,8 @@ function renderRenglones() {
     } else if (it.colores.length === 1) {
       color = `<span class="nc-tag">${escHtml(it.colores[0])}</span>`;
     }
-    const dickies = esDickies(it) ? '<span class="nc-tag nc-tag--dickies">Dickies · precio fijo</span>' : '';
+    const dickies = (esDickies(it) ? '<span class="nc-tag nc-tag--dickies">Dickies · precio fijo</span>' : '')
+                  + (it.entrega_dias ? `<span class="nc-tag nc-tag--entrega"><i class="bi bi-truck"></i>Entrega: ${parseInt(it.entrega_dias)} días hábiles</span>` : '');
     return `
     <div class="nc-renglon" data-i="${i}">
       <div class="nc-r-top">
@@ -807,6 +818,7 @@ function pintarAvisos() {
     avM.innerHTML = `<i class="bi bi-info-circle"></i><div style="flex:1;">Faltan ${pares(min - p.segurmex)} SEGURMEX para el mayoreo (mínimo ${min}; Dickies no cuenta).<div class="nc-progreso"><div style="width:${pct}%"></div></div></div>`;
     avM.classList.remove('ok');
   }
+  pintarEntrega();
   avD.innerHTML = (p.dickies > 0 && p.dickies < CFG.minimo_pares_dickies)
     ? `<i class="bi bi-exclamation-triangle"></i><span>Dickies: pedido mínimo de ${CFG.minimo_pares_dickies} pares (llevas ${p.dickies}). Puedes guardar la cotización, pero avísale al cliente.</span>`
     : '';
@@ -938,6 +950,94 @@ function wireChipsConOtro(gridId, otroWrapId, otroInputId, hiddenId) {
 wireChipsConOtro('chips-entrega', 'otro-entrega-wrap', 'input-entrega-otro', 'input-tiempo-entrega');
 wireChipsConOtro('chips-forma-pago', 'otro-forma-wrap', 'input-forma-otro', 'input-forma-pago');
 
+// ================= Tiempo de entrega vs. plazo de los modelos =================
+// Mismas reglas que erp/cotizacion/_renglones_js.php (y avisoTiempoEntregaErp()
+// en includes/cotizador_helpers.php): los Dickies traen su plazo (30 o 75 días
+// hábiles). Solo se AVISA; el vendedor puede guardar con otro tiempo.
+var DIAS_PRESET_SIEMPRE = 30;  // chips de más días (75) solo salen si algún modelo los pide
+var entregaAceptada = '';       // aviso que el vendedor ya decidió ignorar ("Guardar así")
+function diasDeTiempoEntrega(txt) {
+  const m = String(txt || '').match(/(\d+)\s*d[ií]as?/i);
+  return m ? parseInt(m[1], 10) : null;
+}
+function entregaRequerida() {
+  let dias = null, modelos = [];
+  renglones.forEach(r => {
+    const d = r.it && r.it.entrega_dias ? parseInt(r.it.entrega_dias) : null;
+    if (!d) return;
+    if (dias === null || d > dias) { dias = d; modelos = []; }
+    if (d === dias && !modelos.includes(r.it.clave)) modelos.push(r.it.clave);
+  });
+  return { dias, modelos };
+}
+function avisoEntregaTxt(req, txt) {
+  if (!req.dias) return null;
+  const d = diasDeTiempoEntrega(txt);
+  if (d === null || d >= req.dias) return null;
+  return `${req.modelos.join(', ')} se entrega${req.modelos.length > 1 ? 'n' : ''} en ${req.dias} días hábiles, y el tiempo de entrega elegido es "${txt}".`;
+}
+function pintarEntrega() {
+  const av = $('aviso-entrega');
+  if (!av) return;
+  const req = entregaRequerida();
+  document.querySelectorAll('#chips-entrega .nc-chip[data-valor]').forEach(b => {
+    const d = diasDeTiempoEntrega(b.dataset.valor);
+    b.style.display = (d === null || d <= DIAS_PRESET_SIEMPRE || (req.dias !== null && d <= req.dias)) ? '' : 'none';
+  });
+  const txt = $('input-tiempo-entrega').value.trim();
+  const aviso = avisoEntregaTxt(req, txt);
+  const usar = req.dias ? ` <a href="#" class="nc-usar-entrega">Usar ${req.dias} días hábiles</a>` : '';
+  if (aviso) {
+    av.className = 'nc-aviso dickies';
+    av.innerHTML = `<i class="bi bi-exclamation-triangle"></i><span>${escHtml(aviso)}${usar}</span>`;
+  } else if (req.dias && !txt) {
+    av.className = 'nc-aviso';
+    av.innerHTML = `<i class="bi bi-truck"></i><span>${escHtml(req.modelos.join(', '))}: entrega en ${req.dias} días hábiles.${usar}</span>`;
+  } else {
+    av.innerHTML = '';
+  }
+}
+function usarEntregaRequerida() {
+  const req = entregaRequerida();
+  if (!req.dias) return;
+  const valor = `${req.dias} días hábiles`;
+  const chip = document.querySelector(`#chips-entrega .nc-chip[data-valor="${valor}"]`);
+  if (chip) { chip.style.display = ''; chip.click(); }
+  else {
+    document.querySelector('#chips-entrega .nc-chip[data-otro]').click();
+    $('input-entrega-otro').value = valor;
+    $('input-tiempo-entrega').value = valor;
+  }
+  pintarEntrega();
+}
+$('chips-entrega').addEventListener('click', () => setTimeout(pintarEntrega, 0));
+$('input-entrega-otro').addEventListener('input', pintarEntrega);
+$('aviso-entrega').addEventListener('click', e => {
+  if (!e.target.closest('.nc-usar-entrega')) return;
+  e.preventDefault();
+  usarEntregaRequerida();
+});
+// Al guardar: si el tiempo es menor al del modelo más tardado, se avisa en la
+// pantalla (sin ventanas del navegador, que en la APK se ven mal) y se deja
+// elegir entre corregirlo o guardar así.
+function reenviarFormulario() {
+  const f = $('form-cotizacion');
+  if (f.requestSubmit) f.requestSubmit(); else f.dispatchEvent(new Event('submit', { cancelable: true }));
+}
+function avisarEntregaAntesDeGuardar() {
+  const aviso = avisoEntregaTxt(entregaRequerida(), $('input-tiempo-entrega').value.trim());
+  if (!aviso || aviso === entregaAceptada) return false;
+  const req = entregaRequerida();
+  const msg = $('msg-cotizacion');
+  msg.innerHTML = `<div class="nc-aviso-guardar"><div><i class="bi bi-exclamation-triangle"></i> ${escHtml(aviso)}</div>
+    <div class="botones"><button type="button" class="principal" id="btn-entrega-usar">Usar ${req.dias} días hábiles</button>
+    <button type="button" id="btn-entrega-guardar-asi">Guardar así</button></div></div>`;
+  msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  $('btn-entrega-usar').addEventListener('click', () => { usarEntregaRequerida(); msg.innerHTML = ''; reenviarFormulario(); });
+  $('btn-entrega-guardar-asi').addEventListener('click', () => { entregaAceptada = aviso; msg.innerHTML = ''; reenviarFormulario(); });
+  return true;
+}
+
 // ================= Teclado (celular / APK) =================
 // Con el teclado abierto se esconde la barra inferior para no tapar el campo.
 // Se detecta por foco en un campo de texto + la pantalla visible encogida
@@ -1001,6 +1101,7 @@ $('form-cotizacion').addEventListener('submit', async (e) => {
     mostrarError('Revisa el correo del cliente.', $('input-email'));
     return;
   }
+  if (avisarEntregaAntesDeGuardar()) return;
   recalcularTodo();
   const fd = new FormData(e.target);
   fd.set('tipo_lista', tipoLista);

@@ -45,23 +45,8 @@ if ($id) {
     $detalle->execute([$id]);
     $detalle = $detalle->fetchAll();
 
-    // Foto de cada modelo, igual que api/cotizacion_detalle.php. Si falla, sin foto.
-    try {
-        $idsLegacy = array_values(array_unique(array_filter(array_map(fn($d) => (int)($d['id_modelo_legacy'] ?? 0), $detalle))));
-        $fotos = [];
-        if ($idsLegacy) {
-            $marcas = implode(',', array_fill(0, count($idsLegacy), '?'));
-            $st = $dbErp->prepare("SELECT id, foto FROM legacy_cotizador_fb_modelos WHERE id IN ($marcas)");
-            $st->execute($idsLegacy);
-            $fotos = $st->fetchAll(PDO::FETCH_KEY_PAIR);
-        }
-        foreach ($detalle as &$d) {
-            $d['foto'] = $fotos[(int)($d['id_modelo_legacy'] ?? 0)] ?? null;
-        }
-        unset($d);
-    } catch (Throwable $e) {
-        error_log('[VISITAS] admin_cotizaciones.php fotos: ' . $e->getMessage());
-    }
+    // Foto y plazo de entrega de cada modelo (los del catálogo anterior; los Dickies traen plazo).
+    $detalle = agregarFotoYEntregaDetalleErp($dbErp, $detalle);
 
     $historial = $dbErp->prepare("
         SELECT h.estado_anterior, h.estado_nuevo, h.origen, h.created_at, u.nombre, u.apellidos
@@ -81,6 +66,7 @@ if ($id) {
         'ok'         => true,
         'cotizacion' => $cot,
         'detalle'    => $detalle,
+        'aviso_entrega' => avisoTiempoEntregaErp($cot['tiempo_entrega'] ?? null, entregaRequeridaDeLineasErp($detalle)),
         'historial'  => $historial->fetchAll(),
         'vencida'    => cotizacionVencidaErp($cot),
         'url_pdf'    => $urlPdf,

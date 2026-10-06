@@ -112,6 +112,8 @@ if (!$id) { header('Location: cotizaciones.php'); exit; }
 .vc-r-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: .76rem; color: var(--v26-ink-soft); }
 .vc-tag { display: inline-flex; align-items: center; gap: 4px; font-size: .68rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: rgba(20,23,31,.06); color: var(--v26-ink-soft); }
 .vc-tag--desc { background: rgba(22,163,74,.1); color: var(--v26-green); }
+.vc-tag--entrega { background: #E0F2FE; color: #075985; }
+.vc-aviso-entrega { display: flex; gap: 8px; align-items: flex-start; font-size: .78rem; font-weight: 600; color: #B45309; background: #FFFBEB; border-radius: 10px; padding: 8px 10px; margin: 2px 0 8px; }
 .vc-tachado { text-decoration: line-through; color: #B8AF9C; }
 
 .vc-totales { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: #FBF7EA; border: 1px solid #EFE4C4; font-size: .86rem; }
@@ -325,6 +327,7 @@ function renglonHTML(d) {
         <div class="vc-r-nombre">${escHtml(d.nombre_estilo)}</div>
         <div class="vc-r-meta">
           ${d.color ? `<span class="vc-tag">${escHtml(d.color)}</span>` : ''}
+          ${d.entrega_dias ? `<span class="vc-tag vc-tag--entrega"><i class="bi bi-truck"></i>Entrega: ${parseInt(d.entrega_dias)} días hábiles</span>` : ''}
           <span>${pares} ${pares === 1 ? 'par' : 'pares'} × ${tachado} ${money(final)}</span>
         </div>
       </div>
@@ -467,6 +470,7 @@ function render(data) {
       <div class="vc-card-titulo"><span>Condiciones</span></div>
       ${datoHTML('bi-calendar-check', 'Vigencia', `${parseInt(c.vigencia_dias)} días · hasta el ${fecha(vence.toISOString())}`)}
       ${datoHTML('bi-truck', 'Tiempo de entrega', escHtml(c.tiempo_entrega || ''))}
+      ${data.aviso_entrega ? `<div class="vc-aviso-entrega"><i class="bi bi-exclamation-triangle"></i><span>${escHtml(data.aviso_entrega)}</span></div>` : ''}
       ${datoHTML('bi-credit-card', 'Forma de pago', escHtml(c.forma_pago || ''))}
       ${c.notas ? `<div class="vc-notas">${escHtml(c.notas)}</div>` : ''}
     </div>`;

@@ -292,6 +292,7 @@ function pintarFicha(d) {
           <div class="top"><span>${esc(r.clave_estilo)}</span><span>${money(r.importe)}</span></div>
           <div class="nom">${esc(r.nombre_estilo)}</div>
           <div class="text-muted">${r.color ? esc(r.color) + ' · ' : ''}${parseInt(r.cantidad) || 0} pares × ${money(r.precio_final)}</div>
+          ${r.entrega_dias ? `<div style="font-size:.75rem;color:#075985;font-weight:600"><i class="bi bi-truck"></i> Entrega: ${parseInt(r.entrega_dias)} días hábiles</div>` : ''}
         </div>
       </div>`).join('')}
     <div class="ac-totales">
@@ -305,6 +306,7 @@ function pintarFicha(d) {
     ${dato('Correo', esc(c.cliente_email || ''))}
     ${dato('Dirección', esc(c.cliente_direccion || ''))}
     ${dato('Tiempo de entrega', esc(c.tiempo_entrega || ''))}
+    ${d.aviso_entrega ? `<div style="font-size:.78rem;font-weight:600;color:#B45309;background:#FFFBEB;border-radius:8px;padding:6px 10px;margin:4px 0"><i class="bi bi-exclamation-triangle"></i> ${esc(d.aviso_entrega)}</div>` : ''}
     ${dato('Forma de pago', esc(c.forma_pago || ''))}
     ${c.notas ? `<div class="ac-notas">${esc(c.notas)}</div>` : ''}
 
