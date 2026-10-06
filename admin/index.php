@@ -31,6 +31,7 @@ $hoy = date('Y-m-d');
     </div>
     <div class="v26-topbar-right">
       <a href="usuarios.php" class="v26-btn-chip"><i class="bi bi-people"></i> Vendedores</a>
+      <a href="cotizaciones.php" class="v26-btn-chip"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a>
       <a href="bitacora.php" class="v26-btn-chip"><i class="bi bi-journal-text"></i> Bitácora</a>
       <a href="ubicaciones.php" class="v26-btn-chip"><i class="bi bi-geo-alt"></i> Ubicaciones</a>
       <span class="v26-user"><?= htmlspecialchars($u['nombre']) ?></span>
@@ -93,6 +94,23 @@ $hoy = date('Y-m-d');
     <div class="col-lg-4">
       <div class="card shadow-sm mb-3 d-none" id="panel-estado-wrap">
         <div class="card-body" id="panel-estado"></div>
+      </div>
+
+      <!-- Cotizaciones de hoy: cuántas lleva cada vendedor (ver
+           api/admin_cotizaciones.php y cargarCotizacionesHoy en assets/js/admin.js). -->
+      <div class="card shadow-sm mb-3 v26-cot-hoy" id="cot-hoy">
+        <div class="card-body">
+          <div class="v26-al-cab">
+            <h6 class="mb-0">Cotizaciones de hoy</h6>
+            <a href="cotizaciones.php" class="v26-cot-hoy-ver">Ver todas <i class="bi bi-chevron-right"></i></a>
+          </div>
+          <a href="cotizaciones.php" class="v26-cot-hoy-total">
+            <b id="cot-hoy-n">—</b>
+            <span><span id="cot-hoy-txt">cotizaciones</span><small id="cot-hoy-monto"></small></span>
+          </a>
+          <div id="cot-hoy-nueva" class="v26-cot-hoy-nueva" hidden></div>
+          <div id="cot-hoy-lista" class="v26-cot-hoy-lista"></div>
+        </div>
       </div>
 
       <!-- Alertas (rediseño etapa 1, ver includes/alertas.php y la sección
