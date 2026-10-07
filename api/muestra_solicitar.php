@@ -21,13 +21,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $clienteId    = (int)($_POST['cliente_id'] ?? 0);
-$idEstilo     = (int)($_POST['id_estilo_base'] ?? 0);
+$itemEstilo   = trim((string)($_POST['id_estilo_base'] ?? '')); // "m:ID" o "e:ID"
 $direccion    = trim($_POST['destino_direccion'] ?? '');
 $talla        = mb_substr(trim($_POST['talla'] ?? ''), 0, 30);
 $fechaPromesa = trim($_POST['fecha_promesa'] ?? '');
 $tipo         = ($_POST['tipo'] ?? '') === 'variante' ? 'variante' : 'identico';
 
-if (!$clienteId || !$idEstilo) {
+if (!$clienteId || !preg_match('/^[me]:\d+$/', $itemEstilo)) {
     jsonResponse(['ok' => false, 'error' => 'Selecciona un cliente y un estilo'], 400);
 }
 if ($direccion === '') {
@@ -48,10 +48,11 @@ if (!$cliente) {
     jsonResponse(['ok' => false, 'error' => 'Cliente no encontrado'], 404);
 }
 
-// El estilo tiene que existir y estar activo en el ERP; el nombre que se
-// guarda sale de ahí, no de lo que mande el navegador.
+// El estilo tiene que estar en el catálogo de la Nueva cotización (modelo
+// del cotizador anterior o estilo del ERP); el nombre que se guarda sale de
+// ahí, no de lo que mande el navegador.
 try {
-    $estilo = estilosParaMuestraErp($idEstilo);
+    $estilo = catalogoParaMuestraErp($itemEstilo);
 } catch (Throwable $e) {
     error_log('[VISITAS] muestra_solicitar (estilo): ' . $e->getMessage());
     jsonResponse(['ok' => false, 'error' => 'No se pudo validar el estilo. Intenta más tarde.'], 503);
@@ -59,7 +60,7 @@ try {
 if (!$estilo) {
     jsonResponse(['ok' => false, 'error' => 'Ese estilo ya no está disponible. Elige otro.'], 400);
 }
-$estiloNombre = $estilo[0]['nombre'];
+$estiloNombre = $estilo['nombre'];
 
 // Cambios pedidos (solo variante): mismas categorías que el formulario.
 $cambios = [];
@@ -94,11 +95,11 @@ try {
 
     $ins = $db->prepare(
         'INSERT INTO muestras_solicitudes
-            (vendedor_id, cliente_id, cliente_nombre, id_estilo_erp, estilo_nombre, talla, fecha_promesa, tipo, cambios, destino_direccion)
-         VALUES (?,?,?,?,?,?,?,?,?::jsonb,?) RETURNING id'
+            (vendedor_id, cliente_id, cliente_nombre, id_estilo_erp, id_modelo_legacy, estilo_nombre, talla, fecha_promesa, tipo, cambios, destino_direccion)
+         VALUES (?,?,?,?,?,?,?,?,?,?::jsonb,?) RETURNING id'
     );
     $ins->execute([
-        (int)$u['id'], $clienteId, mb_substr($cliente['nombre'], 0, 200), $idEstilo, mb_substr($estiloNombre, 0, 200),
+        (int)$u['id'], $clienteId, mb_substr($cliente['nombre'], 0, 200), $estilo['id_estilo'], $estilo['id_modelo_legacy'], mb_substr($estiloNombre, 0, 200),
         $talla ?: null, $fechaPromesa ?: null, $tipo, json_encode($cambios, JSON_UNESCAPED_UNICODE), $direccion,
     ]);
     $id = (int)$ins->fetchColumn();
