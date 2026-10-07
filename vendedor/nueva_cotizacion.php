@@ -313,7 +313,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
     <section class="nc-hero">
       <div class="nc-hero-txt">
         <div class="nc-hero-eyebrow"><i class="bi bi-file-earmark-plus"></i> Nueva cotización</div>
-        <h1 class="nc-hero-titulo">Cotiza con las mismas condiciones que oficina</h1>
+        <h1 class="nc-hero-titulo">Arma tu cotización en 4 pasos</h1>
       </div>
       <ol class="nc-hero-pasos" aria-hidden="true">
         <li><span>1</span> Cliente</li>
