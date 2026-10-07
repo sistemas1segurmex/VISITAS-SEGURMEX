@@ -957,3 +957,13 @@
   .v26-topbar-right .v26-logo { display: none; }
   .v26-topbar-right { gap: 8px; }
 }
+
+/* ---------- Correo: Gmail u otro programa ----------
+   En la laptop/PC (mouse) salen dos opciones: «Gmail» (redactar en Gmail web,
+   pestaña nueva) y «Otro correo» (mailto: → Outlook u otro). En el celular
+   (pantalla táctil) solo sale «Correo» (mailto:), que ya abre la app de Gmail. */
+.correo-pc { display: none !important; }
+@media (hover: hover) and (pointer: fine) {
+  .correo-pc { display: inline-flex !important; }
+  .correo-movil { display: none !important; }
+}

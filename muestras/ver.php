@@ -26,6 +26,9 @@ if ($puedeCambiar) {
 
 function e($v): string { return htmlspecialchars((string)$v); }
 $telLimpio = preg_replace('/\D/', '', (string)$s['vendedor_telefono']);
+$correoAsunto = 'Muestra ' . $s['folio'];
+$correoTexto  = 'Hola ' . $s['vendedor_nombre'] . ', te escribo sobre tu solicitud de muestra ' . $s['folio']
+              . ' (' . $s['estilo_nombre'] . (!empty($s['color']) ? ', ' . $s['color'] : '') . ') para ' . $s['cliente_nombre'] . ".\n\n";
 $whats = $telLimpio ? 'https://wa.me/' . (strlen($telLimpio) === 10 ? '52' . $telLimpio : $telLimpio) : null;
 $TXT_HISTORIAL = [
     'enviada'        => 'Solicitud enviada',
@@ -158,7 +161,10 @@ $TXT_HISTORIAL = [
           <a class="v26-btn v26-btn-ghost" href="<?= e($whats) ?>" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> WhatsApp</a>
         <?php endif; ?>
         <?php if ($s['vendedor_email']): ?>
-          <a class="v26-btn v26-btn-ghost" href="mailto:<?= e($s['vendedor_email']) ?>?subject=<?= rawurlencode('Muestra ' . $s['folio']) ?>"><i class="bi bi-envelope"></i> Correo</a>
+          <?php $mailto = urlMailto($s['vendedor_email'], $correoAsunto, $correoTexto); ?>
+          <a class="v26-btn v26-btn-ghost correo-pc" href="<?= e(urlGmailRedactar($s['vendedor_email'], $correoAsunto, $correoTexto)) ?>" target="_blank" rel="noopener"><i class="bi bi-google"></i> Gmail</a>
+          <a class="v26-btn v26-btn-ghost correo-pc" href="<?= e($mailto) ?>"><i class="bi bi-envelope"></i> Otro correo</a>
+          <a class="v26-btn v26-btn-ghost correo-movil" href="<?= e($mailto) ?>"><i class="bi bi-envelope"></i> Correo</a>
         <?php endif; ?>
       </div>
     </div>

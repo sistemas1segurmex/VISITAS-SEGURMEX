@@ -140,6 +140,7 @@ if (!$id) { header('Location: cotizaciones.php'); exit; }
 .vc-mini { display: flex; gap: 6px; flex: none; align-self: center; }
 .vc-mini a { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid var(--v26-border); background: #fff; color: var(--v26-ink); text-decoration: none; font-size: .95rem; }
 .vc-mini a.wa { color: #16A34A; }
+.vc-mini a.gm { color: #EA4335; }
 .vc-notas { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: #FBF9F4; border: 1px dashed #E3D6B2; font-size: .84rem; white-space: pre-wrap; }
 
 /* ---------- Estado ---------- */
@@ -243,6 +244,28 @@ function mensajeWhatsApp(c, url) {
     + `Puede ver la cotización en PDF aquí:\n${url}\n\n`
     + `Quedo atento a sus comentarios.`
     + (NOMBRE_VENDEDOR ? `\n${NOMBRE_VENDEDOR}` : '');
+}
+
+// Correo al cliente: en la laptop, «Gmail» (Gmail web) u «Otro correo»
+// (mailto:); en el celular el mailto: del correo ya abre la app de Gmail.
+function correoAsunto(c) { return `Cotización ${c.folio} · Segurmex`; }
+function correoTexto(c) {
+  const saludo = c.cliente_contacto ? `Hola ${c.cliente_contacto}` : 'Hola';
+  return `${saludo}, le escribo respecto a la cotización ${c.folio} de Segurmex.\n\n`
+    + (NOMBRE_VENDEDOR ? `Saludos,\n${NOMBRE_VENDEDOR}` : '');
+}
+function urlMailto(para, asunto, cuerpo) {
+  return `mailto:${para}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+}
+function urlGmailRedactar(para, asunto, cuerpo) {
+  return 'https://mail.google.com/mail/?' + new URLSearchParams({ view: 'cm', fs: '1', to: para, su: asunto, body: cuerpo }).toString().replace(/\+/g, '%20');
+}
+function correoAccHTML(c) {
+  const a = correoAsunto(c), t = correoTexto(c);
+  return `<div class="vc-mini correo-pc">
+      <a class="gm v26-tip" data-tip="Escribir en Gmail" href="${escHtml(urlGmailRedactar(c.cliente_email, a, t))}" target="_blank" rel="noopener" aria-label="Escribir en Gmail"><i class="bi bi-google"></i></a>
+      <a class="v26-tip" data-tip="Otro correo" href="${escHtml(urlMailto(c.cliente_email, a, t))}" aria-label="Otro correo"><i class="bi bi-envelope"></i></a>
+    </div>`;
 }
 
 const ETIQUETAS = {
@@ -474,7 +497,7 @@ function render(data) {
         <div style="min-width:0;"><div class="nom">${escHtml(c.cliente_nombre)}</div><div class="sub">${c.cliente_contacto ? 'Atiende: ' + escHtml(c.cliente_contacto) : 'Sin contacto capturado'}</div></div>
       </div>
       ${datoHTML('bi-telephone', 'Teléfono', tel.valido ? formatoTelefonoMx(tel.digitos) : escHtml(c.cliente_telefono || ''), telAcc)}
-      ${datoHTML('bi-envelope', 'Correo', c.cliente_email ? `<a href="mailto:${escHtml(c.cliente_email)}">${escHtml(c.cliente_email)}</a>` : '')}
+      ${datoHTML('bi-envelope', 'Correo', c.cliente_email ? `<a href="${escHtml(urlMailto(c.cliente_email, correoAsunto(c), correoTexto(c)))}">${escHtml(c.cliente_email)}</a>` : '', c.cliente_email ? correoAccHTML(c) : '')}
       ${datoHTML('bi-geo-alt', 'Dirección', escHtml(c.cliente_direccion || ''), mapa)}
     </div>`;
 

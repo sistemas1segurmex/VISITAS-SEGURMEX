@@ -1,4 +1,24 @@
 <?php
+/**
+ * Liga para redactar un correo en Gmail web (pestaña nueva) con destinatario,
+ * asunto y texto ya puestos. Usa la cuenta de Gmail abierta en el navegador.
+ * Ver .correo-pc / .correo-movil en assets/css/vendedor-2026.css.
+ */
+function urlGmailRedactar(string $para, string $asunto = '', string $cuerpo = ''): string {
+    return 'https://mail.google.com/mail/?' . http_build_query(
+        ['view' => 'cm', 'fs' => 1, 'to' => $para, 'su' => $asunto, 'body' => $cuerpo],
+        '', '&', PHP_QUERY_RFC3986
+    );
+}
+
+/** mailto: con asunto y texto (abre el programa de correo del equipo / la app de Gmail en el celular). */
+function urlMailto(string $para, string $asunto = '', string $cuerpo = ''): string {
+    $q = [];
+    if ($asunto !== '') $q[] = 'subject=' . rawurlencode($asunto);
+    if ($cuerpo !== '') $q[] = 'body=' . rawurlencode($cuerpo);
+    return 'mailto:' . $para . ($q ? '?' . implode('&', $q) : '');
+}
+
 // Margen de tolerancia (en metros) entre el GPS reportado y la dirección
 // registrada del cliente para considerar una visita "verificada". Se subió
 // de 150 a 250 para cubrir casos normales como estar en el estacionamiento
