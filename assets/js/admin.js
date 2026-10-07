@@ -854,7 +854,7 @@ async function cargarCotizacionesHoy() {
       ? `<img class="v26-al-avatar" src="../${escapeAttr(v.foto_path)}" alt="">`
       : `<span class="v26-al-avatar">${inicialesAlerta(v.nombre)}</span>`;
     cont.innerHTML = con.map(v => `
-        <a class="v26-cot-hoy-fila" href="cotizaciones.php?vendedor=${v.id}">
+        <a class="v26-cot-hoy-fila" href="cotizaciones.php?periodo=hoy&vendedor=${v.id}">
           ${avatar(v)}
           <span class="quien"><b>${escapeAttr(v.nombre)}</b><span>${moneyMx(v.monto)} · última ${hora12(v.ultima)}</span></span>
           <span class="n">${v.n}</span>

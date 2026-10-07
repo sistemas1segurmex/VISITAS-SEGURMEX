@@ -103,9 +103,9 @@ $hoy = date('Y-m-d');
         <div class="card-body">
           <div class="v26-al-cab">
             <h6 class="mb-0">Cotizaciones de hoy</h6>
-            <a href="cotizaciones.php" class="v26-cot-hoy-ver">Ver todas <i class="bi bi-chevron-right"></i></a>
+            <a href="cotizaciones.php?periodo=hoy" class="v26-cot-hoy-ver">Ver todas <i class="bi bi-chevron-right"></i></a>
           </div>
-          <a href="cotizaciones.php" class="v26-cot-hoy-total">
+          <a href="cotizaciones.php?periodo=hoy" class="v26-cot-hoy-total">
             <b id="cot-hoy-n">—</b>
             <span><span id="cot-hoy-txt">cotizaciones</span><small id="cot-hoy-monto"></small></span>
           </a>

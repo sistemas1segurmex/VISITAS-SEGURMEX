@@ -80,6 +80,26 @@ $hoy = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y
 @media (min-width: 992px) {
   .ac-lista { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+/* Periodo, filtros y agrupación por día */
+.ac-periodos { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.ac-periodos::-webkit-scrollbar { display: none; }
+.ac-per { flex: none; border: 1px solid var(--v26-border); background: var(--v26-surface-solid); border-radius: 999px; padding: 7px 14px; font-size: .8rem; font-weight: 700; min-height: 38px; color: var(--v26-ink); }
+.ac-per.active { background: var(--v26-brand-grad); color: #fff; border-color: transparent; box-shadow: var(--v26-shadow-brand); }
+.ac-sub-periodo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 14px; }
+.ac-sub-periodo .ac-dia input, .ac-rango input { width: 150px; font-size: 16px; }
+.ac-rango { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; color: var(--v26-ink-soft); }
+.ac-filtros { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; }
+.ac-filtros .ac-buscar { position: relative; flex: 1 1 240px; min-width: 200px; }
+.ac-filtros .ac-buscar i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--v26-ink-soft); }
+.ac-filtros .ac-buscar input { padding-left: 34px; border-radius: 12px; min-height: 40px; font-size: 16px; }
+.ac-filtros select { flex: 1 1 200px; border-radius: 12px; min-height: 40px; font-size: 16px; }
+@media (min-width: 768px) { .ac-sel-vend { display: none; } }
+@media (max-width: 767.98px) { #chips { display: none; } }
+.ac-chips--estado .ac-chip.active { background: var(--v26-brand-grad); border-color: transparent; }
+.ac-dia-titulo { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin: 10px 2px 2px; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--v26-ink-soft); }
+.ac-dia-titulo::after { content: ''; flex: 1; height: 1px; background: var(--v26-border); }
+.ac-dia-titulo b { color: var(--v26-ink); }
+.ac-mas { display: block; margin: 14px auto 0; }
 </style>
 </head>
 <body class="v26">
@@ -100,19 +120,29 @@ $hoy = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y
 </div>
 
 <div class="v26-wrap">
-  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <div>
-      <h5 class="mb-0">Cotizaciones de tus vendedores</h5>
-      <p class="v26-subtitulo mb-0" id="subtitulo">Cuántas generó cada vendedor en el día</p>
-    </div>
-    <div class="ac-dia">
+  <div class="mb-2">
+    <h5 class="mb-0">Cotizaciones de tus vendedores</h5>
+    <p class="v26-subtitulo mb-0" id="subtitulo">&nbsp;</p>
+  </div>
+  <div class="ac-periodos" id="periodos" role="group" aria-label="Periodo">
+    <button type="button" class="ac-per" data-p="hoy">Hoy</button>
+    <button type="button" class="ac-per" data-p="ayer">Ayer</button>
+    <button type="button" class="ac-per" data-p="semana">Esta semana</button>
+    <button type="button" class="ac-per" data-p="mes">Este mes</button>
+    <button type="button" class="ac-per" data-p="mes_pasado">Mes pasado</button>
+    <button type="button" class="ac-per" data-p="rango"><i class="bi bi-calendar-range"></i> Rango</button>
+  </div>
+  <div class="ac-sub-periodo">
+    <div class="ac-dia" id="nav-dia">
       <button type="button" class="ac-flecha" id="dia-ant" aria-label="Día anterior"><i class="bi bi-chevron-left"></i></button>
       <input type="date" id="fecha" class="form-control form-control-sm" max="<?= $hoy ?>">
       <button type="button" class="ac-flecha" id="dia-sig" aria-label="Día siguiente"><i class="bi bi-chevron-right"></i></button>
-      <button type="button" class="btn-hoy" id="btn-hoy">Hoy</button>
+    </div>
+    <div class="ac-rango d-none" id="rango">
+      Desde <input type="date" id="desde" class="form-control form-control-sm" max="<?= $hoy ?>">
+      hasta <input type="date" id="hasta" class="form-control form-control-sm" max="<?= $hoy ?>">
     </div>
   </div>
-
   <div class="v26-stats-row mb-3">
     <div class="v26-stat-card"><div class="v26-stat-icon"><i class="bi bi-file-earmark-text"></i></div><div><div class="v26-stat-num" id="st-total">—</div><div class="v26-stat-label">Cotizaciones</div></div></div>
     <div class="v26-stat-card v26-stat-card--verde"><div class="v26-stat-icon"><i class="bi bi-cash-stack"></i></div><div><div class="v26-stat-num" id="st-monto">—</div><div class="v26-stat-label">Cotizado (con IVA)</div></div></div>
@@ -120,8 +150,14 @@ $hoy = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y
     <div class="v26-stat-card v26-stat-card--morado"><div class="v26-stat-icon"><i class="bi bi-geo-alt"></i></div><div><div class="v26-stat-num" id="st-visita">—</div><div class="v26-stat-label">Salieron de una visita</div></div></div>
   </div>
 
+  <div class="ac-filtros">
+    <select id="sel-vend" class="form-select ac-sel-vend" aria-label="Vendedor"><option value="0">Todos los vendedores</option></select>
+    <div class="ac-buscar"><i class="bi bi-search"></i><input type="search" id="buscar" class="form-control" placeholder="Buscar por folio o cliente..." autocomplete="off"></div>
+  </div>
   <div class="ac-chips" id="chips" role="group" aria-label="Filtrar por vendedor"></div>
+  <div class="ac-chips ac-chips--estado" id="chips-estado" role="group" aria-label="Filtrar por estado"></div>
   <div class="ac-lista" id="lista"><p class="text-muted small mb-0">Cargando...</p></div>
+  <button type="button" class="btn btn-outline-secondary btn-sm ac-mas d-none" id="btn-mas"><i class="bi bi-arrow-down-circle"></i> Cargar más</button>
 </div>
 
 <div class="modal fade ac-modal" id="modalCot" tabindex="-1" aria-hidden="true">
@@ -154,8 +190,21 @@ const ETIQUETAS = {
 };
 const FOTOS_URL = '/erp/assets/img/cotizador/';
 const params = new URLSearchParams(location.search);
-let fecha = /^\d{4}-\d{2}-\d{2}$/.test(params.get('fecha') || '') ? params.get('fecha') : HOY;
+const AYER_ = (() => { const d = new Date(HOY + 'T12:00:00'); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
+const esIso = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+// periodo: hoy | ayer | dia (otro día con las flechas) | semana | mes | mes_pasado | rango
+let periodo = params.get('periodo') || '';
+let fecha = esIso(params.get('fecha')) ? params.get('fecha') : HOY;
+let rangoDesde = esIso(params.get('desde')) ? params.get('desde') : '';
+let rangoHasta = esIso(params.get('hasta')) ? params.get('hasta') : '';
+if (!['hoy', 'ayer', 'dia', 'semana', 'mes', 'mes_pasado', 'rango'].includes(periodo)) {
+  periodo = params.get('fecha') ? 'dia' : 'semana'; // abre en «Esta semana»
+}
+if (periodo === 'rango' && !(rangoDesde && rangoHasta)) periodo = 'semana';
 let vendedor = parseInt(params.get('vendedor')) || 0;
+let estado = params.get('estado') || '';
+let busqueda = params.get('q') || '';
+let cargadas = [];
 let datos = null;
 const modal = new bootstrap.Modal(document.getElementById('modalCot'));
 
@@ -180,60 +229,123 @@ function fechaHoraTz(s) {
   return isNaN(d.getTime()) ? (s || '') : d.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Mexico_City' });
 }
 
-function guardarUrl(id) {
-  const q = new URLSearchParams();
-  if (fecha !== HOY) q.set('fecha', fecha);
-  if (vendedor) q.set('vendedor', vendedor);
-  if (id) q.set('id', id);
-  history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
+function lunesDe(iso) { const d = new Date(iso + 'T12:00:00'); const w = (d.getDay() + 6) % 7; d.setDate(d.getDate() - w); return d.toISOString().slice(0, 10); }
+function rangoActual() {
+  if (periodo === 'hoy') return [HOY, HOY];
+  if (periodo === 'ayer') return [AYER_, AYER_];
+  if (periodo === 'dia') return [fecha, fecha];
+  if (periodo === 'semana') return [lunesDe(HOY), HOY];
+  if (periodo === 'mes') return [HOY.slice(0, 8) + '01', HOY];
+  if (periodo === 'mes_pasado') {
+    const d = new Date(HOY.slice(0, 8) + '01T12:00:00'); d.setDate(0);
+    const fin = d.toISOString().slice(0, 10);
+    return [fin.slice(0, 8) + '01', fin];
+  }
+  return [rangoDesde, rangoHasta];
+}
+function fechaCorta(iso) { return new Date(iso + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }); }
+function textoPeriodo(d, h) {
+  if (d === h) return (d === HOY ? 'Hoy, ' : (d === AYER_ ? 'Ayer, ' : '')) + fechaLarga(d);
+  const nombres = { semana: 'Esta semana', mes: 'Este mes', mes_pasado: 'Mes pasado', rango: 'Del' };
+  return `${nombres[periodo] || 'Del'}${periodo === 'rango' ? '' : ':'} ${fechaCorta(d)} al ${fechaCorta(h)}`;
 }
 
-async function cargar() {
-  document.getElementById('fecha').value = fecha;
-  document.getElementById('dia-sig').disabled = fecha >= HOY;
-  document.getElementById('btn-hoy').disabled = fecha === HOY;
-  document.getElementById('subtitulo').textContent = fecha === HOY ? 'Hoy, ' + fechaLarga(fecha) : fechaLarga(fecha).replace(/^./, c => c.toUpperCase());
-  guardarUrl();
+function guardarUrl(id) {
+  const q = new URLSearchParams();
+  q.set('periodo', periodo);
+  if (periodo === 'dia') q.set('fecha', fecha);
+  if (periodo === 'rango') { q.set('desde', rangoDesde); q.set('hasta', rangoHasta); }
+  if (vendedor) q.set('vendedor', vendedor);
+  if (estado) q.set('estado', estado);
+  if (busqueda) q.set('q', busqueda);
+  if (id) q.set('id', id);
+  history.replaceState(null, '', location.pathname + '?' + q);
+}
+
+function pintarControles() {
+  const [d, h] = rangoActual();
+  document.querySelectorAll('#periodos .ac-per').forEach(b => b.classList.toggle('active',
+    b.dataset.p === periodo || (periodo === 'dia' && ((b.dataset.p === 'hoy' && fecha === HOY) || (b.dataset.p === 'ayer' && fecha === AYER_)))));
+  const unDia = ['hoy', 'ayer', 'dia'].includes(periodo);
+  document.getElementById('nav-dia').classList.toggle('d-none', !unDia);
+  document.getElementById('rango').classList.toggle('d-none', periodo !== 'rango');
+  if (unDia) { document.getElementById('fecha').value = d; document.getElementById('dia-sig').disabled = d >= HOY; }
+  if (periodo === 'rango') { document.getElementById('desde').value = d; document.getElementById('hasta').value = h; }
+  const t = textoPeriodo(d, h);
+  document.getElementById('subtitulo').textContent = t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+async function cargar(mas) {
+  const [d, h] = rangoActual();
+  if (!mas) { cargadas = []; pintarControles(); guardarUrl(); }
+  const q = new URLSearchParams({ desde: d, hasta: h, offset: mas ? cargadas.length : 0 });
+  if (vendedor) q.set('vendedor', vendedor);
+  if (estado) q.set('estado', estado);
+  if (busqueda) q.set('q', busqueda);
+  const btn = document.getElementById('btn-mas');
+  if (mas) { btn.disabled = true; btn.textContent = 'Cargando...'; }
   try {
-    // Siempre se pide el día completo: el filtro por vendedor se hace aquí
-    // para que los números de arriba sean de todo el equipo.
-    const res = await fetch('../api/admin_cotizaciones.php?fecha=' + encodeURIComponent(fecha));
+    const res = await fetch('../api/admin_cotizaciones.php?' + q);
     datos = await res.json();
     if (!datos.ok) throw new Error(datos.error);
+    cargadas = cargadas.concat(datos.cotizaciones || []);
     pintar();
   } catch (e) {
     document.getElementById('lista').innerHTML = `<div class="alert alert-danger mb-0">${esc(e.message || 'No se pudieron cargar las cotizaciones.')}</div>`;
   }
+  btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-down-circle"></i> Cargar más';
 }
 
+const ORDEN_ESTADOS = ['pendiente', 'enviada', 'en_negociacion', 'aceptada', 'facturada', 'entregada', 'rechazada', 'cancelada'];
 function pintar() {
-  const cots = datos.cotizaciones || [];
+  const [d, h] = rangoActual();
   document.getElementById('st-total').textContent = datos.total;
   document.getElementById('st-monto').textContent = moneyCorto(datos.monto);
-  document.getElementById('st-vend').textContent = datos.por_vendedor.filter(v => v.n > 0).length;
-  document.getElementById('st-visita').textContent = cots.filter(c => c.visitas_cita_id).length;
+  document.getElementById('st-vend').textContent = datos.vendedores;
+  document.getElementById('st-visita').textContent = datos.de_visita;
 
-  // Chips: todos los que cotizaron ese día, más el filtrado aunque lleve 0.
+  // Vendedor: botones (computadora) y lista desplegable (celular), contando el periodo.
+  const totalVend = datos.por_vendedor.reduce((t, v) => t + v.n, 0);
   const visibles = datos.por_vendedor.filter(v => v.n > 0 || Number(v.id) === vendedor);
   document.getElementById('chips').innerHTML =
-    `<button type="button" class="ac-chip ${vendedor ? '' : 'active'}" data-v="0">Todos <b>${datos.total}</b></button>`
+    `<button type="button" class="ac-chip ${vendedor ? '' : 'active'}" data-v="0">Todos <b>${totalVend}</b></button>`
     + visibles.map(v => `<button type="button" class="ac-chip ${Number(v.id) === vendedor ? 'active' : ''}" data-v="${v.id}">${esc(v.nombre)} <b>${v.n}</b></button>`).join('');
+  document.getElementById('sel-vend').innerHTML = `<option value="0">Todos los vendedores (${totalVend})</option>`
+    + datos.por_vendedor.map(v => `<option value="${v.id}" ${Number(v.id) === vendedor ? 'selected' : ''}>${esc(v.nombre)} (${v.n})</option>`).join('');
 
-  const lista = vendedor ? cots.filter(c => Number(c.vendedor_id) === vendedor) : cots;
+  // Estado: botones con su número.
+  const pe = datos.por_estado || {};
+  const totalEst = Object.values(pe).reduce((t, n) => t + n, 0);
+  const estados = ORDEN_ESTADOS.filter(e => pe[e] || e === estado);
+  document.getElementById('chips-estado').innerHTML =
+    `<button type="button" class="ac-chip ${estado ? '' : 'active'}" data-e="">Todos los estados <b>${totalEst}</b></button>`
+    + estados.map(e => `<button type="button" class="ac-chip ${e === estado ? 'active' : ''}" data-e="${e}">${esc(ETIQUETAS[e] || e)} <b>${pe[e] || 0}</b></button>`).join('');
+
   const cont = document.getElementById('lista');
-  if (!lista.length) {
-    const sin = datos.por_vendedor.filter(v => v.n === 0).map(v => esc(v.nombre));
-    cont.innerHTML = `<div class="v26-empty"><i class="bi bi-file-earmark-x icon"></i><p>${vendedor ? 'Este vendedor no generó cotizaciones' : 'No se generaron cotizaciones'} ${fecha === HOY ? 'hoy' : 'este día'}.</p>
-      ${!vendedor && sin.length ? `<p class="small text-muted mb-0">Vendedores activos: ${sin.join(', ')}</p>` : ''}</div>`;
+  document.getElementById('btn-mas').classList.toggle('d-none', !datos.hay_mas);
+  if (!cargadas.length) {
+    const filtrado = vendedor || estado || busqueda;
+    cont.innerHTML = `<div class="v26-empty" style="grid-column:1/-1"><i class="bi bi-file-earmark-x icon"></i><p>${filtrado ? 'Ninguna cotización coincide con los filtros' : 'No se generaron cotizaciones'} en este periodo.</p></div>`;
     return;
   }
-  cont.innerHTML = lista.map(c => `
+  const varios = d !== h;
+  let html = '', dia = null;
+  cargadas.forEach(c => {
+    if (varios && c.dia !== dia) {
+      dia = c.dia;
+      const n = cargadas.filter(x => x.dia === dia).length;
+      const t = (dia === HOY ? 'Hoy, ' : (dia === AYER_ ? 'Ayer, ' : '')) + fechaLarga(dia);
+      html += `<div class="ac-dia-titulo"><b>${esc(t)}</b> ${n} cotizaci${n === 1 ? 'ón' : 'ones'}</div>`;
+    }
+    html += `
     <button type="button" class="ac-item ${c.estado === 'cancelada' ? 'cancelada' : ''}" data-id="${c.id}">
       <span class="folio">${esc(c.folio)}</span>
       <span class="cliente">${esc(c.cliente_nombre)}</span>
       <span class="meta"><span><i class="bi bi-person"></i> ${esc(c.vendedor_nombre)}</span><span><i class="bi bi-clock"></i> ${hora12(c.hora)}</span><span>${parseInt(c.total_pares) || 0} pares</span>${c.visitas_cita_id ? '<span><i class="bi bi-geo-alt"></i> De una visita</span>' : ''}</span>
       <span class="lado"><span class="total">${money(c.total)}</span><span class="v26-pill v26-pill--${esc(c.estado)}">${esc(ETIQUETAS[c.estado] || c.estado)}</span></span>
-    </button>`).join('');
+    </button>`;
+  });
+  cont.innerHTML = html;
 }
 
 async function abrir(id) {
@@ -319,17 +431,48 @@ function pintarFicha(d) {
     }).join('') : '<p class="small text-muted mb-0">Sin movimientos.</p>'}`;
 }
 
-document.getElementById('fecha').addEventListener('change', e => { if (e.target.value) { fecha = e.target.value > HOY ? HOY : e.target.value; cargar(); } });
-document.getElementById('dia-ant').addEventListener('click', () => { fecha = sumarDias(fecha, -1); cargar(); });
-document.getElementById('dia-sig').addEventListener('click', () => { if (fecha < HOY) { fecha = sumarDias(fecha, 1); cargar(); } });
-document.getElementById('btn-hoy').addEventListener('click', () => { fecha = HOY; cargar(); });
+document.getElementById('periodos').addEventListener('click', e => {
+  const b = e.target.closest('[data-p]');
+  if (!b) return;
+  periodo = b.dataset.p;
+  if (periodo === 'rango' && !(rangoDesde && rangoHasta)) { [rangoDesde, rangoHasta] = [lunesDe(HOY), HOY]; }
+  cargar();
+});
+function irADia(iso) {
+  if (!iso) return;
+  fecha = iso > HOY ? HOY : iso;
+  periodo = fecha === HOY ? 'hoy' : (fecha === AYER_ ? 'ayer' : 'dia');
+  cargar();
+}
+document.getElementById('fecha').addEventListener('change', e => irADia(e.target.value));
+document.getElementById('dia-ant').addEventListener('click', () => irADia(sumarDias(rangoActual()[0], -1)));
+document.getElementById('dia-sig').addEventListener('click', () => { const d = rangoActual()[0]; if (d < HOY) irADia(sumarDias(d, 1)); });
+['desde', 'hasta'].forEach(id => document.getElementById(id).addEventListener('change', () => {
+  const d = document.getElementById('desde').value, h = document.getElementById('hasta').value;
+  if (!d || !h) return;
+  [rangoDesde, rangoHasta] = d <= h ? [d, h] : [h, d];
+  cargar();
+}));
 document.getElementById('chips').addEventListener('click', e => {
   const b = e.target.closest('[data-v]');
   if (!b) return;
   vendedor = parseInt(b.dataset.v) || 0;
-  guardarUrl();
-  pintar();
+  cargar();
 });
+document.getElementById('sel-vend').addEventListener('change', e => { vendedor = parseInt(e.target.value) || 0; cargar(); });
+document.getElementById('chips-estado').addEventListener('click', e => {
+  const b = e.target.closest('[data-e]');
+  if (!b) return;
+  estado = b.dataset.e;
+  cargar();
+});
+document.getElementById('buscar').value = busqueda;
+let tBuscar;
+document.getElementById('buscar').addEventListener('input', e => {
+  clearTimeout(tBuscar);
+  tBuscar = setTimeout(() => { busqueda = e.target.value.trim(); cargar(); }, 350);
+});
+document.getElementById('btn-mas').addEventListener('click', () => cargar(true));
 document.getElementById('lista').addEventListener('click', e => {
   const b = e.target.closest('[data-id]');
   if (b) abrir(b.dataset.id);
@@ -337,8 +480,12 @@ document.getElementById('lista').addEventListener('click', e => {
 document.getElementById('modalCot').addEventListener('hidden.bs.modal', () => guardarUrl());
 
 cargar().then(() => { const id = parseInt(params.get('id')); if (id) abrir(id); });
-// Si es hoy, se refresca solo (igual que el panel).
-setInterval(() => { if (fecha === HOY && !document.getElementById('modalCot').classList.contains('show')) cargar(); }, 60000);
+// Si el periodo incluye hoy, se refresca solo (igual que el panel), salvo
+// que tengas abierta una cotización o hayas cargado más páginas.
+setInterval(() => {
+  const h = rangoActual()[1];
+  if (h === HOY && cargadas.length <= 50 && !document.getElementById('modalCot').classList.contains('show')) cargar();
+}, 60000);
 </script>
 </body>
 </html>
