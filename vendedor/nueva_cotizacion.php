@@ -252,6 +252,43 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
 @media (max-width: 559.98px) {
   .nc-cliente-extra.v26-fila-2 { grid-template-columns: 1fr; gap: 0; }
 }
+/* ============ Rediseño visual (07-oct-2026) ============
+   Encabezado con los 4 pasos, títulos numerados por sección, resumen
+   destacado. Mismo lenguaje visual que Muestras (assets/css/muestras.css). */
+.nc-hero {
+  position: relative; overflow: hidden; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 12px 20px; margin-bottom: 14px; padding: 18px 20px; border-radius: var(--v26-r-xl); color: #fff;
+  background: radial-gradient(420px 200px at 100% 0%, rgba(255,210,63,.35), transparent 70%), linear-gradient(135deg, #1F2430 0%, #2B2F3A 55%, #3A3324 100%);
+  box-shadow: 0 24px 50px -28px rgba(20,23,31,.6);
+}
+.nc-hero::after { content: '\F38B'; font-family: 'bootstrap-icons'; position: absolute; right: -10px; bottom: -40px; font-size: 8.5rem; color: rgba(255,255,255,.05); pointer-events: none; }
+.nc-hero-txt { position: relative; z-index: 1; min-width: 0; flex: 1 1 320px; }
+.nc-hero-eyebrow { font-size: .7rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #FFD23F; margin-bottom: 4px; }
+.nc-hero-titulo { font-size: 1.25rem; font-weight: 800; margin: 0; line-height: 1.25; }
+.nc-hero-pasos { position: relative; z-index: 1; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+.nc-hero-pasos li { display: inline-flex; align-items: center; gap: 6px; font-size: .74rem; font-weight: 700; padding: 5px 10px 5px 5px; border-radius: 999px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.14); }
+.nc-hero-pasos li span { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .66rem; font-weight: 800; background: var(--v26-brand-grad); color: #fff; }
+@media (max-width: 560px) { .nc-hero { padding: 14px 16px; } .nc-hero-titulo { font-size: 1.02rem; } .nc-hero-pasos { display: none; } }
+
+.nc-titulo { font-size: .95rem; text-transform: none; letter-spacing: 0; color: var(--v26-ink); }
+.nc-paso { display: inline-flex; align-items: center; gap: 10px; }
+.nc-paso-n { width: 28px; height: 28px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 800; color: #fff; background: var(--v26-brand-grad); box-shadow: var(--v26-shadow-brand); flex: none; }
+.nc-titulo--resumen .nc-paso i { width: 28px; height: 28px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; background: #14171F; color: #FFD23F; font-size: .9rem; }
+.nc-titulo-ayuda { font-size: .72rem; font-weight: 600; color: var(--v26-ink-soft); }
+.nc-titulo-ayuda i { color: var(--v26-brand-2); }
+
+/* Resumen destacado */
+#sec-resumen { border-top: 4px solid var(--v26-brand-1); }
+.nc-totales .total { margin: 8px -4px 0; padding: 12px 14px; border-radius: 14px; background: linear-gradient(135deg, #FFF8E1, #FFF1C7); border: 1px solid rgba(201,136,0,.25); font-size: 1.15rem; }
+.nc-totales .total span:last-child { color: #8A5A00; }
+
+/* Catálogo */
+.nc-grupo { background: linear-gradient(90deg, rgba(232,164,0,.14), rgba(232,164,0,.03)); color: #8A5A00; border-left: 3px solid var(--v26-brand-1); }
+.nc-estilo-item .agregar { transition: transform .15s var(--v26-ease), background .15s, color .15s; }
+@media (hover: hover) {
+  .nc-estilo-item:hover .agregar { background: var(--v26-brand-grad); color: #fff; transform: scale(1.06); }
+}
+.nc-vacio { background: rgba(232,164,0,.04); }
 </style>
 </head>
 <body class="v26">
@@ -273,12 +310,24 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
   </div>
 
   <div class="v26-wrap nc-wrap">
+    <section class="nc-hero">
+      <div class="nc-hero-txt">
+        <div class="nc-hero-eyebrow"><i class="bi bi-file-earmark-plus"></i> Nueva cotización</div>
+        <h1 class="nc-hero-titulo">Cotiza con las mismas condiciones que oficina</h1>
+      </div>
+      <ol class="nc-hero-pasos" aria-hidden="true">
+        <li><span>1</span> Cliente</li>
+        <li><span>2</span> Lista</li>
+        <li><span>3</span> Modelos</li>
+        <li><span>4</span> Condiciones</li>
+      </ol>
+    </section>
     <form id="form-cotizacion" novalidate>
       <div class="nc-grid">
 
         <!-- Cliente -->
         <section class="v26-card" id="sec-cliente">
-          <h2 class="nc-titulo">Cliente</h2>
+          <h2 class="nc-titulo"><span class="nc-paso"><span class="nc-paso-n">1</span> Cliente</span></h2>
           <div class="v26-field">
             <button type="button" class="nc-cliente-btn vacio" id="btn-cliente" aria-haspopup="dialog">
               <i class="bi bi-person"></i>
@@ -303,6 +352,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
 
         <!-- Lista de precios -->
         <section class="v26-card" id="sec-precios">
+          <h2 class="nc-titulo"><span class="nc-paso"><span class="nc-paso-n">2</span> Lista de precios</span></h2>
           <div class="v26-fila-2 nc-precios">
             <div class="v26-field">
               <label>Tipo de lista</label>
@@ -323,7 +373,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
 
         <!-- Catálogo: hoja en celular, panel fijo en escritorio -->
         <section class="v26-card" id="sec-modelos">
-          <h2 class="nc-titulo">Catálogo de modelos</h2>
+          <h2 class="nc-titulo"><span class="nc-paso"><span class="nc-paso-n">3</span> Catálogo de modelos</span><span class="nc-titulo-ayuda">Toca <i class="bi bi-plus-circle"></i> para agregar</span></h2>
           <div class="nc-sheet" id="sheet-catalogo" role="dialog" aria-label="Agregar modelos">
             <div class="nc-sheet-head">
               <h2>Agregar modelos</h2>
@@ -349,8 +399,8 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
 
         <!-- Resumen: renglones + totales -->
         <section class="v26-card" id="sec-resumen">
-          <h2 class="nc-titulo">
-            <span>Cotización</span>
+          <h2 class="nc-titulo nc-titulo--resumen">
+            <span class="nc-paso"><i class="bi bi-receipt"></i> Tu cotización</span>
             <span class="v26-pill v26-pill--pendiente" id="resumen-cuenta" style="display:none;"></span>
           </h2>
           <div class="nc-resumen-scroll">
@@ -380,7 +430,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
 
         <!-- Condiciones comerciales -->
         <section class="v26-card" id="sec-condiciones">
-          <h2 class="nc-titulo">Condiciones</h2>
+          <h2 class="nc-titulo"><span class="nc-paso"><span class="nc-paso-n">4</span> Condiciones</span></h2>
           <div class="v26-field">
             <label>Vigencia</label>
             <div class="nc-chips" id="chips-vigencia">
