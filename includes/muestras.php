@@ -37,18 +37,28 @@ const MUESTRA_TRANSICIONES = [
 const MUESTRA_CATEGORIAS_CAMBIO = ['casco' => 'Casco', 'suela' => 'Suela', 'piel' => 'Piel', 'forro' => 'Forro'];
 
 /**
- * Estilos activos del ERP para el formulario de muestra (mismo criterio que
- * erp/api/visitas_catalogos.php). Necesita includes/db_erp.php.
- * $id: si se pasa, regresa solo ese estilo (o [] si no existe / inactivo).
+ * Catálogo para el formulario de muestra: el MISMO que ofrece la Nueva
+ * cotización (catalogoCotizableErp() en includes/cotizador_helpers.php) --
+ * modelos del cotizador anterior ("m:ID") más estilos del ERP con precio
+ * ("e:ID"). Así el vendedor pide muestra de lo mismo que cotiza.
+ * $item: si se pasa ("m:12" / "e:34"), regresa solo ese, o null si ya no
+ * está en el catálogo.
  */
-function estilosParaMuestraErp(?int $id = null): array {
-    $sql = "SELECT id, (cinterno || ' — ' || estilo) AS nombre FROM estilos WHERE estatus = 1";
-    if ($id !== null) {
-        $stmt = getDBErp()->prepare($sql . ' AND id = ?');
-        $stmt->execute([$id]);
-        return $stmt->fetchAll();
+function catalogoParaMuestraErp(?string $item = null): ?array {
+    require_once __DIR__ . '/cotizador_helpers.php';
+    $lista = [];
+    foreach (catalogoCotizableErp(configCotizadorErp()) as $it) {
+        $nombre = trim($it['clave'] . ' — ' . $it['nombre']);
+        if ($it['marca'] && $it['marca'] !== 'SEGURMEX') $nombre .= ' (' . $it['marca'] . ')';
+        $lista[$it['item']] = [
+            'id'               => $it['item'],
+            'nombre'           => $nombre,
+            'id_estilo'        => $it['id_estilo'],
+            'id_modelo_legacy' => $it['id_modelo_legacy'],
+        ];
     }
-    return getDBErp()->query($sql . ' ORDER BY cinterno')->fetchAll();
+    if ($item !== null) return $lista[$item] ?? null;
+    return array_values($lista);
 }
 
 function etiquetaEstadoMuestra(string $estado): string {

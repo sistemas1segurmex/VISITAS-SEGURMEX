@@ -5,8 +5,8 @@
 // "Clientes" son los PROPIOS clientes/prospectos de este vendedor en
 // Visitas (no el catálogo del ERP -- un vendedor externo debe poder pedir
 // una muestra para ganarse a un prospecto que todavía ni siquiera es
-// cliente formal allá). "Estilos" sí es el catálogo real de
-// productos del ERP -- eso no tiene equivalente de "prospecto".
+// cliente formal allá). "Estilos" es el catálogo de la Nueva
+// cotización -- eso no tiene equivalente de "prospecto".
 
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
@@ -23,14 +23,13 @@ $stmt = $db->prepare(
 $stmt->execute([$u['id']]);
 $clientes = $stmt->fetchAll();
 
-// Estilos: se leen directo del esquema "public" del ERP (misma base de
-// Supabase, ver includes/db_erp.php) -- igual que el cotizador de Visitas.
-// Antes pasaba por la API del ERP (api/visitas_catalogos.php) y necesitaba
-// ERP_API_URL/ERP_API_SECRET en el .env; ya no hace falta.
+// Estilos: el mismo catálogo que la Nueva cotización (modelos del cotizador
+// anterior + estilos del ERP con precio), leído directo del esquema "public"
+// del ERP (ver includes/db_erp.php).
 $estilos = [];
 $errorEstilos = null;
 try {
-    $estilos = estilosParaMuestraErp();
+    $estilos = catalogoParaMuestraErp();
 } catch (Throwable $e) {
     error_log('[VISITAS] muestra_catalogos: ' . $e->getMessage());
     $errorEstilos = 'No se pudo cargar el catálogo de estilos. Intenta más tarde.';
