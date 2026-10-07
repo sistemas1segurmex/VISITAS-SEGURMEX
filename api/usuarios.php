@@ -33,6 +33,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $accion = $_POST['accion'] ?? 'crear';
 
+// 'muestras' = responsable de surtir las solicitudes de muestra de los
+// vendedores externos (ver muestras/index.php). Cualquier otra cosa cae en
+// 'vendedor', igual que antes.
+function rolValidoUsuario(string $rol): string {
+    return in_array($rol, ['vendedor', 'admin', 'muestras'], true) ? $rol : 'vendedor';
+}
+
 // Sube la foto de perfil (opcional) a uploads/usuarios y regresa la ruta
 // relativa a guardar en foto_path — mismo patrón de validación que ya usa
 // api/checkin.php para las fotos de evidencia (valida por contenido real de
@@ -78,7 +85,7 @@ if ($accion === 'crear') {
     $nombre   = trim($_POST['nombre'] ?? '');
     $email    = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
-    $rol      = ($_POST['rol'] ?? 'vendedor') === 'admin' ? 'admin' : 'vendedor';
+    $rol      = rolValidoUsuario($_POST['rol'] ?? 'vendedor');
     $telefono = trim($_POST['telefono'] ?? '');
     $estado   = trim($_POST['estado_operacion'] ?? '');
 
@@ -112,7 +119,7 @@ if ($accion === 'crear') {
 if ($accion === 'actualizar') {
     $id       = (int)($_POST['id'] ?? 0);
     $nombre   = trim($_POST['nombre'] ?? '');
-    $rol      = ($_POST['rol'] ?? 'vendedor') === 'admin' ? 'admin' : 'vendedor';
+    $rol      = rolValidoUsuario($_POST['rol'] ?? 'vendedor');
     $telefono = trim($_POST['telefono'] ?? '');
     $estado   = trim($_POST['estado_operacion'] ?? '');
 

@@ -1,0 +1,80 @@
+/* Pantallas de la responsable de muestras y consulta del admin
+   (muestras/index.php y muestras/ver.php). Se apoyan en vendedor-2026.css;
+   aquí solo va lo propio. Pensadas para celular y para computadora. */
+.mu-wrap { max-width: 760px; }
+.mu-ayuda { font-size: .82rem; color: var(--v26-ink-soft); margin: 0 0 14px; }
+
+/* Pills de estado */
+.mu-pill { display: inline-flex; align-items: center; font-size: .7rem; font-weight: 800; padding: 4px 10px; border-radius: var(--v26-r-pill); white-space: nowrap; }
+.mu-pill--enviada        { background: rgba(232,164,0,.16);  color: #92600A; }
+.mu-pill--en_preparacion { background: rgba(79,70,229,.12);  color: var(--v26-blue); }
+.mu-pill--embarcada      { background: rgba(22,163,74,.12);  color: var(--v26-green); }
+.mu-pill--cancelada      { background: rgba(107,114,128,.14); color: var(--v26-gray); }
+
+/* Tarjetas de la bandeja */
+.mu-card {
+  display: block; text-decoration: none; color: var(--v26-ink);
+  background: var(--v26-surface-solid); border: 1px solid var(--v26-border);
+  border-left: 4px solid var(--v26-border);
+  border-radius: var(--v26-r-lg); padding: 14px 16px; margin-bottom: 12px;
+  box-shadow: var(--v26-shadow-sm); transition: box-shadow .18s var(--v26-ease);
+}
+.mu-card:hover { box-shadow: var(--v26-shadow-md); color: var(--v26-ink); }
+.mu-card--enviada        { border-left-color: var(--v26-brand-1); }
+.mu-card--en_preparacion { border-left-color: var(--v26-blue); }
+.mu-card--embarcada      { border-left-color: var(--v26-green); }
+.mu-card--cancelada      { opacity: .8; }
+.mu-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.mu-folio { font-weight: 800; font-size: .9rem; }
+.mu-card-titulo { font-weight: 700; font-size: .95rem; margin-top: 6px; }
+.mu-card-linea { font-size: .8rem; color: var(--v26-ink-soft); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-sep { opacity: .6; margin: 0 2px; }
+.mu-card-pie { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: .74rem; color: var(--v26-ink-soft); font-weight: 600; }
+.mu-vencida { color: var(--v26-red); }
+
+/* Detalle */
+.mu-estado-actual {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px;
+  border-radius: var(--v26-r-lg); padding: 14px 18px; margin-bottom: 14px;
+  background: rgba(232,164,0,.12); border: 1px solid rgba(232,164,0,.3);
+}
+.mu-estado-actual--en_preparacion { background: rgba(79,70,229,.08); border-color: rgba(79,70,229,.25); }
+.mu-estado-actual--embarcada      { background: rgba(22,163,74,.08); border-color: rgba(22,163,74,.25); }
+.mu-estado-actual--cancelada      { background: rgba(107,114,128,.1); border-color: rgba(107,114,128,.25); }
+.mu-estado-label { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--v26-ink-soft); }
+.mu-estado-valor { font-size: 1.1rem; font-weight: 800; }
+.mu-estado-extra { font-size: .84rem; font-weight: 600; }
+
+.mu-sec-titulo { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--v26-ink-soft); margin-bottom: 10px; }
+.mu-acciones { border: 1px solid rgba(232,164,0,.35); }
+.mu-botones { display: flex; flex-wrap: wrap; gap: 8px; }
+.mu-botones .v26-btn { flex: 1 1 180px; }
+.mu-btn-cancelar { background: #fff; color: var(--v26-red); border: 1px solid rgba(225,29,72,.35); }
+.mu-form { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--v26-border); }
+.mu-nota { font-size: .76rem; color: var(--v26-ink-soft); margin: -4px 0 12px; }
+
+.mu-datos { display: grid; grid-template-columns: 130px 1fr; gap: 8px 14px; margin: 0; font-size: .88rem; }
+.mu-datos dt { color: var(--v26-ink-soft); font-weight: 600; }
+.mu-datos dd { margin: 0; font-weight: 600; word-break: break-word; }
+@media (max-width: 480px) {
+  .mu-datos { grid-template-columns: 1fr; gap: 2px; }
+  .mu-datos dd { margin-bottom: 8px; }
+}
+.mu-cambios { margin: 0; padding-left: 18px; }
+.mu-contacto { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+.mu-historial { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--v26-border); }
+.mu-historial li { position: relative; padding: 0 0 14px 8px; }
+.mu-historial li:last-child { padding-bottom: 0; }
+.mu-historial li::before {
+  content: ''; position: absolute; left: -25px; top: 3px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--v26-brand-1); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--v26-border);
+}
+.mu-historial .mu-hist--en_preparacion::before { background: var(--v26-blue); }
+.mu-historial .mu-hist--embarcada::before { background: var(--v26-green); }
+.mu-historial .mu-hist--cancelada::before { background: var(--v26-gray); }
+.mu-hist-que { font-size: .85rem; font-weight: 700; }
+.mu-hist-nota { font-size: .8rem; color: var(--v26-ink); margin-top: 2px; }
+.mu-hist-cuando { font-size: .72rem; color: var(--v26-ink-soft); margin-top: 2px; }
+.mu-wrap .v26-card { margin-bottom: 14px; }
+.mu-wrap a.v26-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }

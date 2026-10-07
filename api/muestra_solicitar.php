@@ -1,19 +1,17 @@
 <?php
-// Un vendedor externo (solo tiene cuenta en Visitas, nunca en el ERP) pide
-// una muestra desde aquí, para uno de SUS clientes/prospectos de Visitas.
-// La solicitud se crea DENTRO del ERP -- misma tabla, mismo folio, mismo
-// flujo de autorización/Diseño/Producción que cualquier otra -- vía
-// api/visitas_muestra.php del ERP (mismo servidor de oficina), protegido
-// con un secreto compartido.
+// Un vendedor externo pide una muestra para uno de SUS clientes/prospectos.
 //
-// El cliente/prospecto de Visitas no necesariamente existe todavía como
-// cliente real en el ERP -- la primera vez, el ERP lo crea allá (registro
-// mínimo, solo el nombre) y regresa su id; aquí se guarda ese enlace
-// (clientes.id_cliente_erp) para no volver a crearlo cada vez.
-
+// Etapa "solo aviso" (07-oct-2026): la solicitud se guarda AQUÍ, en Visitas
+// (muestras_solicitudes), y se le avisa a la responsable de muestras por
+// correo y en su campanita -- ya NO se manda al ERP (antes se creaba allá con
+// folio, cuenta "sombra" del vendedor y cliente mínimo, y entraba al flujo
+// de autorización de Dirección; ese flujo todavía no se usa para externos).
+// Ver includes/muestras.php y la migración 20261007120000_muestras_solo_aviso.sql.
+// El catálogo de estilos sí sigue viniendo del ERP (api/muestra_catalogos.php).
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/muestras.php';
 
 $u = requireRole('vendedor');
 
@@ -21,98 +19,97 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     jsonResponse(['ok' => false, 'error' => 'Método no soportado'], 405);
 }
 
-$baseUrl = envConfig('ERP_API_URL');
-$secreto = envConfig('ERP_API_SECRET');
-if (!$baseUrl || !$secreto) {
-    jsonResponse(['ok' => false, 'error' => 'La solicitud de muestras no está configurada todavía. Avisa a Sistemas.'], 503);
-}
+$clienteId    = (int)($_POST['cliente_id'] ?? 0);
+$idEstilo     = (int)($_POST['id_estilo_base'] ?? 0);
+$estiloNombre = trim($_POST['estilo_nombre'] ?? '');
+$direccion    = trim($_POST['destino_direccion'] ?? '');
+$talla        = mb_substr(trim($_POST['talla'] ?? ''), 0, 30);
+$fechaPromesa = trim($_POST['fecha_promesa'] ?? '');
+$tipo         = ($_POST['tipo'] ?? '') === 'variante' ? 'variante' : 'identico';
 
-$clienteId = (int)($_POST['cliente_id'] ?? 0);
-$idEstilo  = (int)($_POST['id_estilo_base'] ?? 0);
-$direccion = trim($_POST['destino_direccion'] ?? '');
-if (!$clienteId || !$idEstilo) {
+if (!$clienteId || !$idEstilo || $estiloNombre === '') {
     jsonResponse(['ok' => false, 'error' => 'Selecciona un cliente y un estilo'], 400);
 }
 if ($direccion === '') {
     jsonResponse(['ok' => false, 'error' => 'Indica la dirección de entrega'], 400);
 }
+if ($fechaPromesa !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaPromesa)) {
+    jsonResponse(['ok' => false, 'error' => 'La fecha promesa no es válida'], 400);
+}
 
 $db = getDB();
 
-// El cliente/prospecto tiene que ser de ESTE vendedor -- mismo criterio
-// que el resto del sistema (nadie pide muestra a nombre de un cliente
-// ajeno solo cambiando el id en la petición).
-$stmt = $db->prepare('SELECT id, nombre, id_cliente_erp FROM clientes WHERE id = ? AND vendedor_id = ?');
+// El cliente/prospecto tiene que ser de ESTE vendedor -- nadie pide muestra
+// a nombre de un cliente ajeno solo cambiando el id en la petición.
+$stmt = $db->prepare('SELECT id, nombre FROM clientes WHERE id = ? AND vendedor_id = ?');
 $stmt->execute([$clienteId, $u['id']]);
 $cliente = $stmt->fetch();
 if (!$cliente) {
     jsonResponse(['ok' => false, 'error' => 'Cliente no encontrado'], 404);
 }
 
-// El correo real del vendedor (currentUser() solo trae id/nombre/rol de la
-// sesión, no el correo) -- es lo que liga su cuenta "sombra" en el ERP.
-$stmt = $db->prepare('SELECT email FROM usuarios WHERE id = ?');
-$stmt->execute([$u['id']]);
-$email = $stmt->fetchColumn();
-if (!$email) {
-    jsonResponse(['ok' => false, 'error' => 'No se encontró tu correo en el sistema.'], 500);
-}
-
-$adendum = [];
-if (($_POST['tipo'] ?? '') === 'variante') {
-    $categorias = json_decode($_POST['adendum'] ?? '[]', true);
-    if (is_array($categorias)) $adendum = $categorias;
-}
-
-$payload = [
-    'secreto'           => $secreto,
-    'email'             => $email,
-    'nombre'            => $u['nombre'],
-    'id_estilo_base'    => $idEstilo,
-    'talla'             => trim($_POST['talla'] ?? ''),
-    'fecha_promesa'     => trim($_POST['fecha_promesa'] ?? ''),
-    'tipo'              => ($_POST['tipo'] ?? '') === 'variante' ? 'variante' : 'identico',
-    'destino_direccion' => $direccion,
-    'adendum'           => $adendum,
-];
-// Si ya sabemos su id real en el ERP, se manda directo; si no, se manda su
-// nombre para que el ERP lo cree allá y nos regrese el id nuevo.
-if ($cliente['id_cliente_erp']) {
-    $payload['id_cliente'] = (int)$cliente['id_cliente_erp'];
-} else {
-    $payload['cliente_nombre'] = $cliente['nombre'];
+// Cambios pedidos (solo variante): mismas categorías que el formulario.
+$cambios = [];
+if ($tipo === 'variante') {
+    $entrada = json_decode($_POST['adendum'] ?? '[]', true);
+    foreach (is_array($entrada) ? $entrada : [] as $c) {
+        $cat   = (string)($c['categoria'] ?? '');
+        $desc  = mb_substr(trim((string)($c['descripcion_cliente'] ?? $c['descripcion'] ?? '')), 0, 500);
+        if ($desc === '') continue;
+        if ($cat === 'otro') {
+            $nombreOtro = mb_substr(trim((string)($c['categoria_otro'] ?? '')), 0, 60);
+            if ($nombreOtro === '') continue;
+            $cambios[] = ['categoria' => 'otro', 'categoria_otro' => $nombreOtro, 'descripcion' => $desc];
+        } elseif (isset(MUESTRA_CATEGORIAS_CAMBIO[$cat])) {
+            $cambios[] = ['categoria' => $cat, 'descripcion' => $desc];
+        }
+    }
+    if (!$cambios) {
+        jsonResponse(['ok' => false, 'error' => 'Describe al menos un cambio de la variante'], 400);
+    }
 }
 
 try {
-    $url = rtrim($baseUrl, '/') . '/api/visitas_muestra.php';
-    $ctx = stream_context_create(['http' => [
-        'method'  => 'POST',
-        'header'  => "Content-Type: application/json\r\n",
-        'content' => json_encode($payload),
-        'timeout' => 8,
-    ]]);
-    $resp = @file_get_contents($url, false, $ctx);
-    if (!$resp) {
-        jsonResponse(['ok' => false, 'error' => 'No se pudo conectar con el ERP. Intenta más tarde.'], 503);
-    }
-    $data = json_decode($resp, true) ?: ['ok' => false, 'error' => 'Respuesta inválida del ERP.'];
-
-    // Primera vez que este cliente/prospecto de Visitas pide una muestra:
-    // el ERP acaba de crear su registro allá -- guardamos el enlace para
-    // no volver a crearlo la próxima vez.
-    if (($data['ok'] ?? false) && empty($cliente['id_cliente_erp']) && !empty($data['id_cliente_erp'])) {
-        $db->prepare('UPDATE clientes SET id_cliente_erp = ? WHERE id = ?')
-           ->execute([(int)$data['id_cliente_erp'], $clienteId]);
+    $db->beginTransaction();
+    // Un candado por vendedor para que dos envíos al mismo tiempo no se
+    // salten el tope.
+    $db->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')->execute(['muestras_vendedor_' . (int)$u['id']]);
+    if (muestrasDelMesVendedor($db, (int)$u['id']) >= MUESTRAS_TOPE_MES) {
+        $db->rollBack();
+        jsonResponse(['ok' => false, 'error' => 'Ya pediste ' . MUESTRAS_TOPE_MES . ' muestras este mes. Podrás pedir otra a partir del día 1 del próximo mes.'], 409);
     }
 
-    if ($data['ok'] ?? false) {
-        $folio = $data['folio'] ?? null;
-        registrarCambio($db, $u['id'], 'muestra', $data['id'] ?? null, 'alta',
-            $folio ? "Solicitó la muestra {$folio} para {$cliente['nombre']}" : "Solicitó una muestra para {$cliente['nombre']}");
-    }
-
-    jsonResponse($data);
+    $ins = $db->prepare(
+        'INSERT INTO muestras_solicitudes
+            (vendedor_id, cliente_id, cliente_nombre, id_estilo_erp, estilo_nombre, talla, fecha_promesa, tipo, cambios, destino_direccion)
+         VALUES (?,?,?,?,?,?,?,?,?::jsonb,?) RETURNING id'
+    );
+    $ins->execute([
+        (int)$u['id'], $clienteId, mb_substr($cliente['nombre'], 0, 200), $idEstilo, mb_substr($estiloNombre, 0, 200),
+        $talla ?: null, $fechaPromesa ?: null, $tipo, json_encode($cambios, JSON_UNESCAPED_UNICODE), $direccion,
+    ]);
+    $id = (int)$ins->fetchColumn();
+    $folio = sprintf('MV-%04d', $id);
+    $db->prepare('UPDATE muestras_solicitudes SET folio = ? WHERE id = ?')->execute([$folio, $id]);
+    $db->prepare("INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id) VALUES (?, 'enviada', ?)")
+       ->execute([$id, (int)$u['id']]);
+    $db->commit();
 } catch (Throwable $e) {
+    if ($db->inTransaction()) $db->rollBack();
     error_log('[VISITAS] muestra_solicitar: ' . $e->getMessage());
-    jsonResponse(['ok' => false, 'error' => 'No se pudo conectar con el ERP. Intenta más tarde.'], 503);
+    jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la solicitud. Intenta de nuevo.'], 500);
 }
+
+registrarCambio($db, (int)$u['id'], 'muestra', $id, 'alta', "Solicitó la muestra {$folio} para {$cliente['nombre']}");
+
+$s = cargarSolicitudMuestra($db, $id);
+notificarNuevaSolicitudMuestra($db, $s);
+
+$responsables = responsablesMuestras($db);
+jsonResponse([
+    'ok'          => true,
+    'id'          => $id,
+    'folio'       => $folio,
+    'responsable' => $responsables ? $responsables[0]['nombre'] : null,
+    'restantes'   => max(0, MUESTRAS_TOPE_MES - muestrasDelMesVendedor($db, (int)$u['id'])),
+]);

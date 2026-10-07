@@ -70,6 +70,7 @@ $u = requireRole('vendedor');
   </div>
 
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
+<script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 

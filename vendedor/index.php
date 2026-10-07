@@ -79,6 +79,7 @@ $u = requireRole('vendedor');
 <script src="../assets/js/cancelar-cita.js<?= assetVer(__DIR__ . '/../assets/js/cancelar-cita.js') ?>"></script>
 <script src="../assets/js/reprogramar-cita.js<?= assetVer(__DIR__ . '/../assets/js/reprogramar-cita.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
+<script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <script>
 // Saludo según la hora local del dispositivo del vendedor (evita el bug de
 // mostrar "buenas noches" a mediodía si el servidor tiene otra zona horaria).

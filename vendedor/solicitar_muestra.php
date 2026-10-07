@@ -27,7 +27,7 @@ $u = requireRole('vendedor');
   <div class="v26-header">
     <div class="v26-topbar">
       <div class="v26-topbar-left">
-        <a href="index.php" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis visitas" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
+        <a href="cotizaciones.php?ver=muestras" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis muestras" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
           <div class="hi">Ventas</div>
           <div class="name">Solicitar muestra</div>
@@ -41,12 +41,14 @@ $u = requireRole('vendedor');
 
   <div class="v26-wrap" style="max-width:560px">
     <div id="msg-muestra"></div>
+    <div id="aviso-tope" class="d-none"></div>
 
     <div id="pantalla-exito" class="d-none v26-empty">
       <div class="icon"><i class="bi bi-check-circle-fill" style="color:var(--v26-green)"></i></div>
-      <p><strong id="folio-exito"></strong> enviada a autorizar.</p>
-      <p class="text-muted small">Sigue el mismo proceso que cualquier otra solicitud del ERP -- Dirección la revisa, luego pasa a Diseño y Producción.</p>
-      <a href="solicitar_muestra.php" class="v26-btn v26-btn-ghost v26-btn-block mt-2"><i class="bi bi-plus-lg"></i> Pedir otra</a>
+      <p>Solicitud <strong id="folio-exito"></strong> enviada.</p>
+      <p class="text-muted small" id="texto-exito">Ya se le avisó a la responsable de muestras. Te avisaremos aquí y por correo cuando tu muestra esté en preparación y cuando se embarque.</p>
+      <a href="cotizaciones.php?ver=muestras" class="v26-btn v26-btn-primary v26-btn-block mt-2"><i class="bi bi-box-seam"></i> Ver mis muestras</a>
+      <a href="solicitar_muestra.php" class="v26-btn v26-btn-ghost v26-btn-block mt-2" id="btn-pedir-otra"><i class="bi bi-plus-lg"></i> Pedir otra</a>
     </div>
 
     <div class="v26-card">
@@ -81,7 +83,7 @@ $u = requireRole('vendedor');
         </div>
 
         <div id="bloque-adendum" class="d-none v26-field">
-          <label>Adendum -- describe cada cambio</label>
+          <label>Cambios que pide el cliente -- describe cada uno</label>
           <div id="adendum-categorias"></div>
           <div id="adendum-otros"></div>
           <button type="button" class="v26-btn v26-btn-ghost" id="btn-agregar-otro"><i class="bi bi-plus-lg"></i> Agregar otro cambio</button>
@@ -92,14 +94,31 @@ $u = requireRole('vendedor');
           <textarea id="destino_direccion" class="v26-textarea" rows="2" required placeholder="Calle, número, colonia, ciudad..."></textarea>
         </div>
 
-        <button type="submit" class="v26-btn v26-btn-primary v26-btn-block" id="btn-enviar-muestra">Enviar a autorizar</button>
+        <button type="submit" class="v26-btn v26-btn-primary v26-btn-block" id="btn-enviar-muestra">Enviar solicitud</button>
       </form>
     </div>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <script>
 const CATEGORIAS_ADENDUM = { casco: 'Casco', suela: 'Suela', piel: 'Piel', forro: 'Forro' };
+function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Tope de muestras por mes (ver MUESTRAS_TOPE_MES en includes/muestras.php):
+// se avisa cuántas le quedan y, si ya no le queda ninguna, no se deja enviar.
+function pintarTope(data) {
+  const caja = document.getElementById('aviso-tope');
+  if (data.tope_mes == null) return;
+  const quedan = Math.max(0, data.tope_mes - (data.usadas_mes || 0));
+  caja.classList.remove('d-none');
+  if (quedan === 0) {
+    caja.innerHTML = `<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> Ya pediste ${data.tope_mes} muestras este mes, que es el máximo. Podrás pedir otra a partir del día 1 del próximo mes.</div>`;
+    document.getElementById('btn-enviar-muestra').disabled = true;
+  } else {
+    caja.innerHTML = `<div class="alert alert-light border py-2 small mb-3"><i class="bi bi-info-circle"></i> Te ${quedan === 1 ? 'queda 1 muestra' : 'quedan ' + quedan + ' muestras'} de ${data.tope_mes} este mes.</div>`;
+  }
+}
 let otrosContador = 0;
 
 function pintarCategorias() {
@@ -148,20 +167,21 @@ async function cargarCatalogos() {
     const res = await fetch('../api/muestra_catalogos.php');
     const data = await res.json();
     if (!data.ok) {
-      selCliente.innerHTML = `<option value="">${data.error}</option>`;
-      selEstilo.innerHTML = `<option value="">${data.error}</option>`;
+      selCliente.innerHTML = `<option value="">${escHtml(data.error)}</option>`;
+      selEstilo.innerHTML = `<option value="">${escHtml(data.error)}</option>`;
       return;
     }
     selCliente.innerHTML = '<option value="">Elige un cliente o prospecto...</option>' +
       data.clientes.map(c => {
         const etiqueta = c.etapa === 'convertido' ? 'Cliente' : 'Prospecto';
-        return `<option value="${c.id}">${c.nombre} (${etiqueta})</option>`;
+        return `<option value="${c.id}">${escHtml(c.nombre)} (${etiqueta})</option>`;
       }).join('');
+    pintarTope(data);
     if (data.error_estilos) {
       selEstilo.innerHTML = `<option value="">${data.error_estilos}</option>`;
     } else {
       selEstilo.innerHTML = '<option value="">Elige un estilo...</option>' +
-        data.estilos.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+        data.estilos.map(e => `<option value="${e.id}">${escHtml(e.nombre)}</option>`).join('');
     }
   } catch (e) {
     selCliente.innerHTML = '<option value="">Error al cargar</option>';
@@ -190,7 +210,7 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
       if (nombre && texto) adendum.push({ categoria: 'otro', categoria_otro: nombre, descripcion_cliente: texto });
     });
     if (adendum.length === 0) {
-      msg.innerHTML = '<div class="alert alert-danger py-2">Agrega al menos un cambio en el Adendum.</div>';
+      msg.innerHTML = '<div class="alert alert-danger py-2">Describe al menos un cambio de la variante.</div>';
       return;
     }
   }
@@ -200,7 +220,9 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
   try {
     const fd = new FormData();
     fd.append('cliente_id', document.getElementById('id_cliente').value);
-    fd.append('id_estilo_base', document.getElementById('id_estilo_base').value);
+    const selEstilo = document.getElementById('id_estilo_base');
+    fd.append('id_estilo_base', selEstilo.value);
+    fd.append('estilo_nombre', selEstilo.value ? selEstilo.options[selEstilo.selectedIndex].text : '');
     fd.append('talla', document.getElementById('talla').value);
     fd.append('fecha_promesa', document.getElementById('fecha_promesa').value);
     fd.append('tipo', tipo);
@@ -211,17 +233,23 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     const data = await res.json();
     if (data.ok) {
       document.getElementById('form-muestra').closest('.v26-card').classList.add('d-none');
-      document.getElementById('folio-exito').textContent = data.folio || 'Tu solicitud';
+      document.getElementById('folio-exito').textContent = data.folio || '';
+      if (data.responsable) {
+        document.getElementById('texto-exito').textContent =
+          `Ya se le avisó a ${data.responsable}, responsable de muestras. Te avisaremos aquí y por correo cuando tu muestra esté en preparación y cuando se embarque.`;
+      }
+      if (data.restantes === 0) document.getElementById('btn-pedir-otra').classList.add('d-none');
+      document.getElementById('aviso-tope').classList.add('d-none');
       document.getElementById('pantalla-exito').classList.remove('d-none');
     } else {
-      msg.innerHTML = `<div class="alert alert-danger py-2">${data.error}</div>`;
+      msg.innerHTML = `<div class="alert alert-danger py-2">${escHtml(data.error)}</div>`;
       btn.disabled = false;
-      btn.textContent = 'Enviar a autorizar';
+      btn.textContent = 'Enviar solicitud';
     }
   } catch (err) {
     msg.innerHTML = '<div class="alert alert-danger py-2">No se pudo enviar. Intenta de nuevo.</div>';
     btn.disabled = false;
-    btn.textContent = 'Enviar a autorizar';
+    btn.textContent = 'Enviar solicitud';
   }
 });
 </script>

@@ -5,13 +5,13 @@
 // "Clientes" son los PROPIOS clientes/prospectos de este vendedor en
 // Visitas (no el catálogo del ERP -- un vendedor externo debe poder pedir
 // una muestra para ganarse a un prospecto que todavía ni siquiera es
-// cliente formal allá; api/muestra_solicitar.php se encarga de crear ese
-// registro en el ERP si hace falta). "Estilos" sí es el catálogo real de
+// cliente formal allá). "Estilos" sí es el catálogo real de
 // productos del ERP -- eso no tiene equivalente de "prospecto".
 
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/muestras.php';
 
 $u  = requireRole('vendedor');
 $db = getDB();
@@ -45,4 +45,10 @@ if (!$baseUrl || !$secreto) {
     }
 }
 
-jsonResponse(['ok' => true, 'clientes' => $clientes, 'estilos' => $estilos, 'error_estilos' => $errorEstilos]);
+$usadas = muestrasDelMesVendedor($db, (int)$u['id']);
+$responsables = responsablesMuestras($db);
+jsonResponse([
+    'ok' => true, 'clientes' => $clientes, 'estilos' => $estilos, 'error_estilos' => $errorEstilos,
+    'usadas_mes' => $usadas, 'tope_mes' => MUESTRAS_TOPE_MES,
+    'responsable' => $responsables ? $responsables[0]['nombre'] : null,
+]);

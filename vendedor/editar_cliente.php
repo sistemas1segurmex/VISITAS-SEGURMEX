@@ -110,6 +110,7 @@ if (!$cliente) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="../assets/js/v26-modal.js<?= assetVer(__DIR__ . '/../assets/js/v26-modal.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
+<script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <script>window.DIRECCION_CFG = { googleKey: <?= json_encode(envConfig('GOOGLE_MAPS_API_KEY', '') ?? '') ?> };</script>
 <script src="../assets/js/capas_mapa.js<?= assetVer(__DIR__ . '/../assets/js/capas_mapa.js') ?>"></script>
 <script src="../assets/js/direccion-cliente.js<?= assetVer(__DIR__ . '/../assets/js/direccion-cliente.js') ?>"></script>

@@ -32,6 +32,7 @@ $hoy = date('Y-m-d');
     <div class="v26-topbar-right">
       <a href="usuarios.php" class="v26-btn-chip"><i class="bi bi-people"></i> Vendedores</a>
       <a href="cotizaciones.php" class="v26-btn-chip"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a>
+      <a href="../muestras/index.php" class="v26-btn-chip"><i class="bi bi-box-seam"></i> Muestras</a>
       <a href="metricas.php" class="v26-btn-chip"><i class="bi bi-bar-chart-line"></i> Métricas</a>
       <a href="bitacora.php" class="v26-btn-chip"><i class="bi bi-journal-text"></i> Bitácora</a>
       <a href="ubicaciones.php" class="v26-btn-chip"><i class="bi bi-geo-alt"></i> Ubicaciones</a>

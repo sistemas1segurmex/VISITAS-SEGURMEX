@@ -51,6 +51,7 @@ $clienteId = (int)($_GET['id'] ?? 0);
   </div>
 
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
+<script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 const clienteId = <?= json_encode($clienteId) ?>;

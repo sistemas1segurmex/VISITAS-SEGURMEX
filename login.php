@@ -4,7 +4,7 @@ require_once __DIR__ . '/includes/auth.php';
 
 if (currentUser()) {
     $u = currentUser();
-    header('Location: ' . ($u['rol'] === 'admin' ? 'admin/index.php' : 'vendedor/index.php'));
+    header('Location: ' . rutaInicioPorRol($u['rol']));
     exit;
 }
 
@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['usuario_rol']    = $u['rol'];
             registrarSesion($db, (int)$u['id'], session_id());
             registrarAcceso($db, (int)$u['id'], $email, 'correcto');
-            header('Location: ' . ($u['rol'] === 'admin' ? 'admin/index.php' : 'vendedor/index.php'));
+            header('Location: ' . rutaInicioPorRol($u['rol']));
             exit;
         }
     } else {
