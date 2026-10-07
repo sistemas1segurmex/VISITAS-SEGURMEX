@@ -78,3 +78,6 @@
 .mu-hist-cuando { font-size: .72rem; color: var(--v26-ink-soft); margin-top: 2px; }
 .mu-wrap .v26-card { margin-bottom: 14px; }
 .mu-wrap a.v26-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+/* Los tooltips ocultos de la barra (.v26-tip) se salen unos px a la
+   derecha y en celular dejaban mover la página de lado. */
+body.v26 { overflow-x: clip; }
