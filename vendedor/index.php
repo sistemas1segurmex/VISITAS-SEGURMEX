@@ -40,6 +40,7 @@ $u = requireRole('vendedor');
       <a href="calendario.php"><i class="bi bi-calendar3"></i>Calendario</a>
       <a href="clientes.php"><i class="bi bi-people-fill"></i>Clientes</a>
       <a href="cotizaciones.php"><i class="bi bi-file-earmark-text-fill"></i>Cotizar</a>
+      <a href="muestras.php"><i class="bi bi-box-seam-fill"></i>Muestras</a>
       <a href="reporte.php"><i class="bi bi-bar-chart-fill"></i>Reporte</a>
       <a href="mis_paradas.php"><i class="bi bi-signpost-2-fill"></i>Paradas</a>
     </div>
@@ -79,6 +80,7 @@ $u = requireRole('vendedor');
 <script src="../assets/js/cancelar-cita.js<?= assetVer(__DIR__ . '/../assets/js/cancelar-cita.js') ?>"></script>
 <script src="../assets/js/reprogramar-cita.js<?= assetVer(__DIR__ . '/../assets/js/reprogramar-cita.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
+<script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <script>
 // Saludo según la hora local del dispositivo del vendedor (evita el bug de
 // mostrar "buenas noches" a mediodía si el servidor tiene otra zona horaria).

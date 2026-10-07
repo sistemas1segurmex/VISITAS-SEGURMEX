@@ -819,9 +819,9 @@
 
 /* ---------- Tarjeta de solicitud de muestra ("Mis cotizaciones") ----------
    A propósito distinta de .v26-cita: una muestra no es un solo evento sino
-   un proceso con varias etapas (Solicitada -> Autorizada -> Producción ->
-   Entregada), así que la tarjeta trae su propio mini-stepper en vez de un
-   simple pill de estado. */
+   un proceso con varias etapas (Enviada -> En preparación -> Embarcada, ver
+   includes/muestras.php), así que la tarjeta trae su propio mini-stepper en
+   vez de un simple pill de estado. */
 .v26-muestra-card {
   position: relative;
   background: var(--v26-surface-solid);
@@ -850,7 +850,7 @@
 .v26-muestra-top .chev { flex: none; font-size: 1.1rem; color: var(--v26-ink-soft); transition: transform .2s var(--v26-ease); }
 .v26-muestra-card.abierta .v26-muestra-top .chev { transform: rotate(90deg); }
 
-/* Mini-stepper de progreso: cada muestra viva se ubica en una de 4 etapas. */
+/* Mini-stepper de progreso: cada muestra viva se ubica en una de 3 etapas. */
 .v26-muestra-track { display: flex; margin: 14px 0 2px; }
 .v26-muestra-track .paso { flex: 1; text-align: center; position: relative; }
 .v26-muestra-track .paso .linea {
@@ -886,7 +886,9 @@
   overflow: hidden; max-height: 0; opacity: 0;
   transition: max-height .25s var(--v26-ease), opacity .2s var(--v26-ease), margin-top .25s var(--v26-ease);
 }
-.v26-muestra-card.abierta .v26-muestra-detalle { max-height: 200px; opacity: 1; margin-top: 12px; }
+.v26-muestra-card.abierta .v26-muestra-detalle { max-height: 600px; opacity: 1; margin-top: 12px; }
+/* Frase de en qué va la muestra ("Se le avisó a ...", paquetería y guía). */
+.v26-muestra-estado { margin-top: 10px; font-size: .76rem; color: var(--v26-ink); font-weight: 600; }
 .v26-muestra-detalle-inner {
   border-top: 1px dashed var(--v26-border); padding-top: 10px;
   font-size: .78rem; color: var(--v26-ink-soft); display: flex; flex-direction: column; gap: 4px;
@@ -948,3 +950,10 @@
 .v26-tel-hint.ok { color: var(--v26-green); font-weight: 700; }
 .v26-tel-hint.error { color: var(--v26-red); font-weight: 600; }
 .v26-input.v26-input--error { border-color: var(--v26-red); box-shadow: 0 0 0 3px rgba(225, 29, 72, .12); }
+
+/* Celular angosto: con campanita, ayuda y Salir en la barra, el logo se
+   oculta para que el título de la pantalla se alcance a leer. */
+@media (max-width: 420px) {
+  .v26-topbar-right .v26-logo { display: none; }
+  .v26-topbar-right { gap: 8px; }
+}

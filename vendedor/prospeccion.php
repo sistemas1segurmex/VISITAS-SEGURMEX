@@ -34,6 +34,7 @@ $u = requireRole('vendedor');
       </div>
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
+        <a href="../logout.php" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Cerrar sesión" aria-label="Salir"><i class="bi bi-box-arrow-right"></i></a>
       </div>
     </div>
   </div>
@@ -120,6 +121,7 @@ $u = requireRole('vendedor');
 
 <script src="../assets/js/v26-modal.js<?= assetVer(__DIR__ . '/../assets/js/v26-modal.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
+<script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 

@@ -139,6 +139,7 @@ $u = requireRole('admin');
       <button type="button" class="opt active" data-rol="">Todos</button>
       <button type="button" class="opt" data-rol="vendedor">Vendedores</button>
       <button type="button" class="opt" data-rol="admin">Administradores</button>
+      <button type="button" class="opt" data-rol="muestras">Muestras</button>
       <button type="button" class="opt" data-rol="pendientes">Pendientes</button>
     </div>
   </div>
@@ -188,6 +189,7 @@ $u = requireRole('admin');
             <select name="rol" id="rol" class="form-select">
               <option value="vendedor">Vendedor</option>
               <option value="admin">Administrador</option>
+              <option value="muestras">Responsable de muestras</option>
             </select>
           </div>
           <div class="mb-3">

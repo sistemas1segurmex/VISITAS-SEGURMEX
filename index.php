@@ -7,4 +7,4 @@ if (!$u) {
     header('Location: login.php');
     exit;
 }
-header('Location: ' . ($u['rol'] === 'admin' ? 'admin/index.php' : 'vendedor/index.php'));
+header('Location: ' . rutaInicioPorRol($u['rol']));

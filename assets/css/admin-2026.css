@@ -338,6 +338,7 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 .v26-pill--retrasada::before { animation: v26-pill-dot 1.6s ease-in-out infinite; }
 .v26-pill--admin        { background: rgba(79,70,229,.12);   color: var(--v26-blue); }
 .v26-pill--vendedor     { background: rgba(107,114,128,.12); color: var(--v26-gray); }
+.v26-pill--muestras     { background: rgba(217,119,6,.12);   color: #B45309; }
 @keyframes v26-pill-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(225,29,72,.35); } 50% { box-shadow: 0 0 0 6px rgba(225,29,72,0); } }
 @keyframes v26-pill-dot  { 0%, 100% { box-shadow: 0 0 0 0 rgba(225,29,72,.6); } 50% { box-shadow: 0 0 0 4px rgba(225,29,72,0); } }
 

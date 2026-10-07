@@ -31,6 +31,9 @@ function abrirModalCrear() {
   usuarioEditandoId = null;
   document.getElementById('modalUsuarioTitulo').textContent = 'Nuevo vendedor';
   document.getElementById('form-usuario').reset();
+  // Si antes se abrió "Editar", el correo se quedó bloqueado (readOnly) --
+  // reset() no lo quita, así que en un alta nueva no se podía escribir.
+  document.getElementById('email').readOnly = false;
   document.getElementById('campo-password').classList.remove('d-none');
   document.getElementById('password').required = true;
   mostrarPreviewFoto(null);
@@ -237,6 +240,10 @@ function animarNumero(el, valorFinal) {
 let usuariosCache = [];
 let filtroRolActivo = '';
 
+// 'muestras' = responsable de surtir las solicitudes de muestra de los
+// vendedores externos (entra a muestras/index.php, no ve nada de vendedor).
+const ETIQUETA_ROL = { vendedor: 'vendedor', admin: 'admin', muestras: 'muestras' };
+
 function tarjetaUsuario(u, i) {
   const activo = u.activo == 1;
   const conectado = u.conectado == true || u.conectado == 1;
@@ -256,7 +263,7 @@ function tarjetaUsuario(u, i) {
         </div>
       </div>
       <div class="v26-user-meta">
-        <span class="v26-pill v26-pill--${u.rol}">${u.rol}</span>
+        <span class="v26-pill v26-pill--${u.rol}">${ETIQUETA_ROL[u.rol] || u.rol}</span>
         ${u.telefono ? `<span class="v26-user-region"><i class="bi bi-telephone"></i> ${u.telefono}</span>` : ''}
         ${u.estado_operacion ? `<span class="v26-user-region"><i class="bi bi-geo-alt"></i> ${u.estado_operacion}</span>` : ''}
         ${pendiente ? '<span class="v26-pill v26-pill--pendiente"><i class="bi bi-hourglass-split"></i> Pendiente de aprobar</span>' : ''}

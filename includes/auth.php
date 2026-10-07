@@ -203,6 +203,35 @@ function requireLogin(): array {
     return $u;
 }
 
+/**
+ * Pantalla de inicio de cada rol -- la usan index.php y login.php para
+ * mandar a cada quien a lo suyo. 'muestras' es la responsable de surtir las
+ * solicitudes de muestra de los vendedores externos (ver
+ * supabase/migrations/20261007120000_muestras_solo_aviso.sql): entra
+ * directo a su bandeja y no ve nada de vendedor ni de admin.
+ * Ruta relativa a la raíz de Visitas.
+ */
+function rutaInicioPorRol(string $rol): string {
+    if ($rol === 'admin')    return 'admin/index.php';
+    if ($rol === 'muestras') return 'muestras/index.php';
+    return 'vendedor/index.php';
+}
+
+/** Como requireRole() pero acepta cualquiera de varios roles. */
+function requireAnyRole(array $roles): array {
+    $u = requireLogin();
+    if (!in_array($u['rol'], $roles, true)) {
+        if (esPeticionApi()) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(403);
+            die(json_encode(['ok' => false, 'error' => 'Sin permiso para esta acción']));
+        }
+        http_response_code(403);
+        die('No tienes permiso para ver esta página.');
+    }
+    return $u;
+}
+
 function requireRole(string $rol): array {
     $u = requireLogin();
     if ($u['rol'] !== $rol) {

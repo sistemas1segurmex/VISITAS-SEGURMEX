@@ -29,6 +29,7 @@ $u = requireRole('vendedor');
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
         <button type="button" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Ver el recorrido de nuevo" aria-label="Ayuda" id="btn-tour-ayuda"><i class="bi bi-question-lg"></i></button>
+        <a href="../logout.php" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Cerrar sesión" aria-label="Salir"><i class="bi bi-box-arrow-right"></i></a>
       </div>
     </div>
     <div class="v26-tabbar">
@@ -36,6 +37,7 @@ $u = requireRole('vendedor');
       <a href="calendario.php"><i class="bi bi-calendar3"></i>Calendario</a>
       <a href="clientes.php" class="active"><i class="bi bi-people-fill"></i>Clientes</a>
       <a href="cotizaciones.php"><i class="bi bi-file-earmark-text-fill"></i>Cotizar</a>
+      <a href="muestras.php"><i class="bi bi-box-seam-fill"></i>Muestras</a>
       <a href="reporte.php"><i class="bi bi-bar-chart-fill"></i>Reporte</a>
       <a href="mis_paradas.php"><i class="bi bi-signpost-2-fill"></i>Paradas</a>
     </div>
@@ -77,6 +79,7 @@ $u = requireRole('vendedor');
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
+<script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <script>
 iniciarTrackingPeriodico();
 let todosLosClientes = [];
