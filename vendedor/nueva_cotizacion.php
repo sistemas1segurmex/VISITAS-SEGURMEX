@@ -267,6 +267,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
         <button type="button" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Tour guiado: cómo hacer una cotización" aria-label="Tour guiado" id="btn-tour-ayuda"><i class="bi bi-question-lg"></i></button>
+        <a href="../logout.php" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Cerrar sesión" aria-label="Salir"><i class="bi bi-box-arrow-right"></i></a>
       </div>
     </div>
   </div>

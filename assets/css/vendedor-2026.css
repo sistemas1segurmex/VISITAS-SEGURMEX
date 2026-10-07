@@ -950,3 +950,10 @@
 .v26-tel-hint.ok { color: var(--v26-green); font-weight: 700; }
 .v26-tel-hint.error { color: var(--v26-red); font-weight: 600; }
 .v26-input.v26-input--error { border-color: var(--v26-red); box-shadow: 0 0 0 3px rgba(225, 29, 72, .12); }
+
+/* Celular angosto: con campanita, ayuda y Salir en la barra, el logo se
+   oculta para que el título de la pantalla se alcance a leer. */
+@media (max-width: 420px) {
+  .v26-topbar-right .v26-logo { display: none; }
+  .v26-topbar-right { gap: 8px; }
+}
