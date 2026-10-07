@@ -24,11 +24,9 @@ $muestras = array_map(function ($s) {
     return $j;
 }, $stmt->fetchAll());
 
-$responsables = responsablesMuestras($db);
 jsonResponse([
     'ok'          => true,
     'muestras'    => $muestras,
-    'responsable' => $responsables ? $responsables[0]['nombre'] : null,
     'usadas_mes'  => muestrasDelMesVendedor($db, (int)$u['id']),
     'tope_mes'    => MUESTRAS_TOPE_MES,
 ]);

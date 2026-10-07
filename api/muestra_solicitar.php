@@ -118,11 +118,9 @@ registrarCambio($db, (int)$u['id'], 'muestra', $id, 'alta', "Solicitó la muestr
 $s = cargarSolicitudMuestra($db, $id);
 notificarNuevaSolicitudMuestra($db, $s);
 
-$responsables = responsablesMuestras($db);
 jsonResponse([
     'ok'          => true,
     'id'          => $id,
     'folio'       => $folio,
-    'responsable' => $responsables ? $responsables[0]['nombre'] : null,
     'restantes'   => max(0, MUESTRAS_TOPE_MES - muestrasDelMesVendedor($db, (int)$u['id'])),
 ]);

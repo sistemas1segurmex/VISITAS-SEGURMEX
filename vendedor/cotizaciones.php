@@ -55,7 +55,7 @@ $u = requireRole('vendedor');
       <span class="v26-cta-icon"><i class="bi bi-box-seam"></i></span>
       <span class="v26-cta-text">
         <strong>Solicitar muestra</strong>
-        <small id="cta-muestra-sub">Se le avisa a la responsable de muestras</small>
+        <small id="cta-muestra-sub">La atiende el equipo de Segurmex</small>
       </span>
       <i class="bi bi-chevron-right chev"></i>
     </a>
@@ -102,7 +102,7 @@ function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&am
 
 const PASOS_TOUR_COTIZACIONES = [
   { selector: '[data-tour="cta-cotizar"]', texto: 'Arma una cotización con las mismas condiciones y precios que usa oficina.' },
-  { selector: '[data-tour="cta-muestra"]', texto: 'Pide una muestra para un cliente o prospecto. Le llega un aviso a la responsable de muestras, y a ti te avisamos cuando esté en preparación y cuando se embarque.' },
+  { selector: '[data-tour="cta-muestra"]', texto: 'Pide una muestra para un cliente o prospecto. La recibe el equipo de Segurmex, y a ti te avisamos cuando esté en preparación y cuando se embarque.' },
   { selector: '[data-tour="filtro-tipo"]', texto: 'Filtra entre cotizaciones y muestras, o velo todo junto.' },
   { selector: '#lista-cotizaciones .v26-cita, #lista-cotizaciones .v26-muestra-card', texto: 'Toca cualquiera para ver el detalle. En las muestras ves en qué paso va y, ya embarcada, la paquetería y la guía.' },
   { selector: '.v26-avisos-btn', texto: 'Aquí te llegan los avisos de tus muestras. El número rojo son los que no has visto.' },
@@ -127,7 +127,6 @@ const PASOS_MUESTRA = [
   { icono: 'bi-box-seam',      txt: 'En preparación' },
   { icono: 'bi-truck',         txt: 'Embarcada' },
 ];
-let responsableMuestras = null;
 
 function fechaCorta(iso) {
   if (!iso) return '';
@@ -160,9 +159,9 @@ function trackMuestraHTML(m) {
 }
 
 function textoEstadoMuestra(m) {
-  const quien = responsableMuestras ? escHtml(responsableMuestras) : 'la responsable de muestras';
-  if (m.estado === 'enviada') return `Se le avisó a ${quien}. Te avisaremos cuando empiece a prepararla.`;
-  if (m.estado === 'en_preparacion') return `${responsableMuestras ? quien : 'La responsable de muestras'} ya la está preparando. Te avisaremos cuando se embarque.`;
+  // Al vendedor externo no se le muestra quién atiende (ver includes/muestras.php).
+  if (m.estado === 'enviada') return 'Tu solicitud ya está con el equipo de Segurmex. Te avisaremos cuando empiece a prepararla.';
+  if (m.estado === 'en_preparacion') return 'El equipo de Segurmex ya la está preparando. Te avisaremos cuando se embarque.';
   if (m.estado === 'embarcada') return `<i class="bi bi-truck"></i> ${escHtml(textoEnvioMuestra(m))}`;
   return '';
 }
@@ -304,7 +303,6 @@ async function cargarCotizacionesYMuestras() {
   if (resCot.ok) cotizacionesData = resCot.cotizaciones;
   if (resMue.ok) {
     muestrasData = resMue.muestras;
-    responsableMuestras = resMue.responsable || null;
     if (resMue.tope_mes != null) {
       const quedan = Math.max(0, resMue.tope_mes - (resMue.usadas_mes || 0));
       document.getElementById('cta-muestra-sub').textContent = quedan === 0

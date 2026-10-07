@@ -36,9 +36,7 @@ try {
     $errorEstilos = 'No se pudo cargar el catálogo de estilos. Intenta más tarde.';
 }
 $usadas = muestrasDelMesVendedor($db, (int)$u['id']);
-$responsables = responsablesMuestras($db);
 jsonResponse([
     'ok' => true, 'clientes' => $clientes, 'estilos' => $estilos, 'error_estilos' => $errorEstilos,
     'usadas_mes' => $usadas, 'tope_mes' => MUESTRAS_TOPE_MES,
-    'responsable' => $responsables ? $responsables[0]['nombre'] : null,
 ]);

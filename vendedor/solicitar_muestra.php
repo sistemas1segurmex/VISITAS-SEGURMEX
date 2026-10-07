@@ -46,7 +46,7 @@ $u = requireRole('vendedor');
     <div id="pantalla-exito" class="d-none v26-empty">
       <div class="icon"><i class="bi bi-check-circle-fill" style="color:var(--v26-green)"></i></div>
       <p>Solicitud <strong id="folio-exito"></strong> enviada.</p>
-      <p class="text-muted small" id="texto-exito">Ya se le avisó a la responsable de muestras. Te avisaremos aquí y por correo cuando tu muestra esté en preparación y cuando se embarque.</p>
+      <p class="text-muted small" id="texto-exito">Tu solicitud ya está con el equipo de Segurmex. Te avisaremos aquí y por correo cuando tu muestra esté en preparación y cuando se embarque.</p>
       <a href="cotizaciones.php?ver=muestras" class="v26-btn v26-btn-primary v26-btn-block mt-2"><i class="bi bi-box-seam"></i> Ver mis muestras</a>
       <a href="solicitar_muestra.php" class="v26-btn v26-btn-ghost v26-btn-block mt-2" id="btn-pedir-otra"><i class="bi bi-plus-lg"></i> Pedir otra</a>
     </div>
@@ -234,10 +234,6 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     if (data.ok) {
       document.getElementById('form-muestra').closest('.v26-card').classList.add('d-none');
       document.getElementById('folio-exito').textContent = data.folio || '';
-      if (data.responsable) {
-        document.getElementById('texto-exito').textContent =
-          `Ya se le avisó a ${data.responsable}, responsable de muestras. Te avisaremos aquí y por correo cuando tu muestra esté en preparación y cuando se embarque.`;
-      }
       if (data.restantes === 0) document.getElementById('btn-pedir-otra').classList.add('d-none');
       document.getElementById('aviso-tope').classList.add('d-none');
       document.getElementById('pantalla-exito').classList.remove('d-none');
