@@ -77,7 +77,7 @@
 .mu-hist-nota { font-size: .8rem; color: var(--v26-ink); margin-top: 2px; }
 .mu-hist-cuando { font-size: .72rem; color: var(--v26-ink-soft); margin-top: 2px; }
 .mu-wrap .v26-card { margin-bottom: 14px; }
-.mu-wrap a.v26-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.mu-wrap a.v26-btn, .mu-exito a.v26-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 /* Los tooltips ocultos de la barra (.v26-tip) se salen unos px a la
    derecha y en celular dejaban mover la página de lado. */
 body.v26 { overflow-x: clip; }
@@ -241,3 +241,73 @@ body.v26 { overflow-x: clip; }
 .mu-stat--cancel .mu-stat-ico { background: linear-gradient(135deg, #9CA3AF, #6B7280); }
 .mu-ver-todas { border: none; background: none; padding: 0; font-size: .78rem; font-weight: 800; color: var(--v26-brand-2); }
 .mu-wrap--vend .v26-muestra-card { margin-bottom: 12px; }
+
+/* ===================== Solicitar muestra (vendedor/solicitar_muestra.php) */
+.mu-wrap--sol { max-width: 1040px; }
+.mu-hero--sol { align-items: center; }
+.mu-sol-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .mu-sol-grid { grid-template-columns: 1fr; } .mu-resumen { display: none; } }
+.mu-sol-form .v26-card { margin-bottom: 14px; }
+.mu-paso-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.mu-paso-head strong { display: block; font-size: 1rem; font-weight: 800; }
+.mu-paso-head small { display: block; font-size: .76rem; color: var(--v26-ink-soft); }
+.mu-paso-n {
+  flex: none; width: 34px; height: 34px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  font-weight: 800; color: #fff; background: var(--v26-brand-grad); box-shadow: var(--v26-shadow-brand);
+}
+.mu-opc { text-transform: none; letter-spacing: 0; font-weight: 600; color: #9CA3AF; }
+
+.mu-tipos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mu-tipos .mu-tipo {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; height: auto;
+  padding: 12px 14px; border-radius: var(--v26-r-md); border: 1.5px solid var(--v26-border);
+  background: var(--v26-surface-solid); color: var(--v26-ink); box-shadow: none; white-space: normal;
+}
+.mu-tipos .mu-tipo i { font-size: 1.15rem; color: var(--v26-ink-soft); margin-bottom: 4px; }
+.mu-tipos .mu-tipo strong { font-size: .86rem; }
+.mu-tipos .mu-tipo small { font-size: .72rem; color: var(--v26-ink-soft); font-weight: 600; }
+.mu-tipos .mu-tipo.active { border-color: var(--v26-brand-1); background: rgba(232,164,0,.08); box-shadow: 0 0 0 3px rgba(232,164,0,.15); color: var(--v26-ink); }
+.mu-tipos .mu-tipo.active i { color: var(--v26-brand-2); }
+
+.mu-cambios-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; align-items: start; }
+.mu-cambios-grid .form-check-input { accent-color: var(--v26-brand-2); }
+.mu-cambios-grid .form-check-input:checked { background-color: var(--v26-brand-2); border-color: var(--v26-brand-2); }
+@media (max-width: 520px) { .mu-cambios-grid { grid-template-columns: 1fr; } }
+.v26-adendum-cat { border: 1px solid var(--v26-border); border-radius: var(--v26-r-md); padding: 10px 12px; background: #fff; }
+.v26-adendum-cat:has(.adendum-check:checked) { border-color: var(--v26-brand-1); background: rgba(232,164,0,.05); }
+.v26-adendum-cat textarea { margin-top: 8px; }
+.v26-adendum-otro { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 10px; }
+.v26-adendum-otro input[type="text"] { flex: none; width: 40%; }
+.v26-adendum-otro textarea { flex: 1; }
+
+.mu-sol-enviar { padding: 4px 0 14px; }
+/* En celular el botón queda fijo abajo para no tener que bajar hasta el final. */
+@media (max-width: 900px) {
+  .mu-sol-enviar { position: sticky; bottom: 0; z-index: 20; padding: 10px 0 14px; background: linear-gradient(180deg, rgba(251,249,246,0), var(--v26-bg) 35%); }
+}
+.mu-sol-enviar .v26-btn { font-size: .95rem; padding: 14px; }
+
+.mu-resumen { position: sticky; top: 86px; }
+.mu-resumen-dl { display: grid; grid-template-columns: 1fr; gap: 2px; margin: 0 0 14px; font-size: .84rem; }
+.mu-resumen-dl dt { color: var(--v26-ink-soft); font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; margin-top: 8px; }
+.mu-resumen-dl dd { margin: 0; font-weight: 700; word-break: break-word; }
+
+/* Pantalla de éxito */
+.mu-exito {
+  max-width: 520px; margin: 10px auto 0; text-align: center; background: var(--v26-surface-solid);
+  border: 1px solid var(--v26-border); border-radius: var(--v26-r-xl); padding: 28px 22px 22px; box-shadow: var(--v26-shadow-md);
+  animation: v26-rise .45s var(--v26-ease) both;
+}
+.mu-exito-ico {
+  width: 72px; height: 72px; margin: 0 auto 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 2.2rem; color: #fff; background: linear-gradient(135deg, #22C55E, #15803D); box-shadow: 0 18px 36px -14px rgba(22,163,74,.6);
+}
+.mu-exito-titulo { font-size: 1.35rem; font-weight: 800; margin: 0 0 6px; }
+.mu-exito-folio { display: inline-block; font-weight: 800; font-size: .9rem; background: rgba(232,164,0,.14); color: #92600A; padding: 4px 12px; border-radius: var(--v26-r-pill); margin-bottom: 10px; }
+.mu-exito-txt { font-size: .86rem; color: var(--v26-ink-soft); margin: 0 0 18px; }
+.mu-exito-pasos { list-style: none; padding: 0; margin: 0 0 20px; text-align: left; display: flex; flex-direction: column; gap: 10px; }
+.mu-exito-pasos li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--v26-r-md); background: rgba(20,23,31,.03); }
+.mu-exito-pasos li > span { flex: none; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #fff; border: 2px solid var(--v26-border); color: var(--v26-ink-soft); }
+.mu-exito-pasos li.hecho > span { background: var(--v26-green); border-color: var(--v26-green); color: #fff; }
+.mu-exito-pasos strong { display: block; font-size: .86rem; }
+.mu-exito-pasos small { display: block; font-size: .74rem; color: var(--v26-ink-soft); }
