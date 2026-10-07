@@ -42,6 +42,15 @@ function enviarCorreo(string $destinatario, string $asunto, string $cuerpoHtml):
         }
 
         $mail->setFrom(envConfig('MAIL_FROM', envConfig('MAIL_USER')), envConfig('MAIL_FROM_NAME', 'Segurmex'));
+        // Modo prueba: con MAIL_PRUEBA_A en .env TODOS los correos se mandan a
+        // esa dirección (el asunto lleva a quién iba de verdad). Para probar
+        // en local sin que le llegue nada a vendedores ni a la responsable.
+        // En producción se deja vacío o sin poner.
+        $redirigir = trim((string)envConfig('MAIL_PRUEBA_A', ''));
+        if ($redirigir !== '') {
+            $asunto = '[PRUEBA para ' . $destinatario . '] ' . $asunto;
+            $destinatario = $redirigir;
+        }
         $mail->addAddress($destinatario);
 
         $mail->isHTML(true);
