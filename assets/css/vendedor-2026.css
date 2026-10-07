@@ -950,3 +950,12 @@
 .v26-tel-hint.ok { color: var(--v26-green); font-weight: 700; }
 .v26-tel-hint.error { color: var(--v26-red); font-weight: 600; }
 .v26-input.v26-input--error { border-color: var(--v26-red); box-shadow: 0 0 0 3px rgba(225, 29, 72, .12); }
+
+/* Aviso en "Mis cotizaciones": las muestras ahora tienen su propia pestaña. */
+.mu-link-muestras {
+  display: flex; align-items: center; gap: 8px; margin: 14px 0 16px; padding: 10px 14px;
+  border-radius: var(--v26-r-md); background: rgba(232,164,0,.1); border: 1px dashed rgba(201,136,0,.35);
+  color: var(--v26-ink); font-size: .8rem; text-decoration: none;
+}
+.mu-link-muestras:hover { color: var(--v26-ink); background: rgba(232,164,0,.16); }
+.mu-link-muestras .bi-chevron-right { margin-left: auto; color: var(--v26-brand-2); }

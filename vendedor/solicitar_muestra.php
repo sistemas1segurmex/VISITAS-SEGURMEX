@@ -27,7 +27,7 @@ $u = requireRole('vendedor');
   <div class="v26-header">
     <div class="v26-topbar">
       <div class="v26-topbar-left">
-        <a href="cotizaciones.php?ver=muestras" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis muestras" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
+        <a href="muestras.php" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis muestras" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
           <div class="hi">Ventas</div>
           <div class="name">Solicitar muestra</div>
@@ -47,7 +47,7 @@ $u = requireRole('vendedor');
       <div class="icon"><i class="bi bi-check-circle-fill" style="color:var(--v26-green)"></i></div>
       <p>Solicitud <strong id="folio-exito"></strong> enviada.</p>
       <p class="text-muted small" id="texto-exito">Tu solicitud ya está con el equipo de Segurmex. Te avisaremos aquí y por correo cuando tu muestra esté en preparación y cuando se embarque.</p>
-      <a href="cotizaciones.php?ver=muestras" class="v26-btn v26-btn-primary v26-btn-block mt-2"><i class="bi bi-box-seam"></i> Ver mis muestras</a>
+      <a href="muestras.php" class="v26-btn v26-btn-primary v26-btn-block mt-2"><i class="bi bi-box-seam"></i> Ver mis muestras</a>
       <a href="solicitar_muestra.php" class="v26-btn v26-btn-ghost v26-btn-block mt-2" id="btn-pedir-otra"><i class="bi bi-plus-lg"></i> Pedir otra</a>
     </div>
 

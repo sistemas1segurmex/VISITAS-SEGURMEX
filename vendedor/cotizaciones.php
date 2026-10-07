@@ -36,6 +36,7 @@ $u = requireRole('vendedor');
       <a href="calendario.php"><i class="bi bi-calendar3"></i>Calendario</a>
       <a href="clientes.php"><i class="bi bi-people-fill"></i>Clientes</a>
       <a href="cotizaciones.php" class="active"><i class="bi bi-file-earmark-text-fill"></i>Cotizar</a>
+      <a href="muestras.php"><i class="bi bi-box-seam-fill"></i>Muestras</a>
       <a href="reporte.php"><i class="bi bi-bar-chart-fill"></i>Reporte</a>
       <a href="mis_paradas.php"><i class="bi bi-signpost-2-fill"></i>Paradas</a>
     </div>
@@ -51,29 +52,9 @@ $u = requireRole('vendedor');
       <i class="bi bi-chevron-right chev"></i>
     </a>
 
-    <a href="solicitar_muestra.php" class="v26-cta mt-2" data-tour="cta-muestra">
-      <span class="v26-cta-icon"><i class="bi bi-box-seam"></i></span>
-      <span class="v26-cta-text">
-        <strong>Solicitar muestra</strong>
-        <small id="cta-muestra-sub">La atiende el equipo de Segurmex</small>
-      </span>
-      <i class="bi bi-chevron-right chev"></i>
+    <a href="muestras.php" class="mu-link-muestras" data-tour="link-muestras">
+      <i class="bi bi-box-seam"></i> ¿Buscas tus muestras? Ahora están en la pestaña <strong>Muestras</strong> <i class="bi bi-chevron-right"></i>
     </a>
-
-    <div class="v26-seg v26-filtro-tipo" id="seg-tipo-lista" data-tour="filtro-tipo">
-      <button type="button" class="v26-seg-btn active" data-tipo="todo">Todo</button>
-      <button type="button" class="v26-seg-btn" data-tipo="cotizaciones">Cotizaciones</button>
-      <button type="button" class="v26-seg-btn" data-tipo="muestras">Muestras</button>
-    </div>
-
-    <div class="v26-funnel-filtro d-none" id="funnel-estado-muestra">
-      <div class="v26-funnel-chip active" data-estado="todas">Todas <span class="n" id="n-todas">0</span></div>
-      <div class="v26-funnel-chip" data-estado="en_curso">En curso <span class="n" id="n-en_curso">0</span></div>
-      <div class="v26-funnel-chip" data-estado="embarcadas">Embarcadas <span class="n" id="n-embarcadas">0</span></div>
-      <div class="v26-funnel-chip" data-estado="canceladas">Canceladas <span class="n" id="n-canceladas">0</span></div>
-    </div>
-
-    <div id="msg-muestras-error"></div>
 
     <div id="lista-cotizaciones">
       <div class="v26-skel"></div>
@@ -102,111 +83,17 @@ function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&am
 
 const PASOS_TOUR_COTIZACIONES = [
   { selector: '[data-tour="cta-cotizar"]', texto: 'Arma una cotización con las mismas condiciones y precios que usa oficina.' },
-  { selector: '[data-tour="cta-muestra"]', texto: 'Pide una muestra para un cliente o prospecto. La recibe el equipo de Segurmex, y a ti te avisamos cuando esté en preparación y cuando se embarque.' },
-  { selector: '[data-tour="filtro-tipo"]', texto: 'Filtra entre cotizaciones y muestras, o velo todo junto.' },
-  { selector: '#lista-cotizaciones .v26-cita, #lista-cotizaciones .v26-muestra-card', texto: 'Toca cualquiera para ver el detalle. En las muestras ves en qué paso va y, ya embarcada, la paquetería y la guía.' },
-  { selector: '.v26-avisos-btn', texto: 'Aquí te llegan los avisos de tus muestras. El número rojo son los que no has visto.' },
+  { selector: '#lista-cotizaciones .v26-cita', texto: 'Toca cualquiera para ver el detalle.' },
+  { selector: '[data-tour="link-muestras"]', texto: 'Las muestras ahora tienen su propia pestaña: Muestras.' },
 ];
 const OPCIONES_TOUR_COTIZACIONES = {
   storageKey: 'v26_tour_cotizaciones_visto',
-  saludoTitulo: 'Cotizaciones y muestras',
+  saludoTitulo: 'Tus cotizaciones',
   saludoTexto: 'Un par de cosas rápidas antes de que las uses.',
   finalTexto: 'Repite este recorrido cuando quieras tocando el ícono ? de arriba.',
 };
 document.getElementById('btn-tour-ayuda').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_COTIZACIONES, OPCIONES_TOUR_COTIZACIONES));
 document.getElementById('btn-tour-guiado').addEventListener('click', () => V26Tour.reiniciar(PASOS_TOUR_COTIZACIONES, OPCIONES_TOUR_COTIZACIONES));
-
-// -------- Muestras: constantes de estado y helpers de fecha --------
-// Etapa "solo aviso" (07-oct-2026): la responsable de muestras surte la
-// solicitud y marca el avance -- enviada -> en_preparacion -> embarcada (o
-// cancelada). Ver includes/muestras.php.
-const ETIQUETAS_TIPO_MUESTRA = { identico: 'Idéntico al estilo', variante: 'Variante' };
-const CATEGORIAS_CAMBIO_MUESTRA = { casco: 'Casco', suela: 'Suela', piel: 'Piel', forro: 'Forro' };
-const PASOS_MUESTRA = [
-  { icono: 'bi-send',          txt: 'Enviada' },
-  { icono: 'bi-box-seam',      txt: 'En preparación' },
-  { icono: 'bi-truck',         txt: 'Embarcada' },
-];
-
-function fechaCorta(iso) {
-  if (!iso) return '';
-  // created_at/actualizada_en vienen en UTC; fecha_promesa es solo fecha.
-  const soloFecha = /^\d{4}-\d{2}-\d{2}$/.test(iso);
-  const d = new Date(soloFecha ? iso + 'T12:00:00' : iso.replace(' ', 'T') + (iso.endsWith('Z') ? '' : 'Z'));
-  if (isNaN(d)) return '';
-  return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Mexico_City' });
-}
-
-function grupoEstadoMuestra(m) {
-  if (m.estado === 'cancelada') return 'canceladas';
-  if (m.estado === 'embarcada') return 'embarcadas';
-  return 'en_curso';
-}
-
-function textoEnvioMuestra(m) {
-  if (m.envio_modo === 'en_persona') return 'Entregada en persona';
-  return [m.paqueteria, m.guia ? 'guía ' + m.guia : ''].filter(Boolean).join(', ') || 'Por paquetería';
-}
-
-function trackMuestraHTML(m) {
-  // embarcada = los 3 pasos completos.
-  const idxActual = m.estado === 'embarcada' ? 3 : (m.estado === 'en_preparacion' ? 1 : 0);
-  return `<div class="v26-muestra-track">` + PASOS_MUESTRA.map((p, i) => {
-    const clase = i < idxActual ? 'hecho' : (i === idxActual ? 'actual' : '');
-    const icono = i < idxActual ? 'bi-check' : p.icono;
-    return `<div class="paso ${clase}"><div class="linea"></div><div class="dot"><i class="bi ${icono}"></i></div><div class="txt">${p.txt}</div></div>`;
-  }).join('') + `</div>`;
-}
-
-function textoEstadoMuestra(m) {
-  // Al vendedor externo no se le muestra quién atiende (ver includes/muestras.php).
-  if (m.estado === 'enviada') return 'Tu solicitud ya está con el equipo de Segurmex. Te avisaremos cuando empiece a prepararla.';
-  if (m.estado === 'en_preparacion') return 'El equipo de Segurmex ya la está preparando. Te avisaremos cuando se embarque.';
-  if (m.estado === 'embarcada') return `<i class="bi bi-truck"></i> ${escHtml(textoEnvioMuestra(m))}`;
-  return '';
-}
-
-function metaMuestraHTML(m) {
-  const chips = [];
-  if (m.talla) chips.push(`<span><i class="bi bi-rulers"></i> Talla ${escHtml(m.talla)}</span>`);
-  chips.push(`<span><i class="bi bi-shuffle"></i> ${escHtml(ETIQUETAS_TIPO_MUESTRA[m.tipo] || m.tipo)}</span>`);
-  if (m.fecha_promesa) chips.push(`<span><i class="bi bi-calendar-event"></i> Promesa: ${fechaCorta(m.fecha_promesa)}</span>`);
-  return `<div class="v26-muestra-meta">${chips.join('')}</div>`;
-}
-
-function detalleMuestraHTML(m) {
-  const filas = [];
-  filas.push(`<div>Solicitada el <strong>${fechaCorta(m.created_at)}</strong></div>`);
-  if (m.destino_direccion) filas.push(`<div>Entregar en: <strong>${escHtml(m.destino_direccion)}</strong></div>`);
-  (m.cambios || []).forEach(c => {
-    const cat = c.categoria === 'otro' ? (c.categoria_otro || 'Otro') : (CATEGORIAS_CAMBIO_MUESTRA[c.categoria] || c.categoria);
-    filas.push(`<div>${escHtml(cat)}: <strong>${escHtml(c.descripcion)}</strong></div>`);
-  });
-  if (m.estado === 'embarcada') filas.push(`<div>Embarcada el <strong>${fechaCorta(m.actualizada_en)}</strong> · ${escHtml(textoEnvioMuestra(m))}</div>`);
-  return `<div class="v26-muestra-detalle-inner">${filas.join('')}</div>`;
-}
-
-function renderMuestraItem(m) {
-  const cancelada = m.estado === 'cancelada';
-  const estado = textoEstadoMuestra(m);
-  return `
-    <div class="v26-muestra-card${cancelada ? ' v26-muestra-card--rechazada' : ''}" data-key="${escHtml(m.folio)}">
-      <div class="v26-muestra-top">
-        <span class="v26-muestra-icon"><i class="bi ${cancelada ? 'bi-x-circle' : (m.estado === 'embarcada' ? 'bi-truck' : 'bi-box-seam')}"></i></span>
-        <div class="v26-muestra-info">
-          <div class="folio">${escHtml(m.folio)}</div>
-          <div class="cliente">${escHtml(m.cliente_nombre)} — ${escHtml(m.estilo_nombre)}</div>
-        </div>
-        <i class="bi bi-chevron-right chev"></i>
-      </div>
-      ${cancelada
-        ? `<div class="v26-muestra-rechazo"><i class="bi bi-exclamation-triangle-fill"></i> Cancelada: ${escHtml(m.motivo_cancelacion || '')}</div>`
-        : trackMuestraHTML(m)}
-      ${estado ? `<div class="v26-muestra-estado">${estado}</div>` : ''}
-      ${metaMuestraHTML(m)}
-      <div class="v26-muestra-detalle">${detalleMuestraHTML(m)}</div>
-    </div>`;
-}
 
 function renderCotizacionItem(c) {
   return `
@@ -223,122 +110,35 @@ function renderCotizacionItem(c) {
     </div>`;
 }
 
-// -------- Estado de filtros + datos ya cargados --------
-let cotizacionesData = [];
-let muestrasData = [];
-let filtroTipo = 'todo';
-let filtroEstadoMuestra = 'todas';
+// ?ver=muestras (links viejos de avisos y correos): las muestras ahora
+// tienen su propia pestaña.
+if (new URLSearchParams(location.search).get('ver') === 'muestras') location.replace('muestras.php');
 
-function actualizarContadoresMuestra() {
-  const grupos = { todas: muestrasData.length, en_curso: 0, embarcadas: 0, canceladas: 0 };
-  muestrasData.forEach(m => { grupos[grupoEstadoMuestra(m)]++; });
-  Object.keys(grupos).forEach(g => {
-    const el = document.getElementById('n-' + g);
-    if (el) el.textContent = grupos[g];
-  });
-}
+let cotizacionesData = [];
 
 function renderLista() {
   const cont = document.getElementById('lista-cotizaciones');
-
-  let items = [];
-  if (filtroTipo !== 'muestras') {
-    items = items.concat(cotizacionesData.map(c => ({ tipo: 'cotizacion', fecha: c.created_at, data: c })));
-  }
-  if (filtroTipo !== 'cotizaciones') {
-    const muestrasFiltradas = filtroEstadoMuestra === 'todas'
-      ? muestrasData
-      : muestrasData.filter(m => grupoEstadoMuestra(m) === filtroEstadoMuestra);
-    items = items.concat(muestrasFiltradas.map(m => ({ tipo: 'muestra', fecha: m.created_at, data: m })));
-  }
-  items.sort((a, b) => new Date(b.fecha.replace(' ', 'T')) - new Date(a.fecha.replace(' ', 'T')));
-
-  if (items.length === 0) {
-    const mensaje = filtroTipo === 'muestras'
-      ? 'No tienes solicitudes de muestra con este filtro.'
-      : filtroTipo === 'cotizaciones'
-        ? 'Aún no has hecho ninguna cotización.<br>Usa "Nueva cotización" arriba para armar la primera.'
-        : 'Aún no tienes cotizaciones ni muestras.<br>Usa los botones de arriba para crear la primera.';
+  if (cotizacionesData.length === 0) {
     cont.innerHTML = `
       <div class="v26-empty">
         <div class="icon"><i class="bi bi-file-earmark-text"></i></div>
-        <p>${mensaje}</p>
+        <p>Aún no has hecho ninguna cotización.<br>Usa "Nueva cotización" arriba para armar la primera.</p>
       </div>`;
     return;
   }
-
-  cont.innerHTML = items.map(it => it.tipo === 'cotizacion' ? renderCotizacionItem(it.data) : renderMuestraItem(it.data)).join('');
+  cont.innerHTML = cotizacionesData.map(renderCotizacionItem).join('');
 }
 
-document.getElementById('lista-cotizaciones').addEventListener('click', (e) => {
-  const card = e.target.closest('.v26-muestra-card');
-  if (card) card.classList.toggle('abierta');
-});
-
-document.getElementById('seg-tipo-lista').addEventListener('click', (e) => {
-  const btn = e.target.closest('.v26-seg-btn');
-  if (!btn) return;
-  document.querySelectorAll('#seg-tipo-lista .v26-seg-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  filtroTipo = btn.dataset.tipo;
-  document.getElementById('funnel-estado-muestra').classList.toggle('d-none', filtroTipo === 'cotizaciones');
-  renderLista();
-});
-
-document.getElementById('funnel-estado-muestra').addEventListener('click', (e) => {
-  const chip = e.target.closest('.v26-funnel-chip');
-  if (!chip) return;
-  document.querySelectorAll('#funnel-estado-muestra .v26-funnel-chip').forEach(c => c.classList.remove('active'));
-  chip.classList.add('active');
-  filtroEstadoMuestra = chip.dataset.estado;
-  renderLista();
-});
-
-async function cargarCotizacionesYMuestras() {
-  const [resCot, resMue] = await Promise.all([
-    fetch('../api/cotizaciones.php').then(r => r.json()).catch(() => ({ ok: false, error: 'No se pudo cargar tus cotizaciones.' })),
-    fetch('../api/muestras_listar.php').then(r => r.json()).catch(() => ({ ok: false, error: 'No se pudo cargar tus muestras.' })),
-  ]);
-
-  if (resCot.ok) cotizacionesData = resCot.cotizaciones;
-  if (resMue.ok) {
-    muestrasData = resMue.muestras;
-    if (resMue.tope_mes != null) {
-      const quedan = Math.max(0, resMue.tope_mes - (resMue.usadas_mes || 0));
-      document.getElementById('cta-muestra-sub').textContent = quedan === 0
-        ? `Ya usaste tus ${resMue.tope_mes} muestras de este mes`
-        : `Te ${quedan === 1 ? 'queda 1' : 'quedan ' + quedan} de ${resMue.tope_mes} este mes`;
-    }
-  }
-
-  if (!resCot.ok && !resMue.ok) {
-    document.getElementById('lista-cotizaciones').innerHTML = `<div class="alert alert-danger">${escHtml(resCot.error || resMue.error)}</div>`;
+async function cargarCotizaciones() {
+  const res = await fetch('../api/cotizaciones.php').then(r => r.json()).catch(() => ({ ok: false, error: 'No se pudo cargar tus cotizaciones.' }));
+  if (!res.ok) {
+    document.getElementById('lista-cotizaciones').innerHTML = `<div class="alert alert-danger">${escHtml(res.error)}</div>`;
     return;
   }
-  if (!resMue.ok) {
-    document.getElementById('msg-muestras-error').innerHTML =
-      `<div class="alert alert-warning py-2 small">${escHtml(resMue.error || 'No se pudieron cargar tus solicitudes de muestra.')}</div>`;
-  }
-
-  actualizarContadoresMuestra();
+  cotizacionesData = res.cotizaciones;
   renderLista();
 }
-// ?ver=muestras (links de los avisos y correos de muestras): abre directo en
-// la pestaña Muestras.
-if (new URLSearchParams(location.search).get('ver') === 'muestras') {
-  const btnMuestras = document.querySelector('#seg-tipo-lista .v26-seg-btn[data-tipo="muestras"]');
-  document.querySelectorAll('#seg-tipo-lista .v26-seg-btn').forEach(b => b.classList.toggle('active', b === btnMuestras));
-  filtroTipo = 'muestras';
-  document.getElementById('funnel-estado-muestra').classList.remove('d-none');
-}
-// Si llega un aviso nuevo mientras está abierta, se refresca la lista.
-let ultimosNoLeidos = null;
-document.addEventListener('v26:avisos', (e) => {
-  const n = e.detail.no_leidos || 0;
-  if (ultimosNoLeidos !== null && n > ultimosNoLeidos) cargarCotizacionesYMuestras();
-  ultimosNoLeidos = n;
-});
-cargarCotizacionesYMuestras().then(() => V26Tour.iniciar(PASOS_TOUR_COTIZACIONES, OPCIONES_TOUR_COTIZACIONES));
+cargarCotizaciones().then(() => V26Tour.iniciar(PASOS_TOUR_COTIZACIONES, OPCIONES_TOUR_COTIZACIONES));
 </script>
 </body>
 </html>

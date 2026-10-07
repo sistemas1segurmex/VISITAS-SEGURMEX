@@ -213,3 +213,31 @@ body.v26 { overflow-x: clip; }
   .mu-hero-titulo { font-size: 1.2rem; }
   .mu-hero-pasos { display: none; }
 }
+
+/* ===================== Mis muestras del vendedor (vendedor/muestras.php) */
+.mu-wrap--vend { max-width: 720px; }
+.mu-hero--vend { align-items: center; }
+.mu-hero--vend .mu-hero-txt { flex: 1 1 300px; }
+.mu-cupo {
+  position: relative; z-index: 1; flex: 0 0 auto; min-width: 170px;
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.16); border-radius: 18px; padding: 12px 14px;
+}
+.mu-cupo-txt { font-size: .8rem; font-weight: 700; color: rgba(255,255,255,.8); }
+.mu-cupo-txt span:first-child { font-size: 1.6rem; font-weight: 800; color: #fff; }
+.mu-cupo-txt small { display: block; font-size: .7rem; color: rgba(255,255,255,.6); font-weight: 600; }
+.mu-cupo-barra { height: 7px; border-radius: 99px; background: rgba(255,255,255,.14); margin-top: 8px; overflow: hidden; }
+.mu-cupo-barra span { display: block; height: 100%; border-radius: 99px; background: var(--v26-brand-grad); transition: width .4s var(--v26-ease); }
+.mu-cupo.agotado .mu-cupo-txt span:first-child { color: #FDA4AF; }
+@media (max-width: 480px) { .mu-cupo { flex: 1 1 100%; } }
+
+.mu-stats--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 760px) { .mu-stats--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } }
+@media (max-width: 480px) {
+  .mu-stats--3 .mu-stat { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; }
+  .mu-stats--3 .mu-stat-ico { width: 34px; height: 34px; border-radius: 11px; font-size: .95rem; }
+  .mu-stats--3 .mu-stat-n { font-size: 1.25rem; }
+  .mu-stats--3 .mu-stat-lbl { font-size: .62rem; }
+}
+.mu-stat--cancel .mu-stat-ico { background: linear-gradient(135deg, #9CA3AF, #6B7280); }
+.mu-ver-todas { border: none; background: none; padding: 0; font-size: .78rem; font-weight: 800; color: var(--v26-brand-2); }
+.mu-wrap--vend .v26-muestra-card { margin-bottom: 12px; }

@@ -221,7 +221,7 @@ function notificarCambioEstadoMuestra(PDO $db, array $s): void {
         default:
             return;
     }
-    $enlaceRel = 'vendedor/cotizaciones.php?ver=muestras';
+    $enlaceRel = 'vendedor/muestras.php';
     crearAviso($db, (int)$s['vendedor_id'], 'muestra_' . $s['estado'], $titulo, $mensaje, $enlaceRel, (int)$s['id']);
 
     if (!empty($s['vendedor_email'])) {
