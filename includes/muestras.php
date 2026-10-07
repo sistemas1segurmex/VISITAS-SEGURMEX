@@ -55,6 +55,15 @@ function catalogoParaMuestraErp(?string $item = null): ?array {
             'nombre'           => $nombre,
             'id_estilo'        => $it['id_estilo'],
             'id_modelo_legacy' => $it['id_modelo_legacy'],
+            // Para el selector visual (mismo diseño que la Nueva cotización).
+            // Sin precios: en una muestra no aplican.
+            'clave'            => $it['clave'],
+            'descripcion'      => $it['nombre'],
+            'marca'            => $it['marca'],
+            'grupo'            => $it['grupo'],
+            'foto'             => $it['foto'],
+            'atributo'         => $it['atributo'],
+            'colores'          => $it['colores'],
         ];
     }
     if ($item !== null) return $lista[$item] ?? null;
@@ -196,6 +205,7 @@ function notificarNuevaSolicitudMuestra(PDO $db, array $s): void {
             'Vendedor'        => $s['vendedor_nombre'] . ($s['vendedor_telefono'] ? ' · ' . $s['vendedor_telefono'] : ''),
             'Cliente'         => $s['cliente_nombre'],
             'Estilo'          => $s['estilo_nombre'],
+            'Color'           => $s['color'] ?? null,
             'Talla'           => $s['talla'],
             'Tipo'            => $s['tipo'] === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo',
             'Cambios'         => textoCambiosMuestra($s['cambios']),
@@ -235,7 +245,7 @@ function notificarCambioEstadoMuestra(PDO $db, array $s): void {
     crearAviso($db, (int)$s['vendedor_id'], 'muestra_' . $s['estado'], $titulo, $mensaje, $enlaceRel, (int)$s['id']);
 
     if (!empty($s['vendedor_email'])) {
-        $renglones = ['Cliente' => $s['cliente_nombre'], 'Estilo' => $s['estilo_nombre'], 'Talla' => $s['talla']];
+        $renglones = ['Cliente' => $s['cliente_nombre'], 'Estilo' => $s['estilo_nombre'], 'Color' => $s['color'] ?? null, 'Talla' => $s['talla']];
         if ($s['estado'] === 'embarcada') {
             $renglones['Envío'] = textoEnvioMuestra($s);
             $renglones['Entregar en'] = $s['destino_direccion'];
@@ -334,6 +344,7 @@ function solicitudMuestraParaJson(array $s): array {
         'vendedor_telefono'  => $s['vendedor_telefono'] ?? null,
         'cliente_nombre'     => $s['cliente_nombre'],
         'estilo_nombre'      => $s['estilo_nombre'],
+        'color'              => $s['color'] ?? null,
         'talla'              => $s['talla'],
         'fecha_promesa'      => $s['fecha_promesa'],
         'tipo'               => $s['tipo'],

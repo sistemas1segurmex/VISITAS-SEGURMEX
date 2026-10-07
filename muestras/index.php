@@ -156,7 +156,7 @@ function tarjeta(m, i) {
         ${pillEstadoMuestra(m.estado)}
       </div>
       <div class="mu-card-titulo">${escHtml(m.estilo_nombre)}</div>
-      ${m.talla ? `<div class="mu-card-talla">Talla <strong>${escHtml(m.talla)}</strong></div>` : ''}
+      ${(m.color || m.talla) ? `<div class="mu-card-talla">${[m.color ? `Color <strong>${escHtml(m.color)}</strong>` : '', m.talla ? `Talla <strong>${escHtml(m.talla)}</strong>` : ''].filter(Boolean).join(' · ')}</div>` : ''}
       <div class="mu-card-quien">
         <span class="mu-avatar">${escHtml(iniciales(m.vendedor_nombre))}</span>
         <div class="mu-card-quien-txt">

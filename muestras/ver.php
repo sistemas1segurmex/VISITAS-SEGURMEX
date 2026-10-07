@@ -127,6 +127,7 @@ $TXT_HISTORIAL = [
       <div class="mu-sec-titulo">Muestra</div>
       <dl class="mu-datos">
         <dt>Estilo</dt><dd><?= e($s['estilo_nombre']) ?></dd>
+        <?php if (!empty($s['color'])): ?><dt>Color</dt><dd><?= e($s['color']) ?></dd><?php endif; ?>
         <dt>Talla</dt><dd><?= $s['talla'] ? e($s['talla']) : '<span class="text-muted">No la indicó</span>' ?></dd>
         <dt>Tipo</dt><dd><?= $s['tipo'] === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo' ?></dd>
         <?php if ($s['cambios']): ?>
