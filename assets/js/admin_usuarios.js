@@ -31,6 +31,9 @@ function abrirModalCrear() {
   usuarioEditandoId = null;
   document.getElementById('modalUsuarioTitulo').textContent = 'Nuevo vendedor';
   document.getElementById('form-usuario').reset();
+  // Si antes se abrió "Editar", el correo se quedó bloqueado (readOnly) --
+  // reset() no lo quita, así que en un alta nueva no se podía escribir.
+  document.getElementById('email').readOnly = false;
   document.getElementById('campo-password').classList.remove('d-none');
   document.getElementById('password').required = true;
   mostrarPreviewFoto(null);
