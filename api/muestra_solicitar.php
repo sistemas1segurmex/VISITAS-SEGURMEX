@@ -62,6 +62,18 @@ if (!$estilo) {
 }
 $estiloNombre = $estilo['nombre'];
 
+// Color: igual que en la Nueva cotización -- si el modelo tiene varios hay
+// que elegir uno de ellos; si tiene uno solo, va ese.
+$colores = $estilo['colores'] ?? [];
+$color   = trim((string)($_POST['color'] ?? ''));
+if (count($colores) > 1) {
+    if (!in_array($color, $colores, true)) {
+        jsonResponse(['ok' => false, 'error' => 'Elige el color del estilo'], 400);
+    }
+} else {
+    $color = $colores[0] ?? '';
+}
+
 // Cambios pedidos (solo variante): mismas categorías que el formulario.
 $cambios = [];
 if ($tipo === 'variante') {
@@ -95,12 +107,12 @@ try {
 
     $ins = $db->prepare(
         'INSERT INTO muestras_solicitudes
-            (vendedor_id, cliente_id, cliente_nombre, id_estilo_erp, id_modelo_legacy, estilo_nombre, talla, fecha_promesa, tipo, cambios, destino_direccion)
-         VALUES (?,?,?,?,?,?,?,?,?,?::jsonb,?) RETURNING id'
+            (vendedor_id, cliente_id, cliente_nombre, id_estilo_erp, id_modelo_legacy, estilo_nombre, color, talla, fecha_promesa, tipo, cambios, destino_direccion)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?::jsonb,?) RETURNING id'
     );
     $ins->execute([
         (int)$u['id'], $clienteId, mb_substr($cliente['nombre'], 0, 200), $estilo['id_estilo'], $estilo['id_modelo_legacy'], mb_substr($estiloNombre, 0, 200),
-        $talla ?: null, $fechaPromesa ?: null, $tipo, json_encode($cambios, JSON_UNESCAPED_UNICODE), $direccion,
+        $color !== '' ? mb_substr($color, 0, 40) : null, $talla ?: null, $fechaPromesa ?: null, $tipo, json_encode($cambios, JSON_UNESCAPED_UNICODE), $direccion,
     ]);
     $id = (int)$ins->fetchColumn();
     $folio = sprintf('MV-%04d', $id);

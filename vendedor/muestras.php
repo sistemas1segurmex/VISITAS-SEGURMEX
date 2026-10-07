@@ -173,6 +173,7 @@ function textoEstadoMuestra(m) {
 
 function metaMuestraHTML(m) {
   const chips = [];
+  if (m.color) chips.push(`<span><i class="bi bi-palette"></i> ${escHtml(m.color)}</span>`);
   if (m.talla) chips.push(`<span><i class="bi bi-rulers"></i> Talla ${escHtml(m.talla)}</span>`);
   chips.push(`<span><i class="bi bi-shuffle"></i> ${escHtml(ETIQUETAS_TIPO_MUESTRA[m.tipo] || m.tipo)}</span>`);
   if (m.fecha_promesa) chips.push(`<span><i class="bi bi-calendar-event"></i> Promesa: ${fechaCorta(m.fecha_promesa)}</span>`);

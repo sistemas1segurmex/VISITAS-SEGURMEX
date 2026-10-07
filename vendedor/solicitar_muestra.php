@@ -141,6 +141,7 @@ $u = requireRole('vendedor');
           <dl class="mu-resumen-dl">
             <dt>Cliente</dt><dd id="r-cliente">—</dd>
             <dt>Estilo</dt><dd id="r-estilo">—</dd>
+            <dt>Color</dt><dd id="r-color">—</dd>
             <dt>Talla</dt><dd id="r-talla">—</dd>
             <dt>Tipo</dt><dd id="r-tipo">Idéntico al estilo</dd>
             <dt>Promesa</dt><dd id="r-fecha">—</dd>
@@ -187,6 +188,7 @@ function pintarResumen() {
   document.getElementById('r-cliente').textContent = textoSel(document.getElementById('id_cliente'));
   const est = estiloElegido();
   document.getElementById('r-estilo').textContent = est ? est.clave + (est.atributo ? ' · ' + est.atributo : '') : '—';
+  document.getElementById('r-color').textContent = colorElegido || '—';
   document.getElementById('r-talla').textContent = val('talla') || '—';
   document.getElementById('r-tipo').textContent = tipo === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo';
   const f = val('fecha_promesa');
@@ -211,6 +213,17 @@ document.getElementById('destino_direccion').addEventListener('input', (e) => {
 // ---- Catálogo visual de estilos (mismo diseño que la Nueva cotización, sin precios) ----
 const FOTOS_URL = '/erp/assets/img/cotizador/';
 let ATRIBUTOS = {};
+// Color, igual que en la Nueva cotización: si el modelo tiene varios hay que
+// elegir uno («Elige color…» en rojo hasta elegirlo); si tiene uno, va solo.
+let colorElegido = '';
+function colorHTML(e) {
+  const cs = e.colores || [];
+  if (cs.length > 1) {
+    return `<select class="mu-color ${colorElegido ? '' : 'falta'}" id="sel-color" aria-label="Color"><option value="">Elige color…</option>`
+      + cs.map(c => `<option value="${escHtml(c)}" ${c === colorElegido ? 'selected' : ''}>${escHtml(c)}</option>`).join('') + '</select>';
+  }
+  return cs.length === 1 ? `<span class="mu-color-tag">${escHtml(cs[0])}</span>` : '';
+}
 function norm(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
 function estiloElegido() {
   const v = document.getElementById('id_estilo_base').value;
@@ -250,8 +263,13 @@ function pintarEstilos(filtro) {
   }).join('');
 }
 function elegirEstilo(id) {
+  const antes = document.getElementById('id_estilo_base').value;
   document.getElementById('id_estilo_base').value = id || '';
   const e = estiloElegido();
+  if (String(id || '') !== antes || !e) {
+    const cs = (e && e.colores) || [];
+    colorElegido = cs.length === 1 ? cs[0] : '';
+  }
   const box = document.getElementById('mu-est-elegido');
   const picker = document.getElementById('mu-est-picker');
   if (e) {
@@ -261,11 +279,19 @@ function elegirEstilo(id) {
         <div class="mu-est-eyebrow"><i class="bi bi-check-circle-fill"></i> Estilo elegido · ${escHtml(e.grupo)}</div>
         <div class="mu-est-clave">${escHtml(e.clave)}${attrEstilo(e)}</div>
         <div class="mu-est-desc">${escHtml(e.descripcion)}</div>
+        ${colorHTML(e) ? `<div class="mu-est-color">${colorHTML(e)}</div>` : ''}
       </div>
       <button type="button" class="v26-btn v26-btn-ghost mu-est-cambiar" id="btn-cambiar-estilo"><i class="bi bi-arrow-repeat"></i> Cambiar</button>`;
     box.classList.remove('d-none');
     picker.classList.add('d-none');
     document.getElementById('msg-muestra').innerHTML = '';
+    const selColor = document.getElementById('sel-color');
+    if (selColor) selColor.addEventListener('change', () => {
+      colorElegido = selColor.value;
+      selColor.classList.toggle('falta', !colorElegido);
+      if (colorElegido) document.getElementById('msg-muestra').innerHTML = '';
+      pintarResumen();
+    });
     document.getElementById('btn-cambiar-estilo').addEventListener('click', () => {
       box.classList.add('d-none');
       picker.classList.remove('d-none');
@@ -375,6 +401,13 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     document.getElementById('mu-est-picker').scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
+  const estSel = estiloElegido();
+  if (estSel && (estSel.colores || []).length > 1 && !colorElegido) {
+    msg.innerHTML = '<div class="alert alert-danger py-2">Elige el color del estilo.</div>';
+    const sc = document.getElementById('sel-color');
+    if (sc) { sc.classList.add('falta'); sc.scrollIntoView({ behavior: 'smooth', block: 'center' }); sc.focus({ preventScroll: true }); }
+    return;
+  }
   const tipo = document.querySelector('#seg-tipo .v26-seg-btn.active').dataset.tipo;
   const adendum = [];
   if (tipo === 'variante') {
@@ -400,6 +433,7 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     const fd = new FormData();
     fd.append('cliente_id', document.getElementById('id_cliente').value);
     fd.append('id_estilo_base', document.getElementById('id_estilo_base').value);
+    fd.append('color', colorElegido);
     fd.append('talla', document.getElementById('talla').value);
     fd.append('fecha_promesa', document.getElementById('fecha_promesa').value);
     fd.append('tipo', tipo);
