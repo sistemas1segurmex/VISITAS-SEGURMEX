@@ -52,11 +52,7 @@ $u = requireRole('vendedor');
       <i class="bi bi-chevron-right chev"></i>
     </a>
 
-    <a href="muestras.php" class="mu-link-muestras" data-tour="link-muestras">
-      <i class="bi bi-box-seam"></i> ¿Buscas tus muestras? Ahora están en la pestaña <strong>Muestras</strong> <i class="bi bi-chevron-right"></i>
-    </a>
-
-    <div id="lista-cotizaciones">
+    <div id="lista-cotizaciones" class="mt-3">
       <div class="v26-skel"></div>
       <div class="v26-skel"></div>
       <div class="v26-skel"></div>
@@ -84,7 +80,6 @@ function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&am
 const PASOS_TOUR_COTIZACIONES = [
   { selector: '[data-tour="cta-cotizar"]', texto: 'Arma una cotización con las mismas condiciones y precios que usa oficina.' },
   { selector: '#lista-cotizaciones .v26-cita', texto: 'Toca cualquiera para ver el detalle.' },
-  { selector: '[data-tour="link-muestras"]', texto: 'Las muestras ahora tienen su propia pestaña: Muestras.' },
 ];
 const OPCIONES_TOUR_COTIZACIONES = {
   storageKey: 'v26_tour_cotizaciones_visto',
