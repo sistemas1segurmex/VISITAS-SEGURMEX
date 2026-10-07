@@ -55,6 +55,14 @@ function catalogoParaMuestraErp(?string $item = null): ?array {
             'nombre'           => $nombre,
             'id_estilo'        => $it['id_estilo'],
             'id_modelo_legacy' => $it['id_modelo_legacy'],
+            // Para el selector visual (mismo diseño que la Nueva cotización).
+            // Sin precios: en una muestra no aplican.
+            'clave'            => $it['clave'],
+            'descripcion'      => $it['nombre'],
+            'marca'            => $it['marca'],
+            'grupo'            => $it['grupo'],
+            'foto'             => $it['foto'],
+            'atributo'         => $it['atributo'],
         ];
     }
     if ($item !== null) return $lista[$item] ?? null;

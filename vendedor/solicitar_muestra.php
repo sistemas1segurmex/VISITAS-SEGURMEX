@@ -81,13 +81,19 @@ $u = requireRole('vendedor');
             <div class="mu-paso-head"><span class="mu-paso-n">2</span><div><strong>¿Qué muestra?</strong><small>El estilo y, si aplica, los cambios</small></div></div>
             <div class="v26-field">
               <label>Estilo</label>
-              <div class="v26-search mb-2">
-                <i class="bi bi-search"></i>
-                <input type="text" id="buscar-estilo" class="v26-input" placeholder="Escribe la clave o el nombre del estilo...">
+              <input type="hidden" id="id_estilo_base" value="">
+              <!-- Elegido: se muestra en lugar del catálogo -->
+              <div id="mu-est-elegido" class="mu-est-elegido d-none"></div>
+              <!-- Catálogo visual: mismo diseño que la Nueva cotización, sin precios -->
+              <div id="mu-est-picker" class="mu-est-picker">
+                <div class="v26-search mb-2">
+                  <i class="bi bi-search"></i>
+                  <input type="search" id="buscar-estilo" class="v26-input" placeholder="Buscar modelo, línea o marca…" autocomplete="off" enterkeyhint="search">
+                </div>
+                <div id="mu-lista-estilos" class="mu-est-lista" role="listbox" aria-label="Catálogo de estilos">
+                  <div class="mu-est-sin">Cargando estilos…</div>
+                </div>
               </div>
-              <select id="id_estilo_base" class="v26-select" required>
-                <option value="">Cargando estilos...</option>
-              </select>
             </div>
             <div class="v26-field">
               <label>Talla <span class="mu-opc">(opcional)</span></label>
@@ -179,7 +185,8 @@ function pintarResumen() {
   const val = (id) => document.getElementById(id).value.trim();
   const tipo = document.querySelector('#seg-tipo .v26-seg-btn.active').dataset.tipo;
   document.getElementById('r-cliente').textContent = textoSel(document.getElementById('id_cliente'));
-  document.getElementById('r-estilo').textContent = textoSel(document.getElementById('id_estilo_base'));
+  const est = estiloElegido();
+  document.getElementById('r-estilo').textContent = est ? est.clave + (est.atributo ? ' · ' + est.atributo : '') : '—';
   document.getElementById('r-talla').textContent = val('talla') || '—';
   document.getElementById('r-tipo').textContent = tipo === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo';
   const f = val('fecha_promesa');
@@ -187,7 +194,6 @@ function pintarResumen() {
   document.getElementById('r-dir').textContent = val('destino_direccion') || '—';
 }
 ['talla', 'fecha_promesa', 'destino_direccion'].forEach(id => document.getElementById(id).addEventListener('input', pintarResumen));
-document.getElementById('id_estilo_base').addEventListener('change', pintarResumen);
 document.getElementById('id_cliente').addEventListener('change', (e) => {
   const c = clientesCat.find(x => String(x.id) === e.target.value);
   const dir = document.getElementById('destino_direccion');
@@ -202,17 +208,87 @@ document.getElementById('id_cliente').addEventListener('change', (e) => {
 document.getElementById('destino_direccion').addEventListener('input', (e) => {
   if (e.target.value !== direccionAutollenada) document.getElementById('nota-direccion').classList.add('d-none');
 });
+// ---- Catálogo visual de estilos (mismo diseño que la Nueva cotización, sin precios) ----
+const FOTOS_URL = '/erp/assets/img/cotizador/';
+let ATRIBUTOS = {};
+function norm(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+function estiloElegido() {
+  const v = document.getElementById('id_estilo_base').value;
+  return v ? estilosCat.find(e => String(e.id) === v) || null : null;
+}
+function fotoEstilo(e) {
+  return e.foto
+    ? `<img src="${FOTOS_URL}${encodeURIComponent(e.foto)}" alt="" loading="lazy" class="mu-est-foto" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mu-est-foto vacia',innerHTML:'<i class=\'bi bi-image\'></i>'}))">`
+    : '<span class="mu-est-foto vacia"><i class="bi bi-image"></i></span>';
+}
+function attrEstilo(e) {
+  return e.atributo ? `<span class="mu-est-attr" title="${escHtml(ATRIBUTOS[e.atributo] || '')}">${escHtml(e.atributo)}</span>` : '';
+}
 function pintarEstilos(filtro) {
-  const sel = document.getElementById('id_estilo_base');
-  const actual = sel.value;
-  const f = (filtro || '').trim().toLowerCase();
-  const lista = f ? estilosCat.filter(e => e.nombre.toLowerCase().includes(f)) : estilosCat;
-  sel.innerHTML = `<option value="">${lista.length ? (f ? lista.length + ' estilo(s) encontrados — elige uno' : 'Elige un estilo...') : 'Ningún estilo coincide'}</option>` +
-    lista.map(e => `<option value="${e.id}"${String(e.id) === actual ? ' selected' : ''}>${escHtml(e.nombre)}</option>`).join('');
-  if (lista.length === 1 && f) sel.value = lista[0].id;
+  const cont = document.getElementById('mu-lista-estilos');
+  const q = norm((filtro || '').trim());
+  const lista = q ? estilosCat.filter(e => norm(e.clave + ' ' + e.descripcion + ' ' + e.grupo).includes(q)) : estilosCat;
+  if (!lista.length) {
+    cont.innerHTML = `<div class="mu-est-sin">${estilosCat.length ? 'Ningún estilo coincide.' : 'No hay estilos en el catálogo.'}</div>`;
+    return;
+  }
+  const actual = document.getElementById('id_estilo_base').value;
+  let grupo = null;
+  cont.innerHTML = lista.map(e => {
+    let html = '';
+    if (e.grupo !== grupo) { grupo = e.grupo; html += `<div class="mu-est-grupo">${escHtml(grupo)}</div>`; }
+    const sel = String(e.id) === actual;
+    return html + `
+    <div class="mu-est-item${sel ? ' sel' : ''}" data-id="${escHtml(e.id)}" role="option" aria-selected="${sel}" tabindex="0">
+      ${fotoEstilo(e)}
+      <div class="mu-est-info">
+        <div class="mu-est-clave">${escHtml(e.clave)}${attrEstilo(e)}</div>
+        <div class="mu-est-desc">${escHtml(e.descripcion)}</div>
+      </div>
+      <span class="mu-est-check"><i class="bi ${sel ? 'bi-check-circle-fill' : 'bi-circle'}"></i></span>
+    </div>`;
+  }).join('');
+}
+function elegirEstilo(id) {
+  document.getElementById('id_estilo_base').value = id || '';
+  const e = estiloElegido();
+  const box = document.getElementById('mu-est-elegido');
+  const picker = document.getElementById('mu-est-picker');
+  if (e) {
+    box.innerHTML = `
+      ${fotoEstilo(e)}
+      <div class="mu-est-info">
+        <div class="mu-est-eyebrow"><i class="bi bi-check-circle-fill"></i> Estilo elegido · ${escHtml(e.grupo)}</div>
+        <div class="mu-est-clave">${escHtml(e.clave)}${attrEstilo(e)}</div>
+        <div class="mu-est-desc">${escHtml(e.descripcion)}</div>
+      </div>
+      <button type="button" class="v26-btn v26-btn-ghost mu-est-cambiar" id="btn-cambiar-estilo"><i class="bi bi-arrow-repeat"></i> Cambiar</button>`;
+    box.classList.remove('d-none');
+    picker.classList.add('d-none');
+    document.getElementById('msg-muestra').innerHTML = '';
+    document.getElementById('btn-cambiar-estilo').addEventListener('click', () => {
+      box.classList.add('d-none');
+      picker.classList.remove('d-none');
+      pintarEstilos(document.getElementById('buscar-estilo').value);
+      const s = document.querySelector('#mu-lista-estilos .mu-est-item.sel');
+      if (s) s.scrollIntoView({ block: 'nearest' });
+    });
+  } else {
+    box.classList.add('d-none');
+    picker.classList.remove('d-none');
+  }
   pintarResumen();
 }
+document.getElementById('mu-lista-estilos').addEventListener('click', (ev) => {
+  const it = ev.target.closest('.mu-est-item');
+  if (it) elegirEstilo(it.dataset.id);
+});
+document.getElementById('mu-lista-estilos').addEventListener('keydown', (ev) => {
+  const it = ev.target.closest('.mu-est-item');
+  if (it && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); elegirEstilo(it.dataset.id); }
+});
 document.getElementById('buscar-estilo').addEventListener('input', (e) => pintarEstilos(e.target.value));
+document.getElementById('buscar-estilo').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
 document.getElementById('fecha_promesa').min = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
 let otrosContador = 0;
 
@@ -258,13 +334,13 @@ document.querySelectorAll('#seg-tipo .v26-seg-btn').forEach(btn => {
 
 async function cargarCatalogos() {
   const selCliente = document.getElementById('id_cliente');
-  const selEstilo = document.getElementById('id_estilo_base');
+  const listaEst = document.getElementById('mu-lista-estilos');
   try {
     const res = await fetch('../api/muestra_catalogos.php');
     const data = await res.json();
     if (!data.ok) {
       selCliente.innerHTML = `<option value="">${escHtml(data.error)}</option>`;
-      selEstilo.innerHTML = `<option value="">${escHtml(data.error)}</option>`;
+      listaEst.innerHTML = `<div class="mu-est-sin">${escHtml(data.error)}</div>`;
       return;
     }
     clientesCat = data.clientes;
@@ -274,15 +350,16 @@ async function cargarCatalogos() {
         return `<option value="${c.id}">${escHtml(c.nombre)} (${etiqueta})</option>`;
       }).join('');
     pintarTope(data);
+    ATRIBUTOS = data.atributos || {};
     if (data.error_estilos) {
-      selEstilo.innerHTML = `<option value="">${escHtml(data.error_estilos)}</option>`;
+      listaEst.innerHTML = `<div class="mu-est-sin">${escHtml(data.error_estilos)}</div>`;
     } else {
       estilosCat = data.estilos;
       pintarEstilos('');
     }
   } catch (e) {
     selCliente.innerHTML = '<option value="">Error al cargar</option>';
-    selEstilo.innerHTML = '<option value="">Error al cargar</option>';
+    listaEst.innerHTML = '<div class="mu-est-sin">Error al cargar</div>';
   }
 }
 cargarCatalogos();
@@ -293,6 +370,11 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
   const btn = document.getElementById('btn-enviar-muestra');
   msg.innerHTML = '';
 
+  if (!document.getElementById('id_estilo_base').value) {
+    msg.innerHTML = '<div class="alert alert-danger py-2">Elige el estilo de la muestra.</div>';
+    document.getElementById('mu-est-picker').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
   const tipo = document.querySelector('#seg-tipo .v26-seg-btn.active').dataset.tipo;
   const adendum = [];
   if (tipo === 'variante') {
@@ -317,8 +399,7 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
   try {
     const fd = new FormData();
     fd.append('cliente_id', document.getElementById('id_cliente').value);
-    const selEstilo = document.getElementById('id_estilo_base');
-    fd.append('id_estilo_base', selEstilo.value);
+    fd.append('id_estilo_base', document.getElementById('id_estilo_base').value);
     fd.append('talla', document.getElementById('talla').value);
     fd.append('fecha_promesa', document.getElementById('fecha_promesa').value);
     fd.append('tipo', tipo);

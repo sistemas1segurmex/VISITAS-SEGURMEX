@@ -34,8 +34,11 @@ try {
     error_log('[VISITAS] muestra_catalogos: ' . $e->getMessage());
     $errorEstilos = 'No se pudo cargar el catálogo de estilos. Intenta más tarde.';
 }
+$atributos = [];
+try { $atributos = atributosSeguridadErp(); } catch (Throwable $e) { /* solo informativo */ }
 $usadas = muestrasDelMesVendedor($db, (int)$u['id']);
 jsonResponse([
     'ok' => true, 'clientes' => $clientes, 'estilos' => $estilos, 'error_estilos' => $errorEstilos,
+    'atributos' => $atributos,
     'usadas_mes' => $usadas, 'tope_mes' => MUESTRAS_TOPE_MES,
 ]);
