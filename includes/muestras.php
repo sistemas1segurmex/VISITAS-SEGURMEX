@@ -36,6 +36,21 @@ const MUESTRA_TRANSICIONES = [
 
 const MUESTRA_CATEGORIAS_CAMBIO = ['casco' => 'Casco', 'suela' => 'Suela', 'piel' => 'Piel', 'forro' => 'Forro'];
 
+/**
+ * Estilos activos del ERP para el formulario de muestra (mismo criterio que
+ * erp/api/visitas_catalogos.php). Necesita includes/db_erp.php.
+ * $id: si se pasa, regresa solo ese estilo (o [] si no existe / inactivo).
+ */
+function estilosParaMuestraErp(?int $id = null): array {
+    $sql = "SELECT id, (cinterno || ' — ' || estilo) AS nombre FROM estilos WHERE estatus = 1";
+    if ($id !== null) {
+        $stmt = getDBErp()->prepare($sql . ' AND id = ?');
+        $stmt->execute([$id]);
+        return $stmt->fetchAll();
+    }
+    return getDBErp()->query($sql . ' ORDER BY cinterno')->fetchAll();
+}
+
 function etiquetaEstadoMuestra(string $estado): string {
     return MUESTRA_ESTADOS[$estado] ?? $estado;
 }

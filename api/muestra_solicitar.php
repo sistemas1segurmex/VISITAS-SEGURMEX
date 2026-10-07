@@ -7,11 +7,12 @@
 // folio, cuenta "sombra" del vendedor y cliente mínimo, y entraba al flujo
 // de autorización de Dirección; ese flujo todavía no se usa para externos).
 // Ver includes/muestras.php y la migración 20261007120000_muestras_solo_aviso.sql.
-// El catálogo de estilos sí sigue viniendo del ERP (api/muestra_catalogos.php).
+// El catálogo de estilos sí se lee del ERP (misma base, esquema public).
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/muestras.php';
+require_once __DIR__ . '/../includes/db_erp.php';
 
 $u = requireRole('vendedor');
 
@@ -21,13 +22,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $clienteId    = (int)($_POST['cliente_id'] ?? 0);
 $idEstilo     = (int)($_POST['id_estilo_base'] ?? 0);
-$estiloNombre = trim($_POST['estilo_nombre'] ?? '');
 $direccion    = trim($_POST['destino_direccion'] ?? '');
 $talla        = mb_substr(trim($_POST['talla'] ?? ''), 0, 30);
 $fechaPromesa = trim($_POST['fecha_promesa'] ?? '');
 $tipo         = ($_POST['tipo'] ?? '') === 'variante' ? 'variante' : 'identico';
 
-if (!$clienteId || !$idEstilo || $estiloNombre === '') {
+if (!$clienteId || !$idEstilo) {
     jsonResponse(['ok' => false, 'error' => 'Selecciona un cliente y un estilo'], 400);
 }
 if ($direccion === '') {
@@ -47,6 +47,19 @@ $cliente = $stmt->fetch();
 if (!$cliente) {
     jsonResponse(['ok' => false, 'error' => 'Cliente no encontrado'], 404);
 }
+
+// El estilo tiene que existir y estar activo en el ERP; el nombre que se
+// guarda sale de ahí, no de lo que mande el navegador.
+try {
+    $estilo = estilosParaMuestraErp($idEstilo);
+} catch (Throwable $e) {
+    error_log('[VISITAS] muestra_solicitar (estilo): ' . $e->getMessage());
+    jsonResponse(['ok' => false, 'error' => 'No se pudo validar el estilo. Intenta más tarde.'], 503);
+}
+if (!$estilo) {
+    jsonResponse(['ok' => false, 'error' => 'Ese estilo ya no está disponible. Elige otro.'], 400);
+}
+$estiloNombre = $estilo[0]['nombre'];
 
 // Cambios pedidos (solo variante): mismas categorías que el formulario.
 $cambios = [];
