@@ -53,6 +53,8 @@ if ($telefono === null) {
     jsonResponse(['ok' => false, 'error' => MSG_TELEFONO_INVALIDO], 400);
 }
 
+// Sin colonia/CP/ciudad repetidos aunque los hayan pegado en la calle.
+$calleNumero = limpiarCalleNumero($calleNumero, $colonia, $municipio, $estado);
 $partes = array_filter([$calleNumero, $colonia, $municipio, $estado, $codigoPostal]);
 $direccion = implode(', ', $partes);
 

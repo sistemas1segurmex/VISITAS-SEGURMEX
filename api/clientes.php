@@ -61,6 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Dirección completa y legible, compuesta a partir de las partes
     // capturadas (para no tener que tocar las pantallas que ya muestran
     // "direccion" tal cual, como el check-in o el panel del dueño).
+    // Sin colonia/CP/ciudad repetidos aunque los hayan pegado en la calle.
+    $calleNumero = limpiarCalleNumero($calleNumero, $colonia, $municipio, $estado);
     $partes = array_filter([$calleNumero, $colonia, $municipio, $estado, $codigoPostal]);
     $direccion = implode(', ', $partes);
 
