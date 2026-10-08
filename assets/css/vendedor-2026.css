@@ -414,6 +414,16 @@
 .v26-tip--bottom:hover::after, .v26-tip--bottom:hover::before,
 .v26-tip--bottom:focus-visible::after, .v26-tip--bottom:focus-visible::before { transform: translate(-50%, 0); }
 
+/* Los tooltips ocultos siguen ocupando espacio y los de la barra superior
+   se salían ~22px a la derecha: en celular/APK la página quedaba más ancha
+   que la pantalla y las barras fijas (Guardar, catálogo) se veían cortadas.
+   En pantallas táctiles no hay hover, así que no se muestran. */
+@media (hover: none) {
+  .v26-tip::after, .v26-tip::before { display: none; }
+}
+/* Respaldo: nunca dejar scroll de lado en las pantallas v26. */
+html:has(body.v26), body.v26 { overflow-x: clip; }
+
 /* Variante "rica": tooltip con varias líneas (ej. eventos del calendario).
    El texto de data-tip debe traer saltos de línea reales (\n) entre partes. */
 .v26-tip--rico::after {

@@ -46,17 +46,43 @@ try {
     $detalle = $det->fetchAll();
     $detalle = agregarFotoYEntregaDetalleErp($db, $detalle); // plazo de entrega de los Dickies
 
-    $v = $db->prepare('SELECT nombre, apellidos FROM usuarios WHERE id = ?');
+    // SELECT * para tomar teléfono/correo si la tabla del ERP los tiene.
+    $v = $db->prepare('SELECT * FROM usuarios WHERE id = ?');
     $v->execute([$cot['id_vendedor']]);
     $vend = $v->fetch() ?: [];
     $atiende = trim(($vend['nombre'] ?? '') . ' ' . ($vend['apellidos'] ?? ''));
+    $vendEmail = filter_var($vend['email'] ?? '', FILTER_VALIDATE_EMAIL) ?: '';
+    $vendTel = preg_replace('/\D+/', '', (string)($vend['telefono'] ?? $vend['celular'] ?? ''));
+    // Vendedor foráneo: su teléfono está en VISITAS (esquema "visitas", misma
+    // base), ligado por correo. Con la conexión del ERP para no depender de
+    // getDB(), que corta la página si falla.
+    if ($vendTel === '' && $vendEmail !== '') {
+        try {
+            $t = $db->prepare('SELECT telefono FROM visitas.usuarios WHERE email = ? LIMIT 1');
+            $t->execute([$vendEmail]);
+            $vendTel = preg_replace('/\D+/', '', (string)$t->fetchColumn());
+        } catch (Throwable $e) { /* sin teléfono */ }
+    }
+
+    // Fecha en que se aceptó/rechazó, para el aviso de estado del PDF.
+    $fechaResuelta = '';
+    if (in_array($cot['estado'], ['aceptada', 'rechazada'], true)) {
+        try {
+            $h = $db->prepare('SELECT MAX(created_at) FROM cotizacion_historial WHERE id_cotizacion = ? AND estado_nuevo = ?');
+            $h->execute([$cot['id'], $cot['estado']]);
+            $f = $h->fetchColumn();
+            if ($f) $fechaResuelta = date('d/m/Y', strtotime($f));
+        } catch (Throwable $e) { /* sin fecha */ }
+    }
 
     // El botón "Responder" solo cuando el link del ERP de verdad deja
     // aceptar/rechazar: desde Enviada o En negociación (de Pendiente no se
     // puede pasar directo a Aceptada) y sin vencer. Ver la cotización la
     // marca como Enviada al compartirla (vendedor/ver_cotizacion.php).
     $abierta = in_array($cot['estado'], ['enviada', 'en_negociacion'], true) && !cotizacionVencidaErp($cot);
-    $pdf = pdfCotizacion($cot, $detalle, $atiende, $abierta ? urlPublicaCotizacionErp($token) : null);
+    $pdf = pdfCotizacion($cot, $detalle, $atiende, $abierta ? urlPublicaCotizacionErp($token) : null, [
+        'vend_tel' => $vendTel, 'vend_email' => $vendEmail, 'fecha_resuelta' => $fechaResuelta,
+    ]);
 } catch (Throwable $e) {
     error_log('[VISITAS] cotizacion_pdf.php: ' . $e->getMessage());
     pdfNoDisponible(500, 'No se pudo generar el PDF', 'Intenta de nuevo en unos minutos.');
