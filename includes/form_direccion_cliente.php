@@ -5,8 +5,11 @@
 //
 // Tres pasos, de arriba abajo:
 //   1. ¿En qué colonia está?  -> un solo campo: CP o nombre de colonia.
-//   2. Calle y número         -> el campo que se guarda; sugiere direcciones
-//                                para ubicarla en el mapa.
+//   2. Calle y número         -> dos campos (Calle / Número, con "Sin
+//                                número"); si pegan la dirección completa se
+//                                limpia sola. Se guardan juntos en
+//                                calle_numero. Sugiere direcciones para
+//                                ubicarla en el mapa.
 //   3. Ubicación en el mapa   -> tocar el mapa / arrastrar el pin, o botones
 //                                "Me mandaron la ubicación" y "Estoy aquí".
 //
@@ -45,6 +48,13 @@ $calleNumeroPrevio = $calleNumeroPrevio ?? '';
   #resultados-busqueda button.text-muted { font-weight: 600; }
 
   #mapa-cliente { height: 260px; }
+
+  /* Paso 2: Calle | Número */
+  .v26-dir-calle { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 8px; align-items: start; }
+  .v26-dir-calle .v26-search { margin-bottom: 0; }
+  .v26-dir-campo-numero input.v26-input { width: 100%; text-align: center; }
+  .v26-dir-campo-numero .v26-dir-link { display: block; width: 100%; text-align: center; margin-top: 4px; }
+  #nota-calle .v26-dir-link { margin-left: 4px; }
 </style>
 
 <div class="v26-buscar-destacado">
@@ -92,12 +102,22 @@ $calleNumeroPrevio = $calleNumeroPrevio ?? '';
 
   <div class="v26-dir-separador"></div>
 
-  <!-- 2. Calle y número (es lo que se guarda; también sirve para ubicarla) -->
+  <!-- 2. Calle y número: dos campos (con uno solo pegaban la dirección
+       completa). Se guardan juntos en calle_numero (oculto), ver
+       direccion-cliente.js. -->
   <div class="v26-dir-paso"><b>2</b> Calle y número</div>
-  <div class="v26-search">
-    <i class="bi bi-house-door"></i>
-    <input type="text" name="calle_numero" id="calle-numero" class="v26-input" autocomplete="off" value="<?= htmlspecialchars($calleNumeroPrevio) ?>" placeholder="Ej. Blvd. Diamantes 116" required>
+  <div class="v26-dir-calle">
+    <div class="v26-search">
+      <i class="bi bi-house-door"></i>
+      <input type="text" id="calle" class="v26-input" autocomplete="off" placeholder="Calle (ej. Blvd. Diamantes)" aria-label="Calle">
+    </div>
+    <div class="v26-dir-campo-numero">
+      <input type="text" id="numero" class="v26-input" autocomplete="off" maxlength="25" placeholder="Número" aria-label="Número">
+      <button type="button" class="v26-dir-link" id="btn-sin-numero">Sin número</button>
+    </div>
   </div>
+  <div id="nota-calle" class="v26-dir-nota info"></div>
+  <input type="hidden" name="calle_numero" id="calle-numero" value="<?= htmlspecialchars($calleNumeroPrevio) ?>">
   <div id="resultados-busqueda"></div>
 
   <div class="v26-dir-separador"></div>

@@ -168,10 +168,16 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
     return;
   }
 
+  // Antes de valores(): si pegaron la dirección completa en Calle, aquí se acomoda.
+  const errorCalle = DireccionCliente.validarCalle(false);
   const { estado, municipio, colonia, cp, lat, lng, calleNumero } = DireccionCliente.valores();
   if (!estado || !municipio || !colonia) {
     msg.innerHTML = '<div class="alert alert-danger py-2">Falta la colonia (paso 1): escribe el código postal o el nombre de la colonia y elígela de la lista.</div>';
     document.getElementById('buscar-colonia').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (errorCalle) {
+    msg.innerHTML = `<div class="alert alert-danger py-2">${DireccionCliente.validarCalle()}</div>`;
     return;
   }
 
@@ -181,7 +187,8 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
   // La ubicación es obligatoria sin excepción: sin ella no se puede
   // verificar el check-in por GPS ni ordenar la cartera por cercanía.
   if (!lat || !lng) {
-    msg.innerHTML = '<div class="alert alert-danger py-2">Falta marcar la ubicación del cliente: toca el punto en el mapa, busca la calle, pega el link que te compartieron o usa "Usar mi ubicación".</div>';
+    // id: DireccionCliente lo quita en cuanto se marca el pin.
+    msg.innerHTML = '<div class="alert alert-danger py-2" id="alerta-ubicacion">Falta marcar la ubicación del cliente (paso 3): toca el punto en el mapa, pega el link que te mandaron o, si estás con el cliente, usa "Estoy aquí".</div>';
     document.getElementById('mapa-cliente').scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
@@ -205,6 +212,10 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
   fd.append('codigo_postal', cp);
 
   const res = await fetch('../api/clientes.php', { method: 'POST', body: fd });
+  if (res.status === 401) {
+    msg.innerHTML = '<div class="alert alert-danger py-2">Tu sesión de Visitas se cerró (quizá entraste con tu usuario en otro lado). Sal y vuelve a entrar para guardar al cliente.</div>';
+    return;
+  }
   const data = await res.json();
   if (data.ok) {
     window.location.href = 'clientes.php';

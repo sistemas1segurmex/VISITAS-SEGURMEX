@@ -6,8 +6,11 @@
 //   colonia; sale del catálogo SEPOMEX y el mapa se centra en la colonia.
 //   Estado/municipio/colonia quedan en selects ocultos (hay un "elegir de la
 //   lista" como último recurso).
-// Paso 2, calle y número: es el campo que se guarda y, mientras no haya pin,
-//   sugiere direcciones para ubicarla (Google Places si hay clave en
+// Paso 2, calle y número: dos campos (Calle / Número, con botón "Sin
+//   número") que se guardan juntos en el oculto calle_numero. Si pegan la
+//   dirección completa ("Calle 102, Col. X, 20340 Ags., México") se deja
+//   solo calle y número y se avisa, con opción de deshacer. Mientras no haya
+//   pin sugiere direcciones para ubicarla (Google Places si hay clave en
 //   window.DIRECCION_CFG.googleKey; si no o si falla, Nominatim).
 // Paso 3, ubicación en el mapa: tocar el mapa (con vista satélite) o
 //   arrastrar el pin, o los botones "Me mandaron la ubicación" (link de
@@ -19,7 +22,7 @@ window.DireccionCliente = (function () {
   const $ = (id) => document.getElementById(id);
 
   let mapa, marcador;
-  let selectEstado, selectMunicipio, selectColonia, inputCp, campoCalle;
+  let selectEstado, selectMunicipio, selectColonia, inputCp, campoCalle, campoNumero, campoCalleNumero;
   let estadosListos;
   let calleEditadaAMano = false;
 
@@ -76,6 +79,10 @@ window.DireccionCliente = (function () {
     const badge = $('ubicacion-estado');
     badge.className = 'v26-ubicacion-badge lista';
     badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> marcada';
+    // El aviso rojo "Falta marcar la ubicación" de un intento anterior de
+    // guardar ya no aplica (se quedaba y parecía que no tomaba el pin).
+    const avisoViejo = document.getElementById('alerta-ubicacion');
+    if (avisoViejo) avisoViejo.remove();
     if (autocompletar) autocompletarDesdeCoordenadas(lat, lng);
   }
 
@@ -250,7 +257,7 @@ window.DireccionCliente = (function () {
   async function aplicarComponentesGoogle(comps, llenarCalle = true) {
     const calle = componente(comps, 'route');
     const numero = componente(comps, 'street_number');
-    if (llenarCalle && calle && !calleEditadaAMano) campoCalle.value = numero ? `${calle} ${numero}` : calle;
+    if (llenarCalle && calle && !calleEditadaAMano) ponerCalleYNumero(calle, campoNumero.value.trim() ? null : numero);
     const cp = componente(comps, 'postal_code');
     const coloniaTexto = componente(comps, 'sublocality_level_1') || componente(comps, 'sublocality') || componente(comps, 'neighborhood');
     if (/^\d{5}$/.test(cp) && !valores().colonia) await coloniaDesdeCp(cp, coloniaTexto);
@@ -276,10 +283,213 @@ window.DireccionCliente = (function () {
     return m ? m[1] : '';
   }
 
+  // ------------------------------------------------------------------
+  // Paso 2: Calle | Número
+  // ------------------------------------------------------------------
+  const PALABRAS_INTERIOR = '(?:int\\.?|interior|local|loc\\.?|depto\\.?|departamento|bodega|nave|edif\\.?|edificio)';
+
+  // "Circuito Progreso no.102" -> { calle: 'Circuito Progreso', numero: '102' }.
+  // Si no hay número claro, todo queda como calle. Calles con número en el
+  // nombre ("Calle 3", "5 de Mayo", "Av. 16 de Septiembre") se respetan.
+  function separarNumero(texto) {
+    let t = (texto || '').replace(/\s+/g, ' ').trim();
+    const limpiar = (s) => s.replace(/\s+/g, ' ').replace(/^[\s,.\-#]+|[\s,\-#]+$/g, '').trim();
+    if (!t) return { calle: '', numero: '' };
+
+    const sn = t.match(/(^|[\s,])(s\/n|s\.\s?n\.?|sin\s+n[uú]m(?:ero|\.)?)(?=[\s,]|$)/i);
+    if (sn) return { calle: limpiar(t.replace(sn[0], ' ')), numero: 'S/N' };
+
+    const km = t.match(/(^|[\s,])(km\.?\s*\d+(?:[.,]\d+)?)/i);
+    if (km) {
+      const numero = 'Km ' + km[2].replace(/^km\.?\s*/i, '');
+      return { calle: limpiar(t.replace(km[2], ' ')), numero };
+    }
+
+    const NUM = '\\d{1,5}[a-z]?(?:\\s?-\\s?[a-z0-9]{1,4})?(?![a-z0-9])';
+    const INTERIOR = '((?:\\s+' + PALABRAS_INTERIOR + '\\s*[a-z0-9-]+)?)';
+    const reMarcado = new RegExp('(^|[\\s,])(?:#|no\\.?|n[uú]m\\.?|n[uú]mero|n[°º])\\s*(' + NUM + ')' + INTERIOR, 'i');
+    const marcado = t.match(reMarcado);
+    if (marcado) {
+      return { calle: limpiar(t.replace(marcado[0], ' ')), numero: limpiar(marcado[2] + marcado[3]) };
+    }
+
+    // Número al final ("Hidalgo 304-B"), salvo que antes solo esté el tipo
+    // de calle ("Calle 3", "Privada 5": ahí el número es el nombre).
+    const reFinal = new RegExp('^(.*\\S)\\s+(' + NUM.replace('{1,5}', '{1,4}') + ')' + INTERIOR + '\\s*$', 'i');
+    const fin = t.match(reFinal);
+    const soloTipo = fin && new RegExp('^' + TIPOS_DE_CALLE.source.replace('\\b(', '(') + '$').test(normalizar(fin[1]));
+    if (fin && !soloTipo && !/\bde$/i.test(fin[1])) {
+      return { calle: limpiar(fin[1]), numero: limpiar(fin[2] + fin[3]) };
+    }
+    return { calle: limpiar(t), numero: '' };
+  }
+
+  // Estados (y como los abrevia Google) y el país: nunca son parte de la calle.
+  const LUGARES_DE_MAS = new Set([
+    'mexico', 'mex', 'aguascalientes', 'ags', 'baja california', 'bc', 'baja california sur', 'bcs',
+    'campeche', 'camp', 'chiapas', 'chis', 'chihuahua', 'chih', 'ciudad de mexico', 'cdmx', 'cd de mexico', 'df',
+    'coahuila', 'coahuila de zaragoza', 'coah', 'colima', 'col', 'durango', 'dgo', 'estado de mexico', 'edo mex',
+    'edo de mex', 'edomex', 'mex', 'guanajuato', 'gto', 'guerrero', 'gro', 'hidalgo', 'hgo', 'jalisco', 'jal',
+    'michoacan', 'michoacan de ocampo', 'mich', 'morelos', 'mor', 'nayarit', 'nay', 'nuevo leon', 'n l', 'nl',
+    'oaxaca', 'oax', 'puebla', 'pue', 'queretaro', 'queretaro de arteaga', 'qro', 'quintana roo', 'q roo', 'qroo',
+    'san luis potosi', 's l p', 'slp', 'sinaloa', 'sin', 'sonora', 'son', 'tabasco', 'tab', 'tamaulipas', 'tamps',
+    'tlaxcala', 'tlax', 'veracruz', 'veracruz de ignacio de la llave', 'ver', 'yucatan', 'yuc', 'zacatecas', 'zac',
+  ]);
+  const TIPOS_DE_CALLE = /\b(calle|av|avenida|ave|blvd|blvr|boulevard|bulevar|circuito|cto|circ|carretera|carr|km|privada|priv|calzada|calz|prolongacion|prol|paseo|andador|cerrada|cda|retorno|libramiento|camino|via)\b/;
+
+  // ¿Este pedazo de la dirección es colonia, municipio, estado o país?
+  // (Esos ya están en el paso 1.)
+  function esLugarDeMas(n) {
+    if (!n) return true;
+    if (LUGARES_DE_MAS.has(n)) return true;
+    const colonia = normalizar(selectColonia && selectColonia.value);
+    const municipio = normalizar(selectMunicipio && selectMunicipio.value);
+    const estado = normalizar(selectEstado && selectEstado.value);
+    if (n === municipio || n === estado || n === colonia) return true;
+    if (colonia && n.split(' ').length >= 2 && colonia.includes(n)) return true;
+    return /^(col|colonia|fracc|fraccionamiento|barrio|parque industrial|zona industrial|ciudad industrial)\b/.test(n) && !/\d/.test(n);
+  }
+
+  // Una dirección completa pegada en "Calle" -> solo calle y número.
+  // Devuelve null si el texto no parece dirección completa.
+  function limpiarDireccionPegada(texto) {
+    const original = (texto || '').replace(/\s+/g, ' ').trim();
+    const pareceCompleta = /[,;]/.test(original) || /\b\d{5}\b/.test(original) || /\bc\.?\s?p\.?\s*\d/i.test(original);
+    if (!pareceCompleta) return null;
+
+    let cp = '';
+    let coloniaTexto = '';
+    const quedan = [];
+    for (let p of original.split(/[,;]+/)) {
+      const mcp = p.match(/\b(?:c\.?\s?p\.?\s*)?(\d{5})\b/i);
+      if (mcp) { cp = cp || mcp[1]; p = p.replace(mcp[0], ' '); }
+      p = p.replace(/\s+/g, ' ').replace(/^[\s.\-]+|[\s\-]+$/g, '').trim();
+      const n = normalizar(p);
+      if (esLugarDeMas(n)) {
+        if (/^(col|colonia|fracc|fraccionamiento|barrio)\b/.test(n)) coloniaTexto = coloniaTexto || p.replace(/^(col\.?|colonia|fracc\.?|fraccionamiento|barrio)\s*/i, '');
+        else if (n && !LUGARES_DE_MAS.has(n) && !coloniaTexto && n !== normalizar(selectMunicipio.value) && n !== normalizar(selectEstado.value)) coloniaTexto = p;
+        continue;
+      }
+      quedan.push(p);
+    }
+    if (!quedan.length) return null;
+
+    // La calle: el primer pedazo con número o con tipo de calle; si no, el primero.
+    const calleTexto = quedan.find(p => /\d/.test(p)) || quedan.find(p => TIPOS_DE_CALLE.test(normalizar(p))) || quedan[0];
+    let { calle, numero } = separarNumero(calleTexto);
+
+    // "Circuito Progreso no.102 Parque Industrial": lo que sigue al número
+    // y es la colonia se va.
+    if (numero) {
+      const m = numero.match(/^(\S+)\s+(.+)$/);
+      if (m && esLugarDeMas(normalizar(m[2])) && !new RegExp('^' + PALABRAS_INTERIOR, 'i').test(m[2])) numero = m[1];
+    }
+    // Igual si el número venía antes ("no.102 Parque Industrial" ya separado):
+    // solo se corta lo que estaba DESPUÉS del número, para no comerse calles
+    // que se llaman como la colonia ("Blvd. José María Chávez").
+    const posNumero = numero ? calleTexto.indexOf(numero.split(' ')[0]) : -1;
+    const palabras = calle.split(' ');
+    for (let i = 1; i < palabras.length - 1; i++) {
+      const colaTexto = palabras.slice(i).join(' ');
+      const cola = normalizar(colaTexto);
+      if (posNumero >= 0 && calleTexto.lastIndexOf(colaTexto) > posNumero &&
+          cola.split(' ').length >= 2 && esLugarDeMas(cola)) {
+        calle = palabras.slice(0, i).join(' ');
+        break;
+      }
+    }
+    if (!calle) return null;
+    return { calle, numero, cp, coloniaTexto };
+  }
+
+  // Lo que se guarda: "Circuito Progreso 102" / "Carretera 45 Km 5" / "Calle 3 S/N".
+  function componerCalleNumero() {
+    const calle = campoCalle.value.replace(/\s+/g, ' ').trim();
+    const numero = campoNumero.value.replace(/\s+/g, ' ').trim();
+    return [calle, numero].filter(Boolean).join(' ');
+  }
+
+  function sincronizarCalleNumero() {
+    campoCalleNumero.value = componerCalleNumero();
+  }
+
+  function ponerCalleYNumero(calle, numero) {
+    if (calle !== undefined && calle !== null) campoCalle.value = calle;
+    if (numero !== undefined && numero !== null) campoNumero.value = numero;
+    sincronizarCalleNumero();
+  }
+
+  function notaCalle(html) {
+    $('nota-calle').innerHTML = html || '';
+  }
+
+  // Al pegar o al salir del campo Calle: si trae la dirección completa se
+  // deja solo calle y número (con deshacer); si trae un link, se manda a
+  // "Me mandaron la ubicación"; si trae el número al final, pasa a Número.
+  let textoAntesDeLimpiar = null;
+  function revisarCampoCalle() {
+    const texto = campoCalle.value.trim();
+    if (!texto || texto === textoAntesDeLimpiar) return;
+
+    const link = texto.match(/https?:\/\/\S+/);
+    if (link) {
+      ponerCalleYNumero('', null);
+      const panel = $('panel-link');
+      panel.classList.remove('d-none');
+      $('pegar-ubicacion').value = link[0];
+      notaCalle('Eso era un link de ubicación: lo pasamos a "Me mandaron la ubicación" (abajo del mapa). Aquí escribe solo la calle.');
+      procesarLink();
+      return;
+    }
+
+    const limpia = limpiarDireccionPegada(texto);
+    if (limpia) {
+      textoAntesDeLimpiar = texto;
+      ponerCalleYNumero(limpia.calle, limpia.numero || (campoNumero.value.trim() ? null : ''));
+      calleEditadaAMano = true;
+      notaCalle(`Dejamos solo la calle${limpia.numero ? ' y el número' : ''}: la colonia, el CP y la ciudad van en el paso 1. ` +
+        '<button type="button" class="v26-dir-link" id="btn-deshacer-calle">Deshacer</button>');
+      $('btn-deshacer-calle').addEventListener('click', () => {
+        ponerCalleYNumero(textoAntesDeLimpiar, '');
+        notaCalle('Listo, quedó como lo pegaste. Si puedes, deja aquí solo la calle y el número aparte.');
+      });
+      if (limpia.cp && !valores().colonia) coloniaDesdeCp(limpia.cp, limpia.coloniaTexto);
+      if (!limpia.numero && !campoNumero.value.trim()) campoNumero.focus();
+      return;
+    }
+
+    if (!campoNumero.value.trim()) {
+      const { calle, numero } = separarNumero(texto);
+      if (numero) ponerCalleYNumero(calle, numero);
+    }
+  }
+
+  // Para nuevo_cliente.php / editar_cliente.php antes de guardar. Devuelve
+  // el mensaje de error (y lleva al campo) o null si está bien.
+  // enfocar=false solo revisa (y acomoda la calle) sin mover la pantalla.
+  function validarCalle(enfocar = true) {
+    revisarCampoCalle();
+    sincronizarCalleNumero();
+    const ir = (campo) => {
+      if (!enfocar) return;
+      campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      campo.focus();
+    };
+    if (!campoCalle.value.trim()) {
+      ir(campoCalle);
+      return 'Falta la calle (paso 2).';
+    }
+    if (!campoNumero.value.trim()) {
+      ir(campoNumero);
+      return 'Falta el número (paso 2): escríbelo o toca "Sin número".';
+    }
+    return null;
+  }
+
   // Busca lo escrito en "Calle y número" (o el nombre que trae un link) y
   // ofrece resultados para ubicarlo en el mapa.
   async function buscarDireccion(textoForzado) {
-    const q = (typeof textoForzado === 'string' ? textoForzado : campoCalle.value).trim();
+    const q = (typeof textoForzado === 'string' ? textoForzado : componerCalleNumero()).trim();
     if (q.length < 4) { pintarResultados(''); return null; }
     const miBusqueda = ++busquedaActual;
     pintarResultados('<button type="button" disabled>Buscando...</button>');
@@ -301,7 +511,10 @@ window.DireccionCliente = (function () {
     const desdeCampoCalle = typeof textoForzado !== 'string';
     const seGuardaIgual = desdeCampoCalle ? ' La calle se guarda tal como la escribiste; solo marca el punto en el mapa (paso 3).' : '';
     if (error) {
-      pintarResultados(`<button type="button" disabled>No se pudo buscar en el mapa (revisa tu conexión).${seGuardaIgual}</button>`);
+      // "Revisa tu conexión" solo si de verdad no hay internet: muchas veces
+      // es el buscador (o la red de la oficina) el que no responde.
+      const motivo = navigator.onLine === false ? 'Sin internet: no se pudo buscar la calle.' : 'El buscador de calles no respondió.';
+      pintarResultados(`<button type="button" disabled>${motivo}${seGuardaIgual || ' Toca el punto directo en el mapa.'}</button>`);
       return 0;
     }
     if (!resultados.length) {
@@ -317,7 +530,7 @@ window.DireccionCliente = (function () {
     });
     $('resultados-busqueda').querySelectorAll('button[data-i]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const escrito = campoCalle.value;
+        const escrito = componerCalleNumero();
         const r = await resultados[btn.dataset.i].elegir();
         pintarResultados('');
         ponerMarcador(r.lat, r.lng, false);
@@ -328,9 +541,9 @@ window.DireccionCliente = (function () {
           await aplicarComponentesGoogle(r.comps, false);
         }
         // Queda la calle bien escrita con el número que puso el vendedor.
-        numero = numero || numeroEscrito(escrito);
+        numero = numero || campoNumero.value.trim() || numeroEscrito(escrito);
         if (calle) {
-          campoCalle.value = numero ? `${calle} ${numero}` : calle;
+          ponerCalleYNumero(calle, numero);
           calleEditadaAMano = true;
         }
         if (!valores().colonia || !calle) autocompletarDesdeCoordenadas(r.lat, r.lng);
@@ -380,6 +593,11 @@ window.DireccionCliente = (function () {
       nota('nota-link', 'Abriendo el link...', 'info');
       try {
         const res = await fetch('../api/resolver_ubicacion.php?url=' + encodeURIComponent(link));
+        if (res.status === 401) {
+          nota('nota-link', 'Tu sesión de Visitas se cerró (quizá entraste con tu usuario en otro lado). Sal y vuelve a entrar para registrar al cliente.', 'error');
+          ultimoLink = '';
+          return;
+        }
         const data = await res.json();
         if (!data.ok) { nota('nota-link', data.error, 'error'); return; }
         if (data.lat !== null) coords = { lat: data.lat, lng: data.lng };
@@ -593,7 +811,7 @@ window.DireccionCliente = (function () {
 
     const calle = a.road || a.pedestrian || '';
     const numero = a.house_number || '';
-    if (calle && !calleEditadaAMano) campoCalle.value = numero ? `${calle} ${numero}` : calle;
+    if (calle && !calleEditadaAMano) ponerCalleYNumero(calle, campoNumero.value.trim() ? null : numero);
 
     // Si ya eligió colonia no se le cambia: SEPOMEX es más confiable que
     // lo que diga OpenStreetMap.
@@ -679,7 +897,7 @@ window.DireccionCliente = (function () {
       cp: (colonia && opt && opt.dataset.cp) || inputCp.value.trim(),
       lat: $('lat').value,
       lng: $('lng').value,
-      calleNumero: campoCalle.value.trim(),
+      calleNumero: (campoCalle && campoNumero) ? componerCalleNumero() : '',
     };
   }
 
@@ -709,7 +927,15 @@ window.DireccionCliente = (function () {
     selectMunicipio = $('select-municipio');
     selectColonia = $('select-colonia');
     inputCp = $('input-cp');
-    campoCalle = $('calle-numero');
+    campoCalle = $('calle');
+    campoNumero = $('numero');
+    campoCalleNumero = $('calle-numero');
+    // Editar: lo guardado ("Circuito Progreso 102") se reparte en los dos campos.
+    if (campoCalleNumero.value.trim()) {
+      const previo = separarNumero(campoCalleNumero.value);
+      campoCalle.value = previo.calle;
+      campoNumero.value = previo.numero;
+    }
     // Precisión del GPS cuando el pin vino de "Estoy aquí" (se manda con el
     // formulario, junto a lat/lng).
     if (!$('ubicacion-precision')) {
@@ -725,7 +951,15 @@ window.DireccionCliente = (function () {
     agregarCapasBase(mapa);
     mapa.on('click', (e) => ponerMarcador(e.latlng.lat, e.latlng.lng));
 
-    campoCalle.addEventListener('input', () => { calleEditadaAMano = campoCalle.value.trim() !== ''; });
+    campoCalle.addEventListener('input', () => {
+      calleEditadaAMano = campoCalle.value.trim() !== '';
+      if (campoCalle.value.trim() !== textoAntesDeLimpiar) notaCalle('');
+      sincronizarCalleNumero();
+    });
+    campoNumero.addEventListener('input', sincronizarCalleNumero);
+    campoCalle.addEventListener('paste', () => setTimeout(revisarCampoCalle, 0));
+    campoCalle.addEventListener('change', revisarCampoCalle);
+    $('btn-sin-numero').addEventListener('click', () => { ponerCalleYNumero(null, 'S/N'); });
 
     // Paso 1
     $('buscar-colonia').addEventListener('input', () => {
@@ -760,7 +994,7 @@ window.DireccionCliente = (function () {
     campoLink.addEventListener('change', procesarLink);
 
     // Enter en estos campos no debe mandar el formulario a medio llenar.
-    [['buscar-colonia', buscarColonia], ['calle-numero', buscarDireccion], ['pegar-ubicacion', procesarLink]].forEach(([id, fn]) => {
+    [['buscar-colonia', buscarColonia], ['calle', buscarDireccion], ['numero', buscarDireccion], ['pegar-ubicacion', procesarLink]].forEach(([id, fn]) => {
       $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fn(); } });
     });
 
@@ -772,5 +1006,5 @@ window.DireccionCliente = (function () {
     return estadosListos;
   }
 
-  return { init, precargar, valores, extraerCoordenadas, limpiarConsulta };
+  return { init, precargar, valores, validarCalle, extraerCoordenadas, limpiarConsulta, separarNumero, limpiarDireccionPegada };
 })();

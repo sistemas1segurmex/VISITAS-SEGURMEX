@@ -1274,3 +1274,35 @@ function resumenProspeccionSemana(PDO $db, int $vendedorId, int $anioIso, int $s
     $out['estado_hoy'] = resumenDiaVendedor($db, $vendedorId, (new DateTime('now', $tzMx))->format('Y-m-d'));
     return $out;
 }
+
+/**
+ * Deja calle_numero sin lo que ya está en colonia/municipio/estado/CP
+ * (8-oct-2026). El formulario ya separa Calle y Número y limpia lo pegado
+ * (assets/js/direccion-cliente.js), pero la APK puede traer una versión
+ * vieja del JS, así que aquí se quita lo obvio: pedazos separados por coma
+ * que son el CP, la colonia, el municipio, el estado o "México". Si no
+ * queda nada, se regresa tal cual.
+ */
+function limpiarCalleNumero(string $calleNumero, string $colonia, string $municipio, string $estado): string {
+    $norm = function (string $s): string {
+        $s = mb_strtolower(trim($s), 'UTF-8');
+        $s = strtr($s, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n']);
+        return trim(preg_replace('/[^a-z0-9]+/', ' ', $s));
+    };
+    $calleNumero = trim(preg_replace('/\s+/u', ' ', $calleNumero));
+    if (strpos($calleNumero, ',') === false && !preg_match('/\b\d{5}\b/', $calleNumero)) return $calleNumero;
+
+    $deMas = array_filter([$norm($colonia), $norm($municipio), $norm($estado), 'mexico', 'mex']);
+    $abreviaturas = ['ags', 'gto', 'jal', 'qro', 'slp', 's l p', 'n l', 'nl', 'cdmx', 'edomex', 'edo mex', 'zac', 'coah', 'chih', 'mich', 'tamps', 'yuc', 'oax', 'pue', 'son', 'sin', 'ver', 'hgo', 'gro', 'tlax', 'dgo', 'nay', 'tab', 'chis', 'camp', 'mor', 'bc', 'bcs', 'qroo', 'q roo'];
+    $colonia = $norm($colonia);
+    $quedan = [];
+    foreach (explode(',', $calleNumero) as $pedazo) {
+        $pedazo = trim(preg_replace('/\b(c\.?\s?p\.?\s*)?\d{5}\b/iu', ' ', $pedazo));
+        $pedazo = trim(preg_replace('/\s+/u', ' ', $pedazo), " .-");
+        $n = $norm($pedazo);
+        if ($n === '' || in_array($n, $deMas, true) || in_array($n, $abreviaturas, true)) continue;
+        if ($colonia !== '' && substr_count($n, ' ') >= 1 && strpos($colonia, $n) !== false && !preg_match('/\d/', $n)) continue;
+        $quedan[] = $pedazo;
+    }
+    return $quedan ? implode(', ', $quedan) : $calleNumero;
+}
