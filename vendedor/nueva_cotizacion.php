@@ -133,6 +133,21 @@ body.nc-sheet-abierta { overflow: hidden; }
 .nc-precio { width: 100%; height: 44px; border: 1px solid var(--v26-border); border-radius: 12px; padding: 0 12px 0 26px; font-size: 16px; font-weight: 700; text-align: right; font-family: inherit; color: var(--v26-ink); background: var(--v26-surface-solid); }
 .nc-stepper input:focus, .nc-precio:focus { outline: none; box-shadow: inset 0 0 0 2px var(--v26-brand-1); }
 .nc-precio.bajo { border-color: var(--v26-red); box-shadow: 0 0 0 3px rgba(225,29,72,.12); }
+.nc-precio.editado { background: #ECFDF5; border-color: #10B981; color: #065F46; }
+@keyframes nc-ajuste { 0% { background: #FEF3C7; } 100% { background: var(--v26-surface-solid); } }
+.nc-precio.ajustado { animation: nc-ajuste .9s ease; }
+/* Lista tachada + desglose del descuento (como el ERP) */
+.nc-desglose { min-width: 0; }
+.nc-desglose summary { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; cursor: pointer; }
+.nc-desglose summary::-webkit-details-marker { display: none; }
+.nc-desglose summary .bi-info-circle { color: var(--v26-ink-soft); font-size: .78rem; }
+.nc-tachado { color: var(--v26-ink-soft); font-weight: 600; text-decoration-color: #DC2626; text-decoration-thickness: 1.5px; margin-right: 2px; }
+.nc-desc-chip { font-size: .68rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; white-space: nowrap; }
+.nc-desc-chip.mano { background: #ECFDF5; border-color: #6EE7B7; color: #065F46; }
+.nc-calculo { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: #F9FAFB; border: 1px solid var(--v26-border); font-size: .72rem; line-height: 1.55; color: var(--v26-ink); }
+/* Opciones de lista y pronto pago con su descuento */
+.nc-seg .v26-seg-btn { flex-direction: column; line-height: 1.15; }
+.nc-seg .v26-seg-btn small { display: block; margin-top: 2px; font-size: .64rem; font-weight: 600; opacity: .75; }
 .nc-r-ref { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 8px; font-size: .74rem; color: var(--v26-ink-soft); }
 .nc-r-ref .importe { font-size: 1rem; font-weight: 800; color: var(--v26-ink); white-space: nowrap; }
 .nc-r-ref .bajo-txt { color: var(--v26-red); font-weight: 700; }
@@ -357,16 +372,17 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
             <div class="v26-field">
               <label>Tipo de lista</label>
               <div class="v26-seg nc-seg" id="seg-tipo-lista">
-                <button type="button" class="v26-seg-btn active" data-valor="industria">Industria</button>
-                <button type="button" class="v26-seg-btn" data-valor="distribuidor">Distribuidor</button>
+                <button type="button" class="v26-seg-btn active" data-valor="industria">Industria<small>Precio de lista, sin descuento</small></button>
+                <button type="button" class="v26-seg-btn" data-valor="distribuidor">Distribuidor<small><span id="pct-distribuidor">−15%</span> ya incluido</small></button>
               </div>
             </div>
             <div class="v26-field">
               <label>Pronto pago</label>
               <div class="v26-seg nc-seg" id="seg-pronto-pago">
-                <button type="button" class="v26-seg-btn active" data-valor="0">No</button>
-                <button type="button" class="v26-seg-btn" data-valor="1">Sí aplica</button>
+                <button type="button" class="v26-seg-btn active" data-valor="0">No<small>Sin descuento</small></button>
+                <button type="button" class="v26-seg-btn" data-valor="1">Sí aplica<small><span id="pct-pronto-pago">−5%</span> al precio</small></button>
               </div>
+              <div class="nc-sub">Solo si el cliente pagará de contado o por anticipado, según la política vigente.</div>
             </div>
           </div>
         </section>
@@ -578,6 +594,8 @@ async function cargarConfig() {
     const data = await res.json();
     if (data.ok) CFG = { ...CFG, ...data.config };
   } catch (e) {}
+  $('pct-distribuidor').textContent = '−' + Math.round(CFG.descuento_distribuidor * 100) + '%';
+  $('pct-pronto-pago').textContent = '−' + Math.round(CFG.descuento_pronto_pago * 100) + '%';
   const vDefault = CFG.vigencia_default_dias || 15;
   $('input-vigencia').value = vDefault;
   document.querySelectorAll('#chips-vigencia .nc-chip').forEach(b => {
@@ -696,33 +714,49 @@ async function cargarClientes() {
 }
 
 // ================= Renglones =================
-// Recalcula lista, mínimo y precio de cada renglón (como recalcTodo() del
-// ERP): el precio arranca en el de lista; si el vendedor lo tecleó y quedó
-// por debajo del mínimo (p. ej. al cambiar de lista), se sube al mínimo.
+// Recalcula lista, mínimo y precio de cada renglón (como recalcRow() del
+// ERP): el precio arranca YA con los descuentos que aplican (pronto pago y/o
+// mayoreo) y se recalcula solo mientras el vendedor no lo cambie a mano; si
+// lo tecleó y quedó por debajo del mínimo, se sube al mínimo (con parpadeo).
 function recalcularTodo() {
   renglones.forEach(r => {
     r.cantidad = Math.max(1, parseInt(r.cantidad) || 1);
     r.base = precioLista(r.it, tipoLista);
     r.minimo = calcularMinimo(r.it, r.base, prontoPago);
-    if (r.auto || r.precio_final == null) r.precio_final = r.base;
-    else if (r.precio_final < r.minimo) r.precio_final = r.minimo;
+    r.ajustado = false;
+    if (r.auto || r.precio_final == null) r.precio_final = r.minimo;
+    else if (r.precio_final < r.minimo) { r.precio_final = r.minimo; r.ajustado = true; }
   });
   renderRenglones();
   recalcularSoloTotales();
 }
 
-function refHTML(r) {
-  if (esDickies(r.it)) return `Precio fijo ${money(r.base)}`;
-  let t = `Lista ${money(r.base)}`;
-  if (r.minimo < r.base) t += ` · Mín ${money(r.minimo)}`;
-  return t;
+// Debajo del precio, igual que el ERP: la lista tachada y cada descuento por
+// separado («Pronto pago −5%», «Mayoreo −10%», «Precio a mano»), SIN el %
+// total (5% y 10% dan 14.5%, no 15%, y eso confundía). Al tocarlo se abre el
+// cálculo paso a paso.
+const fmtPct = n => n.toLocaleString('es-MX', { maximumFractionDigits: 1 }) + '%';
+function pasosDescuento(r) {
+  const pasos = [];
+  if (esDickies(r.it)) return pasos;
+  let va = r.base;
+  if (prontoPago) { va *= (1 - CFG.descuento_pronto_pago); pasos.push({ txt: 'Pronto pago', pct: CFG.descuento_pronto_pago * 100, queda: va }); }
+  if (aplicaMayoreo()) { va *= (1 - CFG.descuento_mayoreo); pasos.push({ txt: 'Mayoreo', pct: CFG.descuento_mayoreo * 100, queda: va }); }
+  return pasos;
 }
-function tagsDescuento(r) {
-  if (esDickies(r.it) || r.minimo >= r.base) return '';
-  const d = [];
-  if (prontoPago) d.push('pronto pago');
-  if (aplicaMayoreo()) d.push('mayoreo');
-  return d.length ? `<span class="nc-tag nc-tag--desc" title="El precio puede bajar hasta el mínimo"><i class="bi bi-tag"></i>Mín. con ${d.join(' + ')}</span>` : '';
+function refHTML(r) {
+  if (esDickies(r.it)) return `<span class="nc-ref-lista">Precio fijo ${money(r.base)}</span>`;
+  if (!(r.precio_final < r.base - 0.004)) return `<span class="nc-ref-lista">Lista ${money(r.base)}</span>`;
+  const pasos = pasosDescuento(r);
+  const aMano = !r.auto && Math.abs(r.precio_final - r.minimo) > 0.004;
+  const chips = pasos.map(p => `<span class="nc-desc-chip">${escHtml(p.txt)} −${fmtPct(p.pct)}</span>`).join('')
+              + (aMano ? '<span class="nc-desc-chip mano">Precio a mano</span>' : '');
+  const calculo = [`Precio de lista: ${money(r.base)}`]
+    .concat(pasos.map(p => `− ${fmtPct(p.pct)} ${p.txt.toLowerCase()} → ${money(p.queda)}`))
+    .concat(aMano ? [`Precio puesto a mano: ${money(r.precio_final)}`] : [])
+    .concat(pasos.length > 1 ? ['Cada descuento se aplica sobre el precio que dejó el anterior.'] : []);
+  return `<details class="nc-desglose"><summary><s class="nc-tachado">${money(r.base)}</s>${chips}<i class="bi bi-info-circle"></i></summary>`
+       + `<div class="nc-calculo">${calculo.map(escHtml).join('<br>')}</div></details>`;
 }
 
 function renderRenglones() {
@@ -748,7 +782,7 @@ function renderRenglones() {
         <div class="nc-r-info">
           <div class="nc-r-clave">${escHtml(it.clave)}</div>
           <div class="nc-r-nombre">${escHtml(it.nombre)}</div>
-          <div class="nc-r-meta">${color}${dickies}${tagsDescuento(r)}</div>
+          <div class="nc-r-meta">${color}${dickies}</div>
         </div>
         <button type="button" class="nc-quitar" data-i="${i}" aria-label="Quitar ${escHtml(it.clave)}"><i class="bi bi-trash3"></i></button>
       </div>
@@ -760,7 +794,7 @@ function renderRenglones() {
         </div>
         <div class="nc-precio-wrap">
           <span>$</span>
-          <input type="text" inputmode="decimal" class="nc-precio input-precio" data-i="${i}" value="${Number(r.precio_final).toFixed(2)}" aria-label="Precio por par" enterkeyhint="done" ${esDickies(it) ? 'readonly' : ''}>
+          <input type="text" inputmode="decimal" class="nc-precio input-precio${r.ajustado ? ' ajustado' : ''}${!r.auto && !esDickies(it) && Math.abs(r.precio_final - r.minimo) > 0.004 ? ' editado' : ''}" data-i="${i}" value="${Number(r.precio_final).toFixed(2)}" aria-label="Precio por par" enterkeyhint="done" ${esDickies(it) ? 'readonly' : ''}${r.ajustado ? ` title="Se ajustó al mínimo permitido (${money(r.minimo)})"` : ''}>
         </div>
       </div>
       <div class="nc-r-ref">
@@ -801,8 +835,8 @@ contR.addEventListener('input', e => {
     recalcularSoloTotales();
   }
 });
-// Al salir del campo: cantidad vacía = 1; precio vacío = el de lista;
-// abajo del mínimo = sube al mínimo.
+// Al salir del campo: cantidad vacía = 1; precio vacío = el automático (con
+// descuentos); abajo del mínimo = sube al mínimo.
 contR.addEventListener('change', e => {
   const t = e.target;
   if (t.classList.contains('sel-color')) {
