@@ -144,6 +144,13 @@ function badgePromesa(m) {
   return `<span class="mu-badge"><i class="bi bi-calendar-event"></i> Promesa ${fechaMx(m.fecha_promesa)}</span>`;
 }
 
+// De dónde sale la que está en preparación: En PT / Por programar (+ fecha estimada).
+function badgePreparacion(m) {
+  if (m.estado !== 'en_preparacion' || !m.preparacion) return '';
+  if (m.preparacion === 'pt') return '<span class="mu-badge mu-badge--verde"><i class="bi bi-box-seam"></i> En Producto Terminado</span>';
+  return `<span class="mu-badge mu-badge--ambar"><i class="bi bi-gear"></i> Por programar${m.fecha_estimada_pt ? ' · est. ' + fechaMx(m.fecha_estimada_pt) : ''}</span>`;
+}
+
 function tarjeta(m, i) {
   return `
     <a class="mu-card mu-card--${m.estado}" href="ver.php?id=${m.id}" style="animation-delay:${Math.min(i, 10) * 0.04}s">
@@ -167,7 +174,7 @@ function tarjeta(m, i) {
       ${m.estado === 'embarcada' ? `<div class="mu-card-envio"><i class="bi bi-truck"></i> ${escHtml(textoEnvio(m))}</div>` : ''}
       ${m.estado === 'cancelada' ? `<div class="mu-card-envio mu-card-envio--cancel"><i class="bi bi-x-circle"></i> ${escHtml(m.motivo_cancelacion || '')}</div>` : ''}
       <div class="mu-card-pie">
-        <div class="mu-badges">${badgeEspera(m)}${badgePromesa(m)}</div>
+        <div class="mu-badges">${badgePreparacion(m)}${badgeEspera(m)}${badgePromesa(m)}</div>
         <span class="mu-abrir">${ES_ADMIN || m.estado === 'embarcada' || m.estado === 'cancelada' ? 'Ver' : 'Atender'} <i class="bi bi-arrow-right"></i></span>
       </div>
     </a>`;

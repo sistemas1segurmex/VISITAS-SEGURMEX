@@ -76,6 +76,21 @@ $u = requireRole('vendedor');
                 <option value="">Cargando tus clientes y prospectos...</option>
               </select>
             </div>
+            <!-- Contacto del cliente: sale de su ficha; si le falta algo se pide aquí y se guarda también en la ficha -->
+            <div id="bloque-contacto" class="d-none mt-3">
+              <div id="contacto-lectura" class="mu-nota mb-0"></div>
+              <div id="contacto-faltan" class="d-none">
+                <div class="mu-nota mb-2"><i class="bi bi-info-circle"></i> A la ficha de este cliente le falta este dato. Escríbelo y lo guardamos también en su ficha.</div>
+                <div class="v26-field" id="campo-contacto-nombre">
+                  <label>Nombre de contacto</label>
+                  <input type="text" id="contacto_nombre" class="v26-input" maxlength="150" placeholder="Ej. Antonio de León" autocomplete="off">
+                </div>
+                <div class="v26-field mb-0" id="campo-contacto-tel">
+                  <label>Teléfono de contacto</label>
+                  <input type="tel" id="contacto_telefono" class="v26-input" maxlength="20" inputmode="tel" placeholder="Ej. 477 123 4567" autocomplete="off">
+                </div>
+              </div>
+            </div>
           </section>
 
           <section class="v26-card mu-paso">
@@ -172,6 +187,7 @@ $u = requireRole('vendedor');
           <div class="mu-sec-titulo"><i class="bi bi-receipt"></i> Resumen</div>
           <dl class="mu-resumen-dl">
             <dt>Cliente</dt><dd id="r-cliente">—</dd>
+            <dt>Contacto</dt><dd id="r-contacto">—</dd>
             <dt>Estilo</dt><dd id="r-estilo">—</dd>
             <dt>Color</dt><dd id="r-color">—</dd>
             <dt>Talla</dt><dd id="r-talla">—</dd>
@@ -222,6 +238,10 @@ function pintarResumen() {
   const val = (id) => document.getElementById(id).value.trim();
   const tipo = document.querySelector('#seg-tipo .v26-seg-btn.active').dataset.tipo;
   document.getElementById('r-cliente').textContent = textoSel(document.getElementById('id_cliente'));
+  const cr = clienteElegido();
+  const nomC = cr ? ((cr.nombre_contacto || '').trim() || val('contacto_nombre')) : '';
+  const telC = cr ? ((cr.telefono || '').trim() || val('contacto_telefono')) : '';
+  document.getElementById('r-contacto').textContent = [nomC, telC].filter(Boolean).join(' · ') || '—';
   const est = estiloElegido();
   document.getElementById('r-estilo').textContent = est ? est.clave + (est.atributo ? ' · ' + est.atributo : '') : '—';
   document.getElementById('r-color').textContent = colorElegido || '—';
@@ -236,9 +256,37 @@ function pintarResumen() {
   document.getElementById('r-entrega').textContent = entregaElegida() === 'vendedor' ? 'A mí (vendedor)' : 'Al cliente';
   document.getElementById('r-dir').textContent = val('destino_direccion') || '—';
 }
+function clienteElegido() {
+  return clientesCat.find(x => String(x.id) === document.getElementById('id_cliente').value) || null;
+}
+// Contacto del cliente: si la ficha tiene los dos datos, solo se muestran;
+// si le falta alguno, se pide ese (obligatorio) y el servidor lo guarda
+// también en la ficha.
+function pintarContacto() {
+  const c = clienteElegido();
+  const bloque = document.getElementById('bloque-contacto');
+  bloque.classList.toggle('d-none', !c);
+  if (!c) return;
+  const nom = (c.nombre_contacto || '').trim();
+  const tel = (c.telefono || '').trim();
+  const lectura = [];
+  if (nom) lectura.push(escHtml(nom));
+  if (tel) lectura.push(escHtml(tel));
+  const lec = document.getElementById('contacto-lectura');
+  lec.innerHTML = lectura.length ? `<i class="bi bi-person-badge"></i> Contacto: <strong>${lectura.join(' · ')}</strong>` : '';
+  lec.classList.toggle('d-none', !lectura.length);
+  lec.classList.toggle('mb-2', lectura.length && (!nom || !tel));
+  document.getElementById('contacto-faltan').classList.toggle('d-none', !!(nom && tel));
+  document.getElementById('campo-contacto-nombre').classList.toggle('d-none', !!nom);
+  document.getElementById('campo-contacto-tel').classList.toggle('d-none', !!tel);
+  document.getElementById('contacto_nombre').required = !nom;
+  document.getElementById('contacto_telefono').required = !tel;
+}
+['contacto_nombre', 'contacto_telefono'].forEach(id => document.getElementById(id).addEventListener('input', () => pintarResumen()));
 function entregaElegida() { return document.querySelector('#seg-entrega .v26-seg-btn.active').dataset.entrega; }
 ['talla', 'cantidad', 'motivo', 'fecha_promesa', 'tiempo_prueba_dias', 'destino_direccion'].forEach(id => document.getElementById(id).addEventListener('input', pintarResumen));
 document.getElementById('id_cliente').addEventListener('change', (e) => {
+  pintarContacto();
   const c = clientesCat.find(x => String(x.id) === e.target.value);
   const dir = document.getElementById('destino_direccion');
   const nota = document.getElementById('nota-direccion');
@@ -504,6 +552,8 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
   try {
     const fd = new FormData();
     fd.append('cliente_id', document.getElementById('id_cliente').value);
+    fd.append('contacto_nombre', document.getElementById('contacto_nombre').value);
+    fd.append('contacto_telefono', document.getElementById('contacto_telefono').value);
     fd.append('id_estilo_base', document.getElementById('id_estilo_base').value);
     fd.append('color', colorElegido);
     fd.append('talla', document.getElementById('talla').value);

@@ -75,7 +75,9 @@ $TXT_HISTORIAL = [
         <div class="mu-estado-label">Estado</div>
         <div class="mu-estado-valor"><?= $s['estado'] === 'enviada' ? 'Nueva · sin atender' : e(etiquetaEstadoMuestra($s['estado'])) ?></div>
       </div>
-      <?php if ($s['estado'] === 'embarcada'): ?>
+      <?php if ($s['estado'] === 'en_preparacion' && textoPreparacionMuestra($s)): ?>
+        <div class="mu-estado-extra"><i class="bi <?= $s['preparacion'] === 'pt' ? 'bi-box-seam' : 'bi-gear' ?>"></i> <?= e(textoPreparacionMuestra($s)) ?></div>
+      <?php elseif ($s['estado'] === 'embarcada'): ?>
         <div class="mu-estado-extra"><i class="bi bi-truck"></i> <?= e(textoEnvioMuestra($s)) ?></div>
       <?php elseif ($s['estado'] === 'cancelada'): ?>
         <div class="mu-estado-extra"><i class="bi bi-x-circle"></i> <?= e($s['motivo_cancelacion']) ?></div>
@@ -91,11 +93,36 @@ $TXT_HISTORIAL = [
       <div class="mu-sec-titulo">¿Qué sigue?</div>
       <div class="mu-botones">
         <?php if (in_array('en_preparacion', $siguientes, true)): ?>
-          <button type="button" class="v26-btn v26-btn-ghost" data-accion="en_preparacion"><i class="bi bi-box-seam"></i> Marcar en preparación</button>
+          <button type="button" class="v26-btn v26-btn-ghost" data-abrir="form-preparacion"><i class="bi bi-box-seam"></i> Marcar en preparación</button>
+        <?php endif; ?>
+        <?php if ($s['estado'] === 'en_preparacion' && ($s['preparacion'] ?? '') === 'por_programar'): ?>
+          <button type="button" class="v26-btn v26-btn-ghost" data-accion="pasar_pt"><i class="bi bi-box-seam"></i> Ya está en Producto Terminado</button>
         <?php endif; ?>
         <button type="button" class="v26-btn v26-btn-primary" data-abrir="form-embarcada"><i class="bi bi-truck"></i> Marcar embarcada</button>
         <button type="button" class="v26-btn mu-btn-cancelar" data-abrir="form-cancelar"><i class="bi bi-x-circle"></i> Cancelar</button>
       </div>
+
+      <?php if (in_array('en_preparacion', $siguientes, true)): ?>
+      <form id="form-preparacion" class="mu-form d-none">
+        <div class="v26-field">
+          <label>¿De dónde sale la muestra?</label>
+          <div class="mu-tipos" id="seg-preparacion">
+            <button type="button" class="v26-seg-btn mu-tipo active" data-prep="pt">
+              <i class="bi bi-box-seam"></i><strong>En Producto Terminado</strong><small>Ya hay en almacén; solo falta preparar el envío</small>
+            </button>
+            <button type="button" class="v26-seg-btn mu-tipo" data-prep="por_programar">
+              <i class="bi bi-gear"></i><strong>Por programar</strong><small>Hay que mandarla a fabricar</small>
+            </button>
+          </div>
+        </div>
+        <div class="v26-field d-none" id="campo-fecha-estimada">
+          <label>Fecha estimada para tenerla lista <span class="mu-opc">(opcional)</span></label>
+          <input type="date" id="fecha_estimada" class="v26-input">
+        </div>
+        <p class="mu-nota">Al guardar, a <?= e($s['vendedor_nombre']) ?> le llega un aviso que explica si ya hay en almacén o si se va a fabricar.</p>
+        <button type="submit" class="v26-btn v26-btn-primary v26-btn-block">Guardar en preparación</button>
+      </form>
+      <?php endif; ?>
 
       <form id="form-embarcada" class="mu-form d-none">
         <div class="v26-field">
@@ -161,8 +188,10 @@ $TXT_HISTORIAL = [
     <div class="v26-card">
       <div class="mu-sec-titulo">Quién la pide</div>
       <dl class="mu-datos">
-        <dt>Vendedor</dt><dd><?= e($s['vendedor_nombre']) ?></dd>
         <dt>Cliente</dt><dd><?= e($s['cliente_nombre']) ?></dd>
+        <dt>Contacto del cliente</dt><dd><?= !empty($s['cliente_contacto']) ? e($s['cliente_contacto']) : '<span class="text-muted">Sin registro</span>' ?></dd>
+        <dt>Tel. del cliente</dt><dd><?= !empty($s['cliente_telefono']) ? '<a href="tel:' . e(preg_replace('/\D/', '', $s['cliente_telefono'])) . '">' . e($s['cliente_telefono']) . '</a>' : '<span class="text-muted">Sin registro</span>' ?></dd>
+        <dt>Vendedor</dt><dd><?= e($s['vendedor_nombre']) ?></dd>
       </dl>
       <div class="mu-contacto">
         <?php if ($telLimpio): ?>
@@ -224,13 +253,35 @@ async function cambiarEstado(estado, extra, boton) {
   }
 }
 
-document.querySelectorAll('[data-accion="en_preparacion"]').forEach(b =>
-  b.addEventListener('click', () => cambiarEstado('en_preparacion', {}, b)));
+// "Por programar" que ya se fabricó: pasa a "En Producto Terminado".
+document.querySelectorAll('[data-accion="pasar_pt"]').forEach(b =>
+  b.addEventListener('click', () => cambiarEstado('en_preparacion', { preparacion: 'pt' }, b)));
 
 document.querySelectorAll('[data-abrir]').forEach(b => b.addEventListener('click', () => {
-  ['form-embarcada', 'form-cancelar'].forEach(id =>
-    document.getElementById(id).classList.toggle('d-none', id !== b.dataset.abrir || !document.getElementById(id).classList.contains('d-none')));
+  ['form-preparacion', 'form-embarcada', 'form-cancelar'].forEach(id => {
+    const f = document.getElementById(id);
+    if (f) f.classList.toggle('d-none', id !== b.dataset.abrir || !f.classList.contains('d-none'));
+  });
 }));
+
+// En preparación: En Producto Terminado o Por programar (con fecha estimada opcional).
+let prepElegida = 'pt';
+const formPrep = document.getElementById('form-preparacion');
+if (formPrep) {
+  const hoyMx = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+  document.getElementById('fecha_estimada').min = hoyMx;
+  document.querySelectorAll('#seg-preparacion .v26-seg-btn').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('#seg-preparacion .v26-seg-btn').forEach(x => x.classList.toggle('active', x === b));
+    prepElegida = b.dataset.prep;
+    document.getElementById('campo-fecha-estimada').classList.toggle('d-none', prepElegida !== 'por_programar');
+  }));
+  formPrep.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const extra = { preparacion: prepElegida };
+    if (prepElegida === 'por_programar') extra.fecha_estimada = document.getElementById('fecha_estimada').value;
+    cambiarEstado('en_preparacion', extra, e.submitter);
+  });
+}
 
 let modoEnvio = 'paqueteria';
 document.querySelectorAll('#seg-envio .v26-seg-btn').forEach(b => b.addEventListener('click', () => {

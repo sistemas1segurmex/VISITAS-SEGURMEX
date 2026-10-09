@@ -166,7 +166,13 @@ function trackMuestraHTML(m) {
 function textoEstadoMuestra(m) {
   // Al vendedor externo no se le muestra quién atiende (ver includes/muestras.php).
   if (m.estado === 'enviada') return 'Tu solicitud ya está con el equipo de Segurmex. Te avisaremos cuando empiece a prepararla.';
-  if (m.estado === 'en_preparacion') return 'El equipo de Segurmex ya la está preparando. Te avisaremos cuando se embarque.';
+  if (m.estado === 'en_preparacion') {
+    if (m.preparacion === 'pt') return '<i class="bi bi-box-seam"></i> Ya hay en almacén (Producto Terminado): se está preparando el envío. Te avisaremos cuando se embarque.';
+    if (m.preparacion === 'por_programar') return '<i class="bi bi-gear"></i> No hay en almacén: se va a fabricar.'
+      + (m.fecha_estimada_pt ? ` Fecha estimada para tenerla lista: <strong>${fechaCorta(m.fecha_estimada_pt)}</strong>.` : '')
+      + ' Te avisaremos cuando esté lista y cuando se embarque.';
+    return 'El equipo de Segurmex ya la está preparando. Te avisaremos cuando se embarque.';
+  }
   if (m.estado === 'embarcada') return `<i class="bi bi-truck"></i> ${escHtml(textoEnvioMuestra(m))}`;
   return '';
 }
@@ -185,6 +191,7 @@ function metaMuestraHTML(m) {
 function detalleMuestraHTML(m) {
   const filas = [];
   filas.push(`<div>Solicitada el <strong>${fechaCorta(m.created_at)}</strong></div>`);
+  if (m.contacto_nombre || m.contacto_telefono) filas.push(`<div>Contacto: <strong>${escHtml([m.contacto_nombre, m.contacto_telefono].filter(Boolean).join(' · '))}</strong></div>`);
   if (m.motivo) filas.push(`<div>Motivo: <strong>${escHtml(m.motivo)}</strong></div>`);
   if (m.tiempo_prueba_dias) filas.push(`<div>Tiempo de prueba: <strong>${m.tiempo_prueba_dias} ${m.tiempo_prueba_dias === 1 ? 'día' : 'días'}</strong></div>`);
   if (m.notas_planta) filas.push(`<div>Notas para planta: <strong>${escHtml(m.notas_planta)}</strong></div>`);

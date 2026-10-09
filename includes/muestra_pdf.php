@@ -51,7 +51,7 @@ function htmlPdfMuestra(array $s, array $historial, bool $conNombres): string {
     $clases = ['enviada' => 'ojo', 'en_preparacion' => 'ojo', 'embarcada' => 'ok', 'cancelada' => 'no'];
     $detalleEstado = [
         'enviada'        => 'Recibida, pendiente de atender.',
-        'en_preparacion' => 'Se está preparando.',
+        'en_preparacion' => (textoPreparacionMuestra($s) ?? 'Se está preparando') . '.',
         'embarcada'      => 'Enviada: ' . textoEnvioMuestra($s) . '.',
         'cancelada'      => 'Motivo: ' . ($s['motivo_cancelacion'] ?? ''),
     ];
