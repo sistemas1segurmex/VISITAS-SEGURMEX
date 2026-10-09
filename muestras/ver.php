@@ -145,7 +145,8 @@ $TXT_HISTORIAL = [
         </dd>
         <?php endif; ?>
         <dt>Fecha promesa</dt><dd><?= $s['fecha_promesa'] ? e(date('d/m/Y', strtotime($s['fecha_promesa']))) : '<span class="text-muted">Sin fecha</span>' ?></dd>
-        <dt>Entregar en</dt><dd><?= nl2br(e($s['destino_direccion'])) ?></dd>
+        <dt>Entregar a</dt><dd><?= e(textoEntregarAMuestra($s)) ?></dd>
+        <dt>Dirección</dt><dd><?= nl2br(e($s['destino_direccion'])) ?></dd>
       </dl>
     </div>
 
