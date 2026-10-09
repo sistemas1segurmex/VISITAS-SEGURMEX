@@ -494,3 +494,51 @@ function leyendaAtributosDeLineasErp(array $lineas): array {
     foreach (array_keys($presentes) as $cod) if (!isset($leyenda[$cod])) $leyenda[$cod] = $cod;
     return $leyenda;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bloques fijos de la cotización (09-oct-2026), tomados del cotizador anterior
+// (cotizador.segurmex.com.mx): datos de la fábrica para el pie y «Ventajas
+// SEGURMEX». COPIA (con sufijo Erp) de erp/cotizacion/_helpers.php; aquí se
+// usan en el PDF de VISITAS (includes/cotizacion_pdf.php). Si cambias un
+// texto, cámbialo en los dos repos.
+// ─────────────────────────────────────────────────────────────────────────────
+const COTIZACION_EMPRESA_ERP = [
+    'nombre'    => 'SEGURMEX',
+    'giro'      => 'Calzado de Seguridad Industrial',
+    'direccion' => 'Blvd. San Juan Bosco 1703-D, Col. Vista Hermosa',
+    'ciudad'    => 'CP 37330, León, Gto.',
+    'rfc'       => 'CSA140304QC8',
+    'web'       => 'www.segurmex.com.mx',
+];
+
+const COTIZACION_VENTAJAS_ERP = [
+    'Fabricación directa (sin intermediarios)',
+    'Tiempos de entrega de 3 a 8 días hábiles',
+    'Garantía de 5 meses contra defectos de fabricación',
+    'Flexibilidad en cambios de talla',
+    'Stock disponible para entrega inmediata en algunos modelos',
+    'Corridas del 22 al 32',
+];
+
+/**
+ * Descuentos que se aplicaron, con su porcentaje, para que el cliente vea
+ * por qué el precio sale tachado (el cotizador anterior lo mostraba así).
+ * Los % salen de cotizaciones.desc_*_aplicado (fracción: 0.10 = 10 %), que
+ * se congelan al guardar; si una cotización vieja no los trae, sale sin %.
+ * Regresa textos listos, p. ej. «Mayoreo SEGURMEX aplicado (−10 %) · 46 pares».
+ */
+function descuentosAplicadosCotizacionErp(array $cot): array {
+    $pct = function ($v): string {
+        $p = round((float)$v * 100, 2);
+        return $p > 0 ? ' (−' . rtrim(rtrim(number_format($p, 2), '0'), '.') . ' %)' : '';
+    };
+    $out = [];
+    if (!empty($cot['aplica_mayoreo'])) {
+        $out[] = 'Mayoreo SEGURMEX aplicado' . $pct($cot['desc_mayoreo_aplicado'] ?? 0)
+               . ' · ' . (int)($cot['total_pares'] ?? 0) . ' pares';
+    }
+    if (!empty($cot['pronto_pago'])) {
+        $out[] = 'Pronto pago aplicado' . $pct($cot['desc_pronto_pago_aplicado'] ?? 0);
+    }
+    return $out;
+}

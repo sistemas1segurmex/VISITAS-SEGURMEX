@@ -60,7 +60,7 @@ function pdfFotoModelo(?string $foto): string {
  * del ERP donde el cliente acepta o rechaza; solo se pone mientras la
  * cotización sigue abierta.
  *
- * $extra (opcional): 'vend_tel', 'vend_email' (contacto del vendedor) y
+ * $extra (opcional): 'vend_tel', 'vend_email', 'vend_zona' (contacto del vendedor) y
  * 'fecha_resuelta' (d/m/Y en que se aceptó/rechazó, del historial).
  */
 function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string $urlResponder, array $extra = []): string {
@@ -118,6 +118,23 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
         $estadoHtml = '<table class="estado ' . $estadoHtml[0] . '"><tr><td><b>' . $estadoHtml[1] . '</b><br>' . $estadoHtml[2] . '</td></tr></table>';
     }
 
+    // Desglose de descuentos (bajo el subtotal), ventajas y datos de la fábrica:
+    // textos fijos en includes/cotizador_helpers.php (copia de los del ERP).
+    $descFilas = '';
+    foreach (descuentosAplicadosCotizacionErp($cot) as $txt) {
+        $descFilas .= '<tr class="desc"><td colspan="2">✓ ' . pdfH($txt) . '</td></tr>';
+    }
+    $vent = COTIZACION_VENTAJAS_ERP;
+    $mitad = (int)ceil(count($vent) / 2);
+    $col = fn(array $xs) => implode('', array_map(fn($v) => '<div class="vi">• ' . pdfH($v) . '</div>', $xs));
+    $ventajas = '
+    <table class="ventajas"><tr><td colspan="2" class="vl">Ventajas SEGURMEX</td></tr>
+      <tr><td>' . $col(array_slice($vent, 0, $mitad)) . '</td><td>' . $col(array_slice($vent, $mitad)) . '</td></tr>
+    </table>';
+    $emp = COTIZACION_EMPRESA_ERP;
+    $empresa = '<div class="lbl">' . pdfH($emp['nombre']) . ' · Fábrica</div>'
+        . '<div class="sub">' . pdfH($emp['direccion']) . '<br>' . pdfH($emp['ciudad']) . '<br>' . pdfH($emp['web']) . ' · RFC ' . pdfH($emp['rfc']) . '</div>';
+
     // Contacto del vendedor.
     $tel  = preg_replace('/\D+/', '', (string)($extra['vend_tel'] ?? ''));
     $mail = (string)($extra['vend_email'] ?? '');
@@ -125,12 +142,15 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
     $datosVend = [];
     if ($tel !== '')  $datosVend[] = 'Tel. ' . pdfH(pdfTelefono($tel));
     if ($mail !== '') $datosVend[] = '<a href="mailto:' . pdfH($mail) . '">' . pdfH($mail) . '</a>';
+    $zona = trim((string)($extra['vend_zona'] ?? ''));
     $waTxt = 'Hola' . ($atiende !== '' ? ' ' . $atiende : '') . ', le escribo sobre la cotización ' . ($cot['folio'] ?? '') . '.';
     $contacto = '
     <table class="contacto"><tr>
+      <td class="emp">' . $empresa . '</td>
       <td><div class="lbl">¿Dudas? Le atiende</div>
         <div class="nom">' . pdfH($atiende !== '' ? $atiende : 'Ventas SEGURMEX') . '</div>'
-        . ($datosVend ? '<div class="sub">' . implode(' · ', $datosVend) . '</div>' : '') . '</td>'
+        . ($datosVend ? '<div class="sub">' . implode(' · ', $datosVend) . '</div>' : '')
+        . ($zona !== '' ? '<div class="sub">Zona: ' . pdfH($zona) . '</div>' : '') . '</td>'
       . ($wa !== '' ? '<td class="wa"><a href="https://wa.me/' . $wa . '?text=' . rawurlencode($waTxt) . '">WhatsApp</a></td>' : '') . '
     </tr></table>';
 
@@ -194,7 +214,7 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
   .tachado { text-decoration: line-through; color: #A79E86; font-size: 7pt; }
   .attr { font-size: 6.5pt; font-weight: bold; color: #8A6D14; border: 0.6pt solid #C9A227; padding: 0 3px; }
   .leyenda-attr { font-size: 6.8pt; color: #6B6249; margin: 3px 0 4px; }
-  .totales { width: 230px; margin-left: auto; margin-top: 8px; }
+  .totales { width: 280px; margin-left: auto; margin-top: 8px; }
   .totales td { padding: 3px 6px; font-size: 8.8pt; color: #4B4536; }
   .totales td.n { text-align: right; }
   .totales tr.t td { font-size: 11pt; font-weight: bold; color: #17140C; border-top: 1.5px solid #C9A227; padding-top: 6px; }
@@ -211,12 +231,19 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
   .cta-txt { font-size: 8.5pt; color: #5B4A12; }
   .cta-btn { width: 170px; text-align: right; white-space: nowrap; }
   .cta-btn a { display: inline-block; background: #C9A227; color: #17140C; font-weight: bold; text-decoration: none; padding: 7px 12px; font-size: 8.5pt; }
+  .totales tr.desc td { font-size: 7.5pt; color: #047857; padding-top: 1px; padding-bottom: 1px; }
+  .ventajas { margin-top: 14px; background: #FFFBEB; border: 1px solid #F1D98A; border-left: 3px solid #C9A227; }
+  .ventajas td { padding: 2px 12px; vertical-align: top; width: 50%; }
+  .ventajas td.vl { padding-top: 7px; font-size: 6.8pt; color: #8A6D14; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
+  .ventajas .vi { font-size: 8pt; color: #3A3526; padding: 1px 0; }
+  .ventajas tr:last-child td { padding-bottom: 7px; }
+  .contacto td.emp { width: 46%; border-right: 1px solid #E3D6B2; }
   .pie { position: fixed; bottom: -11mm; left: 0; right: 0; font-size: 6.8pt; color: #8A7A46; border-top: 1px solid #E3D6B2; padding-top: 4px; }
   .pie td { font-size: 6.8pt; color: #8A7A46; }
 </style></head><body>
 
 <div class="pie"><table><tr>
-  <td>SEGURMEX · ' . pdfH($cot['folio']) . '</td>
+  <td>SEGURMEX · ' . pdfH(COTIZACION_EMPRESA_ERP['giro']) . ' · ' . pdfH($cot['folio']) . '</td>
   <td style="text-align:right">Cotización sujeta a cambios sin previo aviso · Generada el ' . date('d/m/Y') . '</td>
 </tr></table></div>
 
@@ -255,7 +282,7 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
   <tbody>' . $filas . '</tbody>
 </table>' . $leyenda . '
 <table class="totales">
-  <tr><td>Subtotal</td><td class="n">' . money($cot['subtotal']) . '</td></tr>
+  <tr><td>Subtotal</td><td class="n">' . money($cot['subtotal']) . '</td></tr>' . $descFilas . '
   <tr><td>IVA (' . $tasa . '%)</td><td class="n">' . money($cot['iva']) . '</td></tr>
   <tr class="t"><td>Total</td><td class="n">' . money($cot['total']) . '</td></tr>
 </table>
@@ -268,7 +295,7 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
   <td class="k">Tiempo de entrega:</td><td class="v">' . pdfH($cot['tiempo_entrega'] ?: 'A confirmar') . '</td>
   <td class="k">Forma de pago:</td><td class="v">' . pdfH($cot['forma_pago'] ?: 'A confirmar') . '</td>
 </tr></table>
-' . $notas . $contacto . $responder . '
+' . $notas . $ventajas . $contacto . $responder . '
 </body></html>';
 }
 
