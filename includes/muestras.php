@@ -78,6 +78,24 @@ function textoEntregarAMuestra(array $s): string {
     return 'Al cliente' . (!empty($s['cliente_nombre']) ? ' (' . $s['cliente_nombre'] . ')' : '');
 }
 
+/** "2 pares" / "1 par". */
+function textoParesMuestra($n): string {
+    $n = max(1, (int)$n);
+    return $n . ($n === 1 ? ' par' : ' pares');
+}
+
+/** "15 días" o null si no se indicó. */
+function textoTiempoPruebaMuestra($dias): ?string {
+    if ($dias === null || $dias === '') return null;
+    $d = (int)$dias;
+    return $d . ($d === 1 ? ' día' : ' días');
+}
+
+/** Link al PDF de la solicitud (muestra_pdf.php, pide sesión). $base: '../' desde subcarpetas. */
+function urlPdfMuestra(int $id, string $base = ''): string {
+    return $base . 'muestra_pdf.php?id=' . $id;
+}
+
 function etiquetaEstadoMuestra(string $estado): string {
     return MUESTRA_ESTADOS[$estado] ?? $estado;
 }
@@ -142,9 +160,11 @@ function enviarCorreoMuestra(string $destino, string $asunto, string $html): boo
 /** Una solicitud con los datos del vendedor que la pidió. */
 function cargarSolicitudMuestra(PDO $db, int $id): ?array {
     $stmt = $db->prepare(
-        "SELECT s.*, u.nombre AS vendedor_nombre, u.email AS vendedor_email, u.telefono AS vendedor_telefono
+        "SELECT s.*, u.nombre AS vendedor_nombre, u.email AS vendedor_email, u.telefono AS vendedor_telefono,
+                c.nombre_contacto AS cliente_contacto, c.telefono AS cliente_telefono
          FROM muestras_solicitudes s
          JOIN usuarios u ON u.id = s.vendedor_id
+         LEFT JOIN clientes c ON c.id = s.cliente_id
          WHERE s.id = ?"
     );
     $stmt->execute([$id]);
@@ -215,9 +235,13 @@ function notificarNuevaSolicitudMuestra(PDO $db, array $s): void {
             'Estilo'          => $s['estilo_nombre'],
             'Color'           => $s['color'] ?? null,
             'Talla'           => $s['talla'],
+            'Cantidad'        => textoParesMuestra($s['cantidad'] ?? 1),
             'Tipo'            => $s['tipo'] === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo',
             'Cambios'         => textoCambiosMuestra($s['cambios']),
+            'Motivo'          => $s['motivo'] ?? null,
+            'Notas para planta' => $s['notas_planta'] ?? null,
             'Fecha promesa'   => $s['fecha_promesa'] ? date('d/m/Y', strtotime($s['fecha_promesa'])) : null,
+            'Tiempo de prueba' => textoTiempoPruebaMuestra($s['tiempo_prueba_dias'] ?? null),
             'Entregar a'      => textoEntregarAMuestra($s),
             'Dirección'       => $s['destino_direccion'],
         ],
@@ -254,7 +278,7 @@ function notificarCambioEstadoMuestra(PDO $db, array $s): void {
     crearAviso($db, (int)$s['vendedor_id'], 'muestra_' . $s['estado'], $titulo, $mensaje, $enlaceRel, (int)$s['id']);
 
     if (!empty($s['vendedor_email'])) {
-        $renglones = ['Cliente' => $s['cliente_nombre'], 'Estilo' => $s['estilo_nombre'], 'Color' => $s['color'] ?? null, 'Talla' => $s['talla']];
+        $renglones = ['Cliente' => $s['cliente_nombre'], 'Estilo' => $s['estilo_nombre'], 'Color' => $s['color'] ?? null, 'Talla' => $s['talla'], 'Cantidad' => textoParesMuestra($s['cantidad'] ?? 1)];
         if ($s['estado'] === 'embarcada') {
             $renglones['Envío'] = textoEnvioMuestra($s);
             $renglones['Entregar a'] = textoEntregarAMuestra($s);
@@ -356,6 +380,10 @@ function solicitudMuestraParaJson(array $s): array {
         'estilo_nombre'      => $s['estilo_nombre'],
         'color'              => $s['color'] ?? null,
         'talla'              => $s['talla'],
+        'cantidad'           => (int)($s['cantidad'] ?? 1),
+        'motivo'             => $s['motivo'] ?? null,
+        'notas_planta'       => $s['notas_planta'] ?? null,
+        'tiempo_prueba_dias' => isset($s['tiempo_prueba_dias']) ? (int)$s['tiempo_prueba_dias'] : null,
         'fecha_promesa'      => $s['fecha_promesa'],
         'tipo'               => $s['tipo'],
         'cambios'            => is_array($s['cambios']) ? $s['cambios'] : (json_decode($s['cambios'] ?? '[]', true) ?: []),
