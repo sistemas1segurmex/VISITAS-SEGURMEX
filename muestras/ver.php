@@ -17,6 +17,8 @@ if (!$s) {
 }
 $historial = historialSolicitudMuestra($db, (int)$s['id']);
 $siguientes = MUESTRA_TRANSICIONES[$s['estado']] ?? [];
+$conAcciones = $puedeCambiar && $siguientes;
+$abierta = in_array($s['estado'], ['enviada', 'en_preparacion'], true);
 
 // Al abrirla, sus avisos de "nueva solicitud" quedan como leídos.
 if ($puedeCambiar) {
@@ -25,16 +27,123 @@ if ($puedeCambiar) {
 }
 
 function e($v): string { return htmlspecialchars((string)$v); }
+
+// Foto, línea y atributo (PP+D...) del estilo: del mismo catálogo del ERP que
+// usa el PDF (datosCatalogoMuestraPdf). Si el ERP no responde, sale sin foto.
+$cat = ['foto' => '', 'atributo' => '', 'grupo' => ''];
+$itemCat = !empty($s['id_estilo_erp']) ? 'e:' . (int)$s['id_estilo_erp']
+         : (!empty($s['id_modelo_legacy']) ? 'm:' . (int)$s['id_modelo_legacy'] : null);
+if ($itemCat) {
+    try {
+        require_once __DIR__ . '/../includes/db_erp.php';
+        $ec = catalogoParaMuestraErp($itemCat);
+        if ($ec) {
+            $cat['foto']     = basename((string)($ec['foto'] ?? ''));
+            $cat['atributo'] = (string)($ec['atributo'] ?? '');
+            $cat['grupo']    = ($ec['grupo'] ?? '') === 'Estilos del ERP' ? '' : (string)($ec['grupo'] ?? '');
+        }
+    } catch (Throwable $ex) {
+        error_log('[VISITAS] Detalle muestra (catálogo): ' . $ex->getMessage());
+    }
+}
+// "5006 — Elite Safety — Piel..." -> clave grande y el resto como descripción.
+$partesEstilo = explode(' — ', (string)$s['estilo_nombre'], 2);
+$clave = $partesEstilo[0];
+$descEstilo = $partesEstilo[1] ?? '';
+
+// Fechas en hora de México (la base guarda los timestamps en UTC).
+$tzMx = new DateTimeZone('America/Mexico_City');
+$hoyMx = new DateTime('today', $tzMx);
+const MD_MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function mdFechaCorta(DateTime $d, bool $anio = false): string {
+    return $d->format('j') . ' ' . MD_MESES[(int)$d->format('n') - 1] . ($anio ? ' ' . $d->format('Y') : '');
+}
+function mdDesdeUtc(?string $v, DateTimeZone $tz): ?DateTime {
+    if (!$v) return null;
+    try { return (new DateTime($v, new DateTimeZone('UTC')))->setTimezone($tz); } catch (Throwable $e) { return null; }
+}
+function mdDia(?string $v, DateTimeZone $tz): ?DateTime {
+    if (!$v) return null;
+    try { return new DateTime(substr($v, 0, 10), $tz); } catch (Throwable $e) { return null; }
+}
+$creada = mdDesdeUtc($s['created_at'] ?? null, $tzMx);
+$cerrada = mdDesdeUtc($s['actualizada_en'] ?? null, $tzMx);
+$promesa = mdDia($s['fecha_promesa'] ?? null, $tzMx);
+
+// Avisos del encabezado: mismas reglas que la bandeja (muestras/index.php).
+$chips = [];
+if ($abierta && $creada) {
+    $dias = (int)floor((time() - $creada->getTimestamp()) / 86400);
+    $chips[] = [$dias >= 3 ? 'rojo' : ($dias >= 1 ? 'ambar' : 'verde'), 'bi-hourglass-split',
+                $dias === 0 ? 'Pedida hoy' : 'Esperando ' . ($dias === 1 ? '1 día' : $dias . ' días')];
+}
+if ($promesa) {
+    $dp = (int)$hoyMx->diff($promesa)->format('%r%a');
+    if ($abierta && $dp < 0)       $chips[] = ['rojo', 'bi-alarm', 'Promesa vencida · ' . mdFechaCorta($promesa)];
+    elseif ($abierta && $dp <= 2)  $chips[] = ['ambar', 'bi-alarm', 'Promesa ' . ($dp === 0 ? 'hoy' : ($dp === 1 ? 'mañana' : 'en ' . $dp . ' días')) . ' · ' . mdFechaCorta($promesa)];
+    elseif ($abierta)              $chips[] = ['', 'bi-calendar-event', 'Promesa ' . mdFechaCorta($promesa)];
+}
+if ($s['estado'] === 'embarcada' && $cerrada) $chips[] = ['verde', 'bi-check2-circle', 'Embarcada el ' . mdFechaCorta($cerrada)];
+if ($s['estado'] === 'cancelada' && $cerrada) $chips[] = ['', 'bi-x-circle', 'Cancelada el ' . mdFechaCorta($cerrada)];
+$chips[] = ['', $s['tipo'] === 'variante' ? 'bi-shuffle' : 'bi-check2-square', $s['tipo'] === 'variante' ? 'Variante' : 'Idéntico al estilo'];
+
+$PILL = [
+    'enviada'        => ['nueva', 'bi-inbox-fill', 'Nueva · sin atender'],
+    'en_preparacion' => ['prep', 'bi-gear-fill', 'En preparación'],
+    'embarcada'      => ['emb', 'bi-truck', 'Embarcada'],
+    'cancelada'      => ['can', 'bi-x-circle-fill', 'Cancelada'],
+][$s['estado']] ?? ['nueva', 'bi-inbox-fill', etiquetaEstadoMuestra($s['estado'])];
+
+// Barra de avance: Enviada -> En preparación -> Embarcada (o Cancelada).
+$pasoPorPreparacion = false;
+foreach ($historial as $h) if ($h['estado'] === 'en_preparacion') $pasoPorPreparacion = true;
+$detallePrep = null;
+if (($s['preparacion'] ?? '') === 'pt') $detallePrep = 'En Producto Terminado';
+elseif (($s['preparacion'] ?? '') === 'por_programar') {
+    $fe = mdDia($s['fecha_estimada_pt'] ?? null, $tzMx);
+    $detallePrep = 'Por programar' . ($fe ? ' · est. ' . mdFechaCorta($fe) : '');
+}
+$pasoPrep = '';
+if ($s['estado'] === 'en_preparacion') $pasoPrep = 'actual';
+elseif (in_array($s['estado'], ['embarcada', 'cancelada'], true)) $pasoPrep = $pasoPorPreparacion ? 'hecho' : 'omitido';
+
+// Muestra
+$COLOR_MUESTRA = ['NEGRO' => '#1F1F1F', 'CAFE' => '#6B4423', 'CHOCOLATE' => '#4A2C1A', 'MIEL' => '#C68E3F', 'CAMEL' => '#B5813F',
+                  'GRIS' => '#8A8F98', 'AZUL' => '#1E3A8A', 'MARINO' => '#1E2A4A', 'ROJO' => '#B91C1C', 'BLANCO' => '#FFFFFF',
+                  'AMARILLO' => '#E8A400', 'VERDE' => '#166534', 'BEIGE' => '#D8C3A5', 'ARENA' => '#D8C3A5', 'TAN' => '#C19A6B'];
+$swatch = null;
+if (!empty($s['color'])) {
+    $colorPlano = strtr(mb_strtoupper((string)$s['color']), ['Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U']);
+    foreach ($COLOR_MUESTRA as $nombre => $hex) if (strpos($colorPlano, $nombre) !== false) { $swatch = $hex; break; }
+}
+$ICONO_CAMBIO = ['casco' => 'bi-shield-shaded', 'suela' => 'bi-layers', 'piel' => 'bi-palette', 'forro' => 'bi-columns-gap'];
+
+// Contactos
+function mdIniciales(string $n): string {
+    $p = preg_split('/\s+/', trim($n)) ?: [];
+    $ini = '';
+    foreach (array_slice($p, 0, 2) as $x) $ini .= mb_strtoupper(mb_substr($x, 0, 1));
+    return $ini ?: '?';
+}
+function mdWhats(string $tel): string { return 'https://wa.me/' . (strlen($tel) === 10 ? '52' . $tel : $tel); }
 $telLimpio = preg_replace('/\D/', '', (string)$s['vendedor_telefono']);
+$telCliente = preg_replace('/\D/', '', (string)($s['cliente_telefono'] ?? ''));
 $correoAsunto = 'Muestra ' . $s['folio'];
 $correoTexto  = 'Hola ' . $s['vendedor_nombre'] . ', te escribo sobre tu solicitud de muestra ' . $s['folio']
               . ' (' . $s['estilo_nombre'] . (!empty($s['color']) ? ', ' . $s['color'] : '') . ') para ' . $s['cliente_nombre'] . ".\n\n";
-$whats = $telLimpio ? 'https://wa.me/' . (strlen($telLimpio) === 10 ? '52' . $telLimpio : $telLimpio) : null;
+
+// Historial
 $TXT_HISTORIAL = [
     'enviada'        => 'Solicitud enviada',
-    'en_preparacion' => 'Marcada en preparación',
-    'embarcada'      => 'Marcada como embarcada',
+    'en_preparacion' => 'En preparación',
+    'embarcada'      => 'Embarcada',
     'cancelada'      => 'Cancelada',
+];
+$ICONO_HISTORIAL = [
+    'enviada'        => ['', 'bi-send-fill'],
+    'en_preparacion' => ['p', 'bi-gear-fill'],
+    'embarcada'      => ['e', 'bi-truck'],
+    'cancelada'      => ['c', 'bi-x-lg'],
 ];
 ?>
 <!doctype html>
@@ -56,7 +165,7 @@ $TXT_HISTORIAL = [
       <div class="v26-topbar-left">
         <a href="index.php" class="v26-back" aria-label="Volver a la bandeja"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
-          <div class="hi">Solicitud de muestra</div>
+          <div class="hi">Solicitudes de muestra</div>
           <div class="name"><?= e($s['folio']) ?></div>
         </div>
       </div>
@@ -67,155 +176,241 @@ $TXT_HISTORIAL = [
     </div>
   </div>
 
-  <div class="v26-wrap mu-wrap">
+  <div class="v26-wrap md-wrap">
     <div id="msg"></div>
 
-    <div class="mu-estado-actual mu-estado-actual--<?= e($s['estado']) ?>">
-      <div>
-        <div class="mu-estado-label">Estado</div>
-        <div class="mu-estado-valor"><?= $s['estado'] === 'enviada' ? 'Nueva · sin atender' : e(etiquetaEstadoMuestra($s['estado'])) ?></div>
-      </div>
-      <?php if ($s['estado'] === 'en_preparacion' && textoPreparacionMuestra($s)): ?>
-        <div class="mu-estado-extra"><i class="bi <?= $s['preparacion'] === 'pt' ? 'bi-box-seam' : 'bi-gear' ?>"></i> <?= e(textoPreparacionMuestra($s)) ?></div>
-      <?php elseif ($s['estado'] === 'embarcada'): ?>
-        <div class="mu-estado-extra"><i class="bi bi-truck"></i> <?= e(textoEnvioMuestra($s)) ?>
-          <?php if (!empty($s['guia_url'])): ?> · <a href="<?= e($s['guia_url']) ?>" target="_blank" rel="noopener">Rastrear envío <i class="bi bi-box-arrow-up-right"></i></a><?php endif; ?>
-        </div>
-      <?php elseif ($s['estado'] === 'cancelada'): ?>
-        <div class="mu-estado-extra"><i class="bi bi-x-circle"></i> <?= e($s['motivo_cancelacion']) ?></div>
-      <?php endif; ?>
-    </div>
-
-    <div class="mu-botones mb-3">
-      <a href="<?= e(urlPdfMuestra((int)$s['id'], '../')) ?>" class="v26-btn v26-btn-ghost" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a>
-    </div>
-
-    <?php if ($puedeCambiar && $siguientes): ?>
-    <div class="v26-card mu-acciones">
-      <div class="mu-sec-titulo">¿Qué sigue?</div>
-      <div class="mu-botones">
-        <?php if (in_array('en_preparacion', $siguientes, true)): ?>
-          <button type="button" class="v26-btn v26-btn-ghost" data-abrir="form-preparacion"><i class="bi bi-box-seam"></i> Marcar en preparación</button>
-        <?php endif; ?>
-        <?php if ($s['estado'] === 'en_preparacion' && ($s['preparacion'] ?? '') === 'por_programar'): ?>
-          <button type="button" class="v26-btn v26-btn-ghost" data-accion="pasar_pt"><i class="bi bi-box-seam"></i> Ya está en Producto Terminado</button>
-        <?php endif; ?>
-        <button type="button" class="v26-btn v26-btn-primary" data-abrir="form-embarcada"><i class="bi bi-truck"></i> Marcar embarcada</button>
-        <button type="button" class="v26-btn mu-btn-cancelar" data-abrir="form-cancelar"><i class="bi bi-x-circle"></i> Cancelar</button>
-      </div>
-
-      <?php if (in_array('en_preparacion', $siguientes, true)): ?>
-      <form id="form-preparacion" class="mu-form d-none">
-        <div class="v26-field">
-          <label>¿De dónde sale la muestra?</label>
-          <div class="mu-tipos" id="seg-preparacion">
-            <button type="button" class="v26-seg-btn mu-tipo active" data-prep="pt">
-              <i class="bi bi-box-seam"></i><strong>En Producto Terminado</strong><small>Ya hay en almacén; solo falta preparar el envío</small>
-            </button>
-            <button type="button" class="v26-seg-btn mu-tipo" data-prep="por_programar">
-              <i class="bi bi-gear"></i><strong>Por programar</strong><small>Hay que mandarla a fabricar</small>
-            </button>
+    <!-- Encabezado: folio, estado, avisos y avance -->
+    <section class="md-hero">
+      <div class="md-hero-row">
+        <div>
+          <div class="md-eyebrow"><i class="bi bi-box-seam"></i> Solicitud de muestra</div>
+          <div class="md-folio"><?= e($s['folio']) ?>
+            <span class="md-pill md-pill--<?= $PILL[0] ?>"><i class="bi <?= $PILL[1] ?>"></i> <?= e($PILL[2]) ?></span>
           </div>
-        </div>
-        <div class="v26-field d-none" id="campo-fecha-estimada">
-          <label>Fecha estimada para tenerla lista <span class="mu-opc">(opcional)</span></label>
-          <input type="date" id="fecha_estimada" class="v26-input">
-        </div>
-        <p class="mu-nota">Al guardar, a <?= e($s['vendedor_nombre']) ?> le llega un aviso que explica si ya hay en almacén o si se va a fabricar.</p>
-        <button type="submit" class="v26-btn v26-btn-primary v26-btn-block">Guardar en preparación</button>
-      </form>
-      <?php endif; ?>
-
-      <form id="form-embarcada" class="mu-form d-none">
-        <div class="v26-field">
-          <label>¿Cómo se envió?</label>
-          <div class="v26-seg" id="seg-envio">
-            <button type="button" class="v26-seg-btn active" data-modo="paqueteria">Por paquetería</button>
-            <button type="button" class="v26-seg-btn" data-modo="en_persona">Entregada en persona</button>
-          </div>
-        </div>
-        <div id="campos-paqueteria">
-          <div class="v26-field">
-            <label>Link de la guía</label>
-            <input type="url" id="guia_url" class="v26-input" maxlength="1000" inputmode="url" placeholder="Pega aquí el link de rastreo" autocomplete="off">
-          </div>
-        </div>
-        <p class="mu-nota">Al guardar, a <?= e($s['vendedor_nombre']) ?> le llega un aviso con el link para rastrear su muestra.</p>
-        <button type="submit" class="v26-btn v26-btn-primary v26-btn-block">Guardar como embarcada</button>
-      </form>
-
-      <form id="form-cancelar" class="mu-form d-none">
-        <div class="v26-field">
-          <label>Motivo de la cancelación</label>
-          <textarea id="motivo" class="v26-textarea" rows="2" maxlength="500" placeholder="Ej. No hay ese estilo en esa talla"></textarea>
-        </div>
-        <p class="mu-nota">El vendedor verá este motivo. Una solicitud cancelada ya no se puede reabrir.</p>
-        <button type="submit" class="v26-btn mu-btn-cancelar v26-btn-block">Cancelar solicitud</button>
-      </form>
-    </div>
-    <?php endif; ?>
-
-    <div class="v26-card">
-      <div class="mu-sec-titulo">Muestra</div>
-      <dl class="mu-datos">
-        <dt>Estilo</dt><dd><?= e($s['estilo_nombre']) ?></dd>
-        <?php if (!empty($s['color'])): ?><dt>Color</dt><dd><?= e($s['color']) ?></dd><?php endif; ?>
-        <dt>Talla</dt><dd><?= $s['talla'] ? e($s['talla']) : '<span class="text-muted">No la indicó</span>' ?></dd>
-        <dt>Cantidad</dt><dd><?= e(textoParesMuestra($s['cantidad'] ?? 1)) ?></dd>
-        <dt>Tipo</dt><dd><?= $s['tipo'] === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo' ?></dd>
-        <?php if ($s['cambios']): ?>
-        <dt>Cambios</dt>
-        <dd>
-          <ul class="mu-cambios">
-            <?php foreach ($s['cambios'] as $c):
-              $cat = ($c['categoria'] ?? '') === 'otro' ? ($c['categoria_otro'] ?? 'Otro') : (MUESTRA_CATEGORIAS_CAMBIO[$c['categoria'] ?? ''] ?? ($c['categoria'] ?? '')); ?>
-              <li><strong><?= e($cat) ?>:</strong> <?= e($c['descripcion'] ?? '') ?></li>
+          <div class="md-hero-sub"><?= e($s['vendedor_nombre']) ?> la pidió para <b><?= e($s['cliente_nombre']) ?></b><?php if ($creada): ?> · <?= e(mdFechaCorta($creada, true)) ?>, <?= e($creada->format('H:i')) ?><?php endif; ?></div>
+          <div class="md-hero-chips">
+            <?php foreach ($chips as [$clase, $icono, $texto]): ?>
+              <span class="md-hchip<?= $clase ? ' md-hchip--' . $clase : '' ?>"><i class="bi <?= $icono ?>"></i> <?= e($texto) ?></span>
             <?php endforeach; ?>
-          </ul>
-        </dd>
-        <?php endif; ?>
-        <dt>Motivo</dt><dd><?= !empty($s['motivo']) ? nl2br(e($s['motivo'])) : '<span class="text-muted">No lo indicó</span>' ?></dd>
-        <?php if (!empty($s['notas_planta'])): ?><dt>Notas para planta</dt><dd><?= nl2br(e($s['notas_planta'])) ?></dd><?php endif; ?>
-        <dt>Fecha promesa</dt><dd><?= $s['fecha_promesa'] ? e(date('d/m/Y', strtotime($s['fecha_promesa']))) : '<span class="text-muted">Sin fecha</span>' ?></dd>
-        <?php if (!empty($s['tiempo_prueba_dias'])): ?><dt>Tiempo de prueba</dt><dd><?= e(textoTiempoPruebaMuestra($s['tiempo_prueba_dias'])) ?></dd><?php endif; ?>
-        <dt>Entregar a</dt><dd><?= e(textoEntregarAMuestra($s)) ?></dd>
-        <dt>Dirección</dt><dd><?= nl2br(e($s['destino_direccion'])) ?></dd>
-      </dl>
-    </div>
-
-    <div class="v26-card">
-      <div class="mu-sec-titulo">Quién la pide</div>
-      <dl class="mu-datos">
-        <dt>Cliente</dt><dd><?= e($s['cliente_nombre']) ?></dd>
-        <dt>Contacto del cliente</dt><dd><?= !empty($s['cliente_contacto']) ? e($s['cliente_contacto']) : '<span class="text-muted">Sin registro</span>' ?></dd>
-        <dt>Tel. del cliente</dt><dd><?= !empty($s['cliente_telefono']) ? '<a href="tel:' . e(preg_replace('/\D/', '', $s['cliente_telefono'])) . '">' . e($s['cliente_telefono']) . '</a>' : '<span class="text-muted">Sin registro</span>' ?></dd>
-        <dt>Vendedor</dt><dd><?= e($s['vendedor_nombre']) ?></dd>
-      </dl>
-      <div class="mu-contacto">
-        <?php if ($telLimpio): ?>
-          <a class="v26-btn v26-btn-ghost" href="tel:<?= e($telLimpio) ?>"><i class="bi bi-telephone"></i> Llamar</a>
-          <a class="v26-btn v26-btn-ghost" href="<?= e($whats) ?>" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> WhatsApp</a>
-        <?php endif; ?>
-        <?php if ($s['vendedor_email']): ?>
-          <?php $mailto = urlMailto($s['vendedor_email'], $correoAsunto, $correoTexto); ?>
-          <a class="v26-btn v26-btn-ghost correo-pc" href="<?= e(urlGmailRedactar($s['vendedor_email'], $correoAsunto, $correoTexto)) ?>" target="_blank" rel="noopener"><i class="bi bi-google"></i> Gmail</a>
-          <a class="v26-btn v26-btn-ghost correo-pc" href="<?= e($mailto) ?>"><i class="bi bi-envelope"></i> Otro correo</a>
-          <a class="v26-btn v26-btn-ghost correo-movil" href="<?= e($mailto) ?>"><i class="bi bi-envelope"></i> Correo</a>
+          </div>
+        </div>
+        <a class="md-hbtn" href="<?= e(urlPdfMuestra((int)$s['id'], '../')) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a>
+      </div>
+      <div class="md-track">
+        <div class="md-paso hecho"><div class="md-ln"></div><div class="md-dot"><i class="bi bi-check-lg"></i></div><div class="md-t">Enviada</div></div>
+        <div class="md-paso <?= $pasoPrep ?>"><div class="md-ln"></div>
+          <div class="md-dot"><i class="bi <?= $pasoPrep === 'hecho' ? 'bi-check-lg' : ($pasoPrep === 'omitido' ? 'bi-dash-lg' : 'bi-box-seam') ?>"></i></div>
+          <div class="md-t">En preparación</div>
+          <?php if ($s['estado'] === 'en_preparacion' && $detallePrep): ?><div class="md-d"><?= e($detallePrep) ?></div><?php endif; ?>
+          <?php if ($pasoPrep === 'omitido'): ?><div class="md-d md-d--gris">Sin este paso</div><?php endif; ?>
+        </div>
+        <?php if ($s['estado'] === 'cancelada'): ?>
+          <div class="md-paso cancelada"><div class="md-ln"></div><div class="md-dot"><i class="bi bi-x-lg"></i></div><div class="md-t">Cancelada</div></div>
+        <?php else: ?>
+          <div class="md-paso <?= $s['estado'] === 'embarcada' ? 'hecho' : '' ?>"><div class="md-ln"></div>
+            <div class="md-dot"><i class="bi <?= $s['estado'] === 'embarcada' ? 'bi-check-lg' : 'bi-truck' ?>"></i></div><div class="md-t">Embarcada</div>
+          </div>
         <?php endif; ?>
       </div>
-    </div>
+    </section>
 
-    <div class="v26-card">
-      <div class="mu-sec-titulo">Historial</div>
-      <ol class="mu-historial">
-        <?php foreach ($historial as $h): ?>
-          <li class="mu-hist--<?= e($h['estado']) ?>">
-            <div class="mu-hist-que"><?= e($TXT_HISTORIAL[$h['estado']] ?? $h['estado']) ?><?= $h['usuario_nombre'] ? ' · ' . e($h['usuario_nombre']) : '' ?></div>
-            <?php if ($h['nota']): ?><div class="mu-hist-nota"><?= e($h['nota']) ?></div><?php endif; ?>
-            <div class="mu-hist-cuando fecha-utc" data-utc="<?= e($h['creado_en']) ?>"><?= e($h['creado_en']) ?></div>
-          </li>
-        <?php endforeach; ?>
-      </ol>
+    <div class="md-grid">
+      <!-- IZQUIERDA -->
+      <div class="md-main">
+        <div class="md-card">
+          <div class="md-sec"><i class="bi bi-box-seam"></i> Qué hay que surtir</div>
+          <div class="md-prod">
+            <div class="md-foto">
+              <?php if ($cat['foto'] !== ''): ?>
+                <img src="/erp/assets/img/cotizador/<?= e(rawurlencode($cat['foto'])) ?>" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'bi bi-box-seam'}))">
+              <?php else: ?>
+                <i class="bi bi-box-seam"></i>
+              <?php endif; ?>
+            </div>
+            <div class="md-prod-txt">
+              <?php if ($cat['grupo'] !== ''): ?><div class="md-linea"><?= e($cat['grupo']) ?></div><?php endif; ?>
+              <div class="md-clave"><?= e($clave) ?><?php if ($cat['atributo'] !== ''): ?> <span class="md-attr"><?= e($cat['atributo']) ?></span><?php endif; ?></div>
+              <?php if ($descEstilo !== ''): ?><div class="md-desc"><?= e($descEstilo) ?></div><?php endif; ?>
+              <div class="md-tipo-wrap">
+                <?php if ($s['tipo'] === 'variante'): ?>
+                  <span class="md-tipo"><i class="bi bi-shuffle"></i> Variante · con cambios</span>
+                <?php else: ?>
+                  <span class="md-tipo md-tipo--igual"><i class="bi bi-check2-square"></i> Idéntico al estilo</span>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
+          <div class="md-fichas">
+            <?php if (!empty($s['color'])): ?>
+              <div class="md-ficha"><div class="l">Color</div><div class="v"><?php if ($swatch): ?><span class="md-sw" style="background:<?= $swatch ?>"></span><?php endif; ?><?= e(mb_convert_case((string)$s['color'], MB_CASE_TITLE)) ?></div></div>
+            <?php endif; ?>
+            <div class="md-ficha"><div class="l">Talla</div><div class="v"><?= $s['talla'] ? e($s['talla']) : '<span class="md-vacio">No la indicó</span>' ?></div></div>
+            <div class="md-ficha"><div class="l">Pares</div><div class="v"><?= max(1, (int)($s['cantidad'] ?? 1)) ?></div></div>          </div>
+          <?php if ($s['cambios']): ?>
+            <div class="md-sec md-sec--sub"><i class="bi bi-tools"></i> Cambios que pide el cliente</div>
+            <div class="md-cambios">
+              <?php foreach ($s['cambios'] as $c):
+                $clv = $c['categoria'] ?? '';
+                $catTxt = $clv === 'otro' ? ($c['categoria_otro'] ?? 'Otro') : (MUESTRA_CATEGORIAS_CAMBIO[$clv] ?? $clv); ?>
+                <div class="md-cambio">
+                  <div class="ic"><i class="bi <?= $ICONO_CAMBIO[$clv] ?? 'bi-pencil-square' ?>"></i></div>
+                  <div><b><?= e($catTxt) ?></b><span><?= e($c['descripcion'] ?? '') ?></span></div>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+        </div>
+
+        <div class="md-motivo">
+          <div class="q"><i class="bi bi-chat-quote-fill"></i>
+            <?= !empty($s['motivo']) ? nl2br(e($s['motivo'])) : '<span class="md-vacio">No indicó el motivo</span>' ?>
+          </div>
+          <?php if (!empty($s['notas_planta'])): ?>
+            <div class="md-notas"><b>Notas para planta</b><?= nl2br(e($s['notas_planta'])) ?></div>
+          <?php endif; ?>
+          <div class="md-minis">
+            <span class="md-mini"><i class="bi bi-calendar-event"></i> <?= $promesa ? 'Fecha promesa: ' . e(mdFechaCorta($promesa, true)) : 'Sin fecha promesa' ?></span>
+            <?php if (!empty($s['tiempo_prueba_dias'])): ?>
+              <span class="md-mini"><i class="bi bi-stopwatch"></i> Prueba de <?= e(textoTiempoPruebaMuestra($s['tiempo_prueba_dias'])) ?></span>
+            <?php endif; ?>
+          </div>
+        </div>
+
+        <div class="md-card md-hist-card">
+          <div class="md-sec"><i class="bi bi-clock-history"></i> Historial</div>
+          <ol class="md-hist">
+            <?php foreach ($historial as $h):
+              [$cls, $ico] = $ICONO_HISTORIAL[$h['estado']] ?? ['', 'bi-dot'];
+              $esPasoPt = $h['estado'] === 'en_preparacion' && $h['nota'] === 'Ya está en Producto Terminado';
+              if ($esPasoPt) $ico = 'bi-box-seam'; ?>
+              <li>
+                <div class="hd <?= $cls ?>"><i class="bi <?= $ico ?>"></i></div>
+                <div>
+                  <div class="q"><?= $esPasoPt ? 'Ya está en Producto Terminado' : e($TXT_HISTORIAL[$h['estado']] ?? $h['estado']) ?><?= $h['usuario_nombre'] ? ' · ' . e($h['usuario_nombre']) : '' ?></div>
+                  <?php if ($h['nota'] && !$esPasoPt): ?><div class="n"><?= e($h['nota']) ?></div><?php endif; ?>
+                  <div class="c fecha-utc" data-utc="<?= e($h['creado_en']) ?>"><?= e($h['creado_en']) ?></div>
+                </div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        </div>
+      </div>
+
+      <!-- DERECHA -->
+      <aside class="md-side">
+        <?php if ($conAcciones): ?>
+        <div class="md-card md-acc">
+          <div class="md-sec"><i class="bi bi-lightning-charge-fill"></i> ¿Qué sigue?</div>
+
+          <?php if ($s['estado'] === 'enviada'): ?>
+            <p class="md-next">Revisa si hay en almacén y márcala en preparación.</p>
+            <button type="button" class="md-btn md-btn--pri" data-panel="panel-preparacion"><i class="bi bi-box-seam"></i> Marcar en preparación</button>
+            <button type="button" class="md-btn" data-panel="panel-embarcada"><i class="bi bi-truck"></i> Marcar embarcada</button>
+          <?php elseif (($s['preparacion'] ?? '') === 'por_programar'): ?>
+            <p class="md-next">Se mandó a fabricar. Cuando esté lista, márcala en Producto Terminado.</p>
+            <button type="button" class="md-btn md-btn--pri" data-accion="pasar_pt"><i class="bi bi-box-seam"></i> Ya está en Producto Terminado</button>
+            <button type="button" class="md-btn" data-panel="panel-embarcada"><i class="bi bi-truck"></i> Marcar embarcada</button>
+          <?php else: ?>
+            <p class="md-next"><?= ($s['preparacion'] ?? '') === 'pt' ? 'Ya está en almacén. Prepara el envío y márcala embarcada.' : 'Cuando salga, márcala embarcada.' ?></p>
+            <button type="button" class="md-btn md-btn--pri" data-panel="panel-embarcada"><i class="bi bi-truck"></i> Marcar embarcada</button>
+          <?php endif; ?>
+
+          <?php if (in_array('en_preparacion', $siguientes, true)): ?>
+          <form id="panel-preparacion" class="md-panel"><div class="md-panel-in">
+            <span class="md-lbl md-lbl--top">¿De dónde sale la muestra?</span>
+            <div class="md-opc" id="op-preparacion">
+              <button type="button" class="md-op on" data-valor="pt"><i class="bi bi-box-seam"></i><b>En Producto Terminado</b><small>Ya hay en almacén</small></button>
+              <button type="button" class="md-op" data-valor="por_programar"><i class="bi bi-gear"></i><b>Por programar</b><small>Hay que fabricarla</small></button>
+            </div>
+            <div id="campo-fecha-estimada" class="d-none">
+              <label class="md-lbl" for="fecha_estimada">Fecha estimada para tenerla lista (opcional)</label>
+              <input type="date" id="fecha_estimada" class="md-inp">
+            </div>
+            <p class="md-hint">A <?= e($s['vendedor_nombre']) ?> le llega un aviso que explica si ya hay en almacén o si se va a fabricar.</p>
+            <button type="submit" class="md-btn md-btn--pri">Guardar en preparación</button>
+          </div></form>
+          <?php endif; ?>
+
+          <form id="panel-embarcada" class="md-panel"><div class="md-panel-in">
+            <span class="md-lbl md-lbl--top">¿Cómo se envió?</span>
+            <div class="md-opc" id="op-envio">
+              <button type="button" class="md-op on" data-valor="paqueteria"><i class="bi bi-truck"></i><b>Por paquetería</b><small>Con link de rastreo</small></button>
+              <button type="button" class="md-op" data-valor="en_persona"><i class="bi bi-person-check"></i><b>En persona</b><small>Se entregó en mano</small></button>
+            </div>
+            <div id="campos-paqueteria">
+              <label class="md-lbl" for="guia_url">Link de la guía</label>
+              <input type="url" id="guia_url" class="md-inp" maxlength="1000" inputmode="url" placeholder="Pega aquí el link de rastreo" autocomplete="off">
+            </div>
+            <p class="md-hint">A <?= e($s['vendedor_nombre']) ?> le llega un aviso con el link para rastrear su muestra.</p>
+            <button type="submit" class="md-btn md-btn--pri">Guardar como embarcada</button>
+          </div></form>
+
+          <button type="button" class="md-cancel" data-panel="panel-cancelar"><i class="bi bi-x-circle"></i> Cancelar solicitud</button>
+          <form id="panel-cancelar" class="md-panel"><div class="md-panel-in">
+            <label class="md-lbl md-lbl--top" for="motivo">Motivo de la cancelación</label>
+            <textarea id="motivo" class="md-inp" rows="2" maxlength="500" placeholder="Ej. No hay ese estilo en esa talla"></textarea>
+            <p class="md-hint">El vendedor verá este motivo. Una solicitud cancelada ya no se puede reabrir.</p>
+            <button type="submit" class="md-btn md-btn--rojo">Cancelar solicitud</button>
+          </div></form>
+        </div>
+        <?php else: ?>
+        <div class="md-card">
+          <div class="md-sec"><i class="bi bi-flag-fill"></i> Estado</div>
+          <?php if ($s['estado'] === 'embarcada'): ?>
+            <div class="md-box md-box--ok"><i class="bi bi-check-circle-fill"></i> <span><?= e(textoEnvioMuestra($s)) ?></span>
+              <?php if (!empty($s['guia_url'])): ?><a href="<?= e($s['guia_url']) ?>" target="_blank" rel="noopener">Rastrear <i class="bi bi-box-arrow-up-right"></i></a><?php endif; ?>
+            </div>
+          <?php elseif ($s['estado'] === 'cancelada'): ?>
+            <div class="md-box md-box--can"><i class="bi bi-x-circle-fill"></i> <span><b>Cancelada</b><?= !empty($s['motivo_cancelacion']) ? e($s['motivo_cancelacion']) : '' ?></span></div>
+          <?php else: ?>
+            <div class="md-box"><i class="bi <?= $PILL[1] ?>"></i> <span><b><?= e($PILL[2]) ?></b><?= $detallePrep ? e($detallePrep) : 'La atiende la responsable de muestras.' ?></span></div>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
+
+        <div class="md-card">
+          <div class="md-sec"><i class="bi bi-geo-alt-fill"></i> Entrega</div>
+          <div class="md-fila"><div class="ic"><i class="bi bi-person-fill"></i></div><div><div class="l">Entregar a</div><div class="v"><?= e(textoEntregarAMuestra($s)) ?></div></div></div>
+          <div class="md-fila"><div class="ic"><i class="bi bi-signpost-2-fill"></i></div><div><div class="l">Dirección</div><div class="v"><?= nl2br(e($s['destino_direccion'])) ?></div></div></div>
+        </div>
+
+        <div class="md-card">
+          <div class="md-sec"><i class="bi bi-people-fill"></i> Contactos</div>
+          <div class="md-persona">
+            <div class="md-av md-av--cli"><?= e(mdIniciales((string)($s['cliente_contacto'] ?: $s['cliente_nombre']))) ?></div>
+            <div class="md-persona-txt">
+              <div class="rol">Cliente · <?= e($s['cliente_nombre']) ?></div>
+              <div class="nm"><?= !empty($s['cliente_contacto']) ? e($s['cliente_contacto']) : '<span class="md-vacio">Sin contacto registrado</span>' ?></div>
+              <?php if (!empty($s['cliente_telefono'])): ?><div class="sb"><?= e($s['cliente_telefono']) ?></div><?php endif; ?>
+            </div>
+            <?php if ($telCliente): ?>
+            <div class="md-ibtns">
+              <a class="md-ib md-ib--tel" href="tel:<?= e($telCliente) ?>" title="Llamar" aria-label="Llamar al cliente"><i class="bi bi-telephone-fill"></i></a>
+              <a class="md-ib md-ib--wa" href="<?= e(mdWhats($telCliente)) ?>" target="_blank" rel="noopener" title="WhatsApp" aria-label="WhatsApp al cliente"><i class="bi bi-whatsapp"></i></a>
+            </div>
+            <?php endif; ?>
+          </div>
+          <div class="md-persona">
+            <div class="md-av md-av--ven"><?= e(mdIniciales((string)$s['vendedor_nombre'])) ?></div>
+            <div class="md-persona-txt">
+              <div class="rol">Vendedor</div>
+              <div class="nm"><?= e($s['vendedor_nombre']) ?></div>
+              <?php if (!empty($s['vendedor_telefono'])): ?><div class="sb"><?= e($s['vendedor_telefono']) ?></div><?php endif; ?>
+            </div>
+            <div class="md-ibtns">
+              <?php if ($telLimpio): ?>
+                <a class="md-ib md-ib--tel" href="tel:<?= e($telLimpio) ?>" title="Llamar" aria-label="Llamar al vendedor"><i class="bi bi-telephone-fill"></i></a>
+                <a class="md-ib md-ib--wa" href="<?= e(mdWhats($telLimpio)) ?>" target="_blank" rel="noopener" title="WhatsApp" aria-label="WhatsApp al vendedor"><i class="bi bi-whatsapp"></i></a>
+              <?php endif; ?>
+              <?php if ($s['vendedor_email']): $mailto = urlMailto($s['vendedor_email'], $correoAsunto, $correoTexto); ?>
+                <a class="md-ib md-ib--mail correo-pc" href="<?= e(urlGmailRedactar($s['vendedor_email'], $correoAsunto, $correoTexto)) ?>" target="_blank" rel="noopener" title="Escribir por Gmail" aria-label="Escribir por Gmail"><i class="bi bi-google"></i></a>
+                <a class="md-ib md-ib--mail correo-pc" href="<?= e($mailto) ?>" title="Otro correo" aria-label="Escribir con otro correo"><i class="bi bi-envelope-fill"></i></a>
+                <a class="md-ib md-ib--mail correo-movil" href="<?= e($mailto) ?>" title="Correo" aria-label="Escribir correo"><i class="bi bi-envelope-fill"></i></a>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
+      </aside>
     </div>
   </div>
 
@@ -226,13 +421,16 @@ $TXT_HISTORIAL = [
 <?php endif; ?>
 <script>
 aplicarFechasUTC();
-<?php if ($puedeCambiar && $siguientes): ?>
+<?php if ($conAcciones): ?>
 const ID_SOLICITUD = <?= (int)$s['id'] ?>;
 function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function mostrarError(texto) {
+  document.getElementById('msg').innerHTML = `<div class="alert alert-danger py-2">${escHtml(texto)}</div>`;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
 async function cambiarEstado(estado, extra, boton) {
-  const msg = document.getElementById('msg');
-  msg.innerHTML = '';
+  document.getElementById('msg').innerHTML = '';
   const fd = new FormData();
   fd.append('id', ID_SOLICITUD);
   fd.append('estado', estado);
@@ -245,67 +443,64 @@ async function cambiarEstado(estado, extra, boton) {
     if (!data.ok) throw new Error(data.error || 'No se pudo guardar.');
     window.location.reload();
   } catch (e) {
-    msg.innerHTML = `<div class="alert alert-danger py-2">${escHtml(e.message)}</div>`;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    mostrarError(e.message);
     if (boton) { boton.disabled = false; boton.innerHTML = textoOriginal; }
   }
+}
+
+// Paneles: uno abierto a la vez; otro clic en el mismo botón lo cierra.
+document.querySelectorAll('[data-panel]').forEach(b => b.addEventListener('click', () => {
+  const p = document.getElementById(b.dataset.panel), abrir = !p.classList.contains('open');
+  document.querySelectorAll('.md-panel').forEach(x => x.classList.remove('open'));
+  if (abrir) p.classList.add('open');
+}));
+
+// Grupos de opciones (de dónde sale / cómo se envió).
+function grupoOpciones(id, alCambiar) {
+  const g = document.getElementById(id);
+  if (!g) return () => null;
+  g.querySelectorAll('.md-op').forEach(o => o.addEventListener('click', () => {
+    g.querySelectorAll('.md-op').forEach(x => x.classList.toggle('on', x === o));
+    alCambiar && alCambiar(o.dataset.valor);
+  }));
+  return () => g.querySelector('.md-op.on')?.dataset.valor;
 }
 
 // "Por programar" que ya se fabricó: pasa a "En Producto Terminado".
 document.querySelectorAll('[data-accion="pasar_pt"]').forEach(b =>
   b.addEventListener('click', () => cambiarEstado('en_preparacion', { preparacion: 'pt' }, b)));
 
-document.querySelectorAll('[data-abrir]').forEach(b => b.addEventListener('click', () => {
-  ['form-preparacion', 'form-embarcada', 'form-cancelar'].forEach(id => {
-    const f = document.getElementById(id);
-    if (f) f.classList.toggle('d-none', id !== b.dataset.abrir || !f.classList.contains('d-none'));
-  });
-}));
-
 // En preparación: En Producto Terminado o Por programar (con fecha estimada opcional).
-let prepElegida = 'pt';
-const formPrep = document.getElementById('form-preparacion');
+const formPrep = document.getElementById('panel-preparacion');
 if (formPrep) {
-  const hoyMx = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
-  document.getElementById('fecha_estimada').min = hoyMx;
-  document.querySelectorAll('#seg-preparacion .v26-seg-btn').forEach(b => b.addEventListener('click', () => {
-    document.querySelectorAll('#seg-preparacion .v26-seg-btn').forEach(x => x.classList.toggle('active', x === b));
-    prepElegida = b.dataset.prep;
-    document.getElementById('campo-fecha-estimada').classList.toggle('d-none', prepElegida !== 'por_programar');
-  }));
+  document.getElementById('fecha_estimada').min = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+  const prep = grupoOpciones('op-preparacion', v =>
+    document.getElementById('campo-fecha-estimada').classList.toggle('d-none', v !== 'por_programar'));
   formPrep.addEventListener('submit', (e) => {
     e.preventDefault();
-    const extra = { preparacion: prepElegida };
-    if (prepElegida === 'por_programar') extra.fecha_estimada = document.getElementById('fecha_estimada').value;
+    const extra = { preparacion: prep() };
+    if (extra.preparacion === 'por_programar') extra.fecha_estimada = document.getElementById('fecha_estimada').value;
     cambiarEstado('en_preparacion', extra, e.submitter);
   });
 }
 
-let modoEnvio = 'paqueteria';
-document.querySelectorAll('#seg-envio .v26-seg-btn').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('#seg-envio .v26-seg-btn').forEach(x => x.classList.toggle('active', x === b));
-  modoEnvio = b.dataset.modo;
-  document.getElementById('campos-paqueteria').classList.toggle('d-none', modoEnvio !== 'paqueteria');
-}));
-
-document.getElementById('form-embarcada').addEventListener('submit', (e) => {
+const modoEnvio = grupoOpciones('op-envio', v =>
+  document.getElementById('campos-paqueteria').classList.toggle('d-none', v !== 'paqueteria'));
+document.getElementById('panel-embarcada').addEventListener('submit', (e) => {
   e.preventDefault();
+  const modo = modoEnvio();
   const guiaUrl = document.getElementById('guia_url').value.trim();
-  if (modoEnvio === 'paqueteria' && !/^https?:\/\/\S+$/i.test(guiaUrl)) {
-    document.getElementById('msg').innerHTML = '<div class="alert alert-danger py-2">Pega el link de rastreo de la guía (debe empezar con http:// o https://).</div>';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (modo === 'paqueteria' && !/^https?:\/\/\S+$/i.test(guiaUrl)) {
+    mostrarError('Pega el link de rastreo de la guía (debe empezar con http:// o https://).');
     return;
   }
-  cambiarEstado('embarcada', { envio_modo: modoEnvio, guia_url: modoEnvio === 'paqueteria' ? guiaUrl : '' }, e.submitter);
+  cambiarEstado('embarcada', { envio_modo: modo, guia_url: modo === 'paqueteria' ? guiaUrl : '' }, e.submitter);
 });
 
-document.getElementById('form-cancelar').addEventListener('submit', (e) => {
+document.getElementById('panel-cancelar').addEventListener('submit', (e) => {
   e.preventDefault();
   const motivo = document.getElementById('motivo').value.trim();
-  if (!motivo) {
-    document.getElementById('msg').innerHTML = '<div class="alert alert-danger py-2">Escribe el motivo de la cancelación.</div>';
-    return;
-  }
+  if (!motivo) { mostrarError('Escribe el motivo de la cancelación.'); return; }
   cambiarEstado('cancelada', { motivo }, e.submitter);
 });
 <?php endif; ?>
