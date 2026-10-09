@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/visita_checkins.php';
 
 $u  = requireLogin();
 $db = getDB();
@@ -25,7 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_entrada_id,
                 (SELECT id FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' AND ch.foto_path IS NOT NULL ORDER BY ch.id DESC LIMIT 1) AS foto_salida_id,
                 " . sqlReprogramaciones() . ",
-                " . sqlCancelacion() . "
+                " . sqlCancelacion() . ",
+                " . sqlIntentosCheckin($db) . "
          FROM citas c
          JOIN clientes cl ON cl.id = c.cliente_id
          JOIN usuarios u ON u.id = c.vendedor_id
@@ -52,6 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $hora = new DateTime($c['fecha_hora'], $tzMx);
         $c['retrasada'] = ($c['estado'] === 'pendiente' && $hora < $ahora);
     }
+    unset($c);
+    // Visitas de menos de 2 min: cuánto tiempo lo ubica el GPS en el lugar.
+    agregarGpsEnSitio($db, $citas);
     jsonResponse(['ok' => true, 'citas' => $citas]);
 }
 

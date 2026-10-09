@@ -450,7 +450,42 @@ function formatoDuracion(segundos) {
   return `${horas} h${minRestantes ? ' ' + minRestantes + ' min' : ''}`;
 }
 
-function lineaDuracion(entradaFechaHora, salidaFechaHora) {
+// Tiempo en el lugar según el GPS (solo viene en visitas de menos de 2 min,
+// ver gpsEnSitioParaCitas() en includes/visita_checkins.php). Con al menos
+// GPS_SITIO_MINIMO_REAL_MIN cerca del cliente ya no se marca "revisar".
+const GPS_SITIO_MINIMO_REAL_MIN = 10;
+
+function textoGpsEnSitio(gps) {
+  if (!gps) return '';
+  if (!gps.minutos) return 'GPS: no lo ubica en el lugar';
+  let t = `GPS en el lugar: ~${gps.minutos} min (${horaSoloUTC(gps.desde)}–${horaSoloUTC(gps.hasta)})`;
+  if (gps.hueco_desde) t += ` · sin señal ${horaSoloUTC(gps.hueco_desde)}–${horaSoloUTC(gps.hueco_hasta)}`;
+  return t;
+}
+
+// "Abrió check-in 2:14 p.m. · 2 intentos fallidos (GPS impreciso)": solo si
+// hubo fallos o la entrada quedó 2 min o más después del primer intento
+// (ver checkin_intentos en includes/visita_checkins.php).
+const ETIQUETA_FALLO_CHECKIN = { gps_impreciso: 'GPS impreciso', error_envio: 'sin conexión al enviar' };
+
+function lineaIntentosCheckin(c) {
+  if (!c.entrada_primer_intento) return '';
+  const fallidos = Number(c.entrada_intentos_fallidos) || 0;
+  const aFecha = (s) => new Date(String(s).replace(' ', 'T') + (String(s).endsWith('Z') ? '' : 'Z'));
+  const espera = c.entrada_fecha_hora ? (aFecha(c.entrada_fecha_hora) - aFecha(c.entrada_primer_intento)) / 1000 : null;
+  if (!fallidos && (espera === null || isNaN(espera) || espera < 120)) return '';
+  let txt = `<b>Abrió check-in</b> ${horaSoloUTC(c.entrada_primer_intento)}`;
+  if (fallidos) {
+    const [etapa, motivo] = String(c.entrada_ultimo_fallo || '').split('|');
+    const causa = ETIQUETA_FALLO_CHECKIN[etapa] || motivo || '';
+    txt += ` · ${fallidos} intento${fallidos === 1 ? '' : 's'} fallido${fallidos === 1 ? '' : 's'}${causa ? ' (' + escapeAttr(causa) + ')' : ''}`;
+  } else if (!c.entrada_fecha_hora) {
+    txt += ' · aún sin entrada';
+  }
+  return `<div class="v26-checkin-linea"><span class="dot aviso"></span> ${txt}</div>`;
+}
+
+function lineaDuracion(entradaFechaHora, salidaFechaHora, gps) {
   if (!entradaFechaHora || !salidaFechaHora) return '';
   const inicio = new Date(String(entradaFechaHora).replace(' ', 'T') + (String(entradaFechaHora).endsWith('Z') ? '' : 'Z'));
   const fin = new Date(String(salidaFechaHora).replace(' ', 'T') + (String(salidaFechaHora).endsWith('Z') ? '' : 'Z'));
@@ -458,16 +493,22 @@ function lineaDuracion(entradaFechaHora, salidaFechaHora) {
   const segundos = (fin.getTime() - inicio.getTime()) / 1000;
   if (segundos < 0) return ''; // dato inconsistente -- mejor no mostrar nada confuso
   const esCorta = segundos < DURACION_MINIMA_SOSPECHOSA_SEG;
+  if (esCorta && gps && gps.minutos >= GPS_SITIO_MINIMO_REAL_MIN) {
+    // Entrada y salida juntas, pero el GPS sí lo ubica en el lugar.
+    return `<div class="v26-duracion gps"><i class="bi bi-geo-alt-fill"></i> Fotos: ${formatoDuracion(segundos)} · ${textoGpsEnSitio(gps)}</div>`;
+  }
   const icono = esCorta ? 'bi-exclamation-triangle-fill' : 'bi-clock';
-  const texto = esCorta ? `Visita de ${formatoDuracion(segundos)} -- revisar` : `Visita de ${formatoDuracion(segundos)}`;
+  const extraGps = esCorta && gps ? ` · ${textoGpsEnSitio(gps)}` : '';
+  const texto = esCorta ? `Visita de ${formatoDuracion(segundos)} -- revisar${extraGps}` : `Visita de ${formatoDuracion(segundos)}`;
   return `<div class="v26-duracion ${esCorta ? 'corta' : 'normal'}"><i class="bi ${icono}"></i> ${texto}</div>`;
 }
 
 function lineasCheckin(c) {
   const partes = [
+    lineaIntentosCheckin(c),
     lineaCheckin('Entrada', c.checkin_verificado, c.entrada_fecha_hora, c.entrada_distancia_metros, c.checkin_correccion),
     lineaCheckin('Salida', c.checkin_verificado_salida, c.salida_fecha_hora, c.salida_distancia_metros),
-    lineaDuracion(c.entrada_fecha_hora, c.salida_fecha_hora),
+    lineaDuracion(c.entrada_fecha_hora, c.salida_fecha_hora, c.gps_en_sitio),
   ].filter(Boolean);
   return partes.length ? `<div class="v26-checkin-lineas">${partes.join('')}</div>` : '';
 }
@@ -581,6 +622,7 @@ const ICONO_ALERTA = {
   sin_gps: 'bi-reception-0',
   problemas_acceso: 'bi-shield-exclamation',
   visita_corta: 'bi-stopwatch',
+  visita_corta_gps: 'bi-geo-alt',
   interesado_sin_cotizacion: 'bi-star-fill',
   reprogramaciones: 'bi-arrow-left-right',
   cita_perdida: 'bi-calendar-x',
@@ -618,9 +660,11 @@ function botonesAlerta(a) {
       b.push(link('Ver recorrido', urlDetalleVendedor(a, 'prospeccion')));
       break;
     case 'visita_corta':
+    case 'visita_corta_gps':
       if (a.foto_entrada_id) b.push(foto(a.foto_entrada_id, 'entrada', true));
       if (a.foto_salida_id) b.push(foto(a.foto_salida_id, 'salida'));
       b.push(link('Ver cita', urlDetalleVendedor(a, 'todas')));
+      if (a.tipo === 'visita_corta_gps') b.push(link('Ver recorrido', urlDetalleVendedor(a, 'prospeccion')));
       break;
     case 'visita_sin_cerrar':
     case 'cita_perdida':

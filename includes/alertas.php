@@ -18,6 +18,7 @@
  */
 
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/visita_checkins.php';
 
 define('ALERTAS_REVISION_CADA_SEG', 60);
 define('ALERTAS_MARCA_REVISION', __DIR__ . '/../uploads/cache/alertas_ultima_revision.txt');
@@ -40,6 +41,7 @@ const ALERTA_TIPOS = [
     'sin_gps'                   => ['crit', 'Sin GPS en horario laboral'],
     'problemas_acceso'          => ['crit', 'Problemas para entrar'],
     'visita_corta'              => ['warn', 'Visita muy corta'],
+    'visita_corta_gps'          => ['info', 'Entrada y salida juntas'],
     'interesado_sin_cotizacion' => ['warn', 'Muy interesado sin cotización'],
     'reprogramaciones'          => ['warn', 'Reprogramaciones repetidas'],
     'cita_perdida'              => ['warn', 'Cita perdida'],
@@ -161,6 +163,11 @@ function generarAlertaVisitaSinCerrar(PDO $db): void {
 }
 
 // ── 2. Visita muy corta (menos de 2 min entre entrada y salida) ──────────
+// Desde el 9-oct-2026 también se mira el GPS: si el tracking lo ubica en el
+// lugar al menos GPS_SITIO_MINIMO_REAL_MIN (caso Norma en Grupo corporativo
+// papelero: entrada y salida en 1 min, pero ~53 min cerca del cliente), la
+// alerta baja a informativa ("Entrada y salida juntas") en vez de "Revisar".
+// Ver gpsEnSitioCita() en includes/visita_checkins.php.
 function generarAlertaVisitaCorta(PDO $db): void {
     $stmt = $db->prepare(
         "SELECT c.id, c.vendedor_id, cl.nombre AS cliente_nombre,
@@ -172,13 +179,34 @@ function generarAlertaVisitaCorta(PDO $db): void {
          WHERE s.fecha_hora > NOW() - make_interval(days => ?)
            AND s.fecha_hora >= e.fecha_hora
            AND s.fecha_hora - e.fecha_hora < make_interval(secs => ?)
-           AND " . sqlSinAlertaPrevia('visita_corta')
+           AND " . sqlSinAlertaPrevia('visita_corta') . "
+           AND " . sqlSinAlertaPrevia('visita_corta_gps')
     );
-    $stmt->execute([ALERTAS_DIAS_ATRAS, 120]);
+    $stmt->execute([ALERTAS_DIAS_ATRAS, VISITA_CORTA_SEG]);
     foreach ($stmt->fetchAll() as $r) {
         $seg = (int)round((float)$r['segundos']);
+        $gps = null;
+        try {
+            $gps = gpsEnSitioCita($db, (int)$r['id']);
+        } catch (Throwable $e) {
+            error_log('[VISITAS] gpsEnSitioCita ' . $r['id'] . ': ' . $e->getMessage());
+        }
+
+        if ($gps && $gps['minutos'] >= GPS_SITIO_MINIMO_REAL_MIN) {
+            $hueco = $gps['hueco_desde']
+                ? ' Sin señal de ' . horaMxDesdeUtc($gps['hueco_desde']) . ' a ' . horaMxDesdeUtc($gps['hueco_hasta']) . '.'
+                : '';
+            insertarAlerta($db, (int)$r['vendedor_id'], (int)$r['id'], 'visita_corta_gps',
+                "En {$r['cliente_nombre']} registró entrada y salida con {$seg} seg de diferencia, pero el GPS lo ubica ~{$gps['minutos']} min en el lugar ("
+                . horaMxDesdeUtc($gps['desde']) . '–' . horaMxDesdeUtc($gps['hasta']) . ").{$hueco}");
+            continue;
+        }
+
+        $extra = $gps === null ? '' : ($gps['minutos'] > 0
+            ? " El GPS tampoco lo ubica más tiempo ahí (~{$gps['minutos']} min)."
+            : ' El GPS tampoco lo ubica en el lugar.');
         insertarAlerta($db, (int)$r['vendedor_id'], (int)$r['id'], 'visita_corta',
-            "En {$r['cliente_nombre']} la foto de salida se tomó {$seg} seg después de la de entrada. No da tiempo de una visita real.");
+            "En {$r['cliente_nombre']} la salida se registró {$seg} seg después de la entrada. No da tiempo de una visita real.{$extra}");
     }
 }
 
