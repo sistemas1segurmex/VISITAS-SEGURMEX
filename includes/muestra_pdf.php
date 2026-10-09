@@ -89,7 +89,8 @@ function htmlPdfMuestra(array $s, array $historial, bool $conNombres): string {
 
     $envio = '';
     if ($estado === 'embarcada') {
-        $envio = '<tr><td class="k">Envío:</td><td class="v" colspan="3">' . pdfH(textoEnvioMuestra($s)) . '</td></tr>';
+        $rastreo = !empty($s['guia_url']) ? ' · <a href="' . pdfH($s['guia_url']) . '">Rastrear envío</a>' : '';
+        $envio = '<tr><td class="k">Envío:</td><td class="v" colspan="3">' . pdfH(textoEnvioMuestra($s)) . $rastreo . '</td></tr>';
     }
 
     // Historial.
@@ -115,6 +116,7 @@ function htmlPdfMuestra(array $s, array $historial, bool $conNombres): string {
   @page { size: A4; margin: 14mm 14mm 18mm 14mm; }
   body { font-family: "DejaVu Sans", sans-serif; font-size: 9pt; color: #211D14; }
   table { border-collapse: collapse; width: 100%; }
+  a { color: #8A6D14; text-decoration: underline; }
   .hdr td { vertical-align: middle; }
   .hdr .logo img { height: 46px; }
   .titulo { font-size: 16pt; font-weight: bold; color: #B8901E; letter-spacing: 1px; }

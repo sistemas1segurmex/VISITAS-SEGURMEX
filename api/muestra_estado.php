@@ -2,7 +2,7 @@
 // La responsable de muestras cambia el estado de una solicitud:
 //   POST id, estado=en_preparacion|embarcada|cancelada
 //        + en_preparacion: preparacion=pt|por_programar, fecha_estimada (opcional)
-//        + embarcada: envio_modo=paqueteria|en_persona, paqueteria, guia
+//        + embarcada: envio_modo=paqueteria|en_persona, guia_url (link de rastreo)
 //        + cancelada: motivo
 // Solo el rol 'muestras' -- el admin únicamente consulta. Cada cambio le
 // avisa al vendedor (campanita + correo), ver includes/muestras.php.
@@ -25,8 +25,7 @@ $res = cambiarEstadoSolicitudMuestra($db, $id, (int)$u['id'], $estado, [
     'preparacion'    => $_POST['preparacion'] ?? '',
     'fecha_estimada' => $_POST['fecha_estimada'] ?? '',
     'envio_modo' => $_POST['envio_modo'] ?? '',
-    'paqueteria' => $_POST['paqueteria'] ?? '',
-    'guia'       => $_POST['guia'] ?? '',
+    'guia_url'   => $_POST['guia_url'] ?? '',
     'motivo'     => $_POST['motivo'] ?? '',
 ]);
 if (!$res['ok']) jsonResponse($res, 400);
