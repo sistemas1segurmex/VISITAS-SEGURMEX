@@ -82,6 +82,7 @@ try {
     $abierta = in_array($cot['estado'], ['enviada', 'en_negociacion'], true) && !cotizacionVencidaErp($cot);
     $pdf = pdfCotizacion($cot, $detalle, $atiende, $abierta ? urlPublicaCotizacionErp($token) : null, [
         'vend_tel' => $vendTel, 'vend_email' => $vendEmail, 'fecha_resuelta' => $fechaResuelta,
+        'vend_zona' => trim((string)($vend['zona'] ?? '')), // usuarios.zona del ERP (la captura Sistemas)
     ]);
 } catch (Throwable $e) {
     error_log('[VISITAS] cotizacion_pdf.php: ' . $e->getMessage());
