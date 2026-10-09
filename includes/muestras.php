@@ -34,6 +34,13 @@ const MUESTRA_TRANSICIONES = [
     'cancelada'      => [],
 ];
 
+// Detalle de "En preparación" (columna preparacion): de dónde sale la muestra.
+// 'por_programar' puede pasar después a 'pt'.
+const MUESTRA_PREPARACION = [
+    'pt'            => 'En Producto Terminado',
+    'por_programar' => 'Por programar',
+];
+
 const MUESTRA_CATEGORIAS_CAMBIO = ['casco' => 'Casco', 'suela' => 'Suela', 'piel' => 'Piel', 'forro' => 'Forro'];
 
 /**
@@ -94,6 +101,17 @@ function textoTiempoPruebaMuestra($dias): ?string {
 /** Link al PDF de la solicitud (muestra_pdf.php, pide sesión). $base: '../' desde subcarpetas. */
 function urlPdfMuestra(int $id, string $base = ''): string {
     return $base . 'muestra_pdf.php?id=' . $id;
+}
+
+/** "En Producto Terminado" / "Por programar · fecha estimada 20/10/2026", o null. */
+function textoPreparacionMuestra(array $s): ?string {
+    $p = $s['preparacion'] ?? null;
+    if (!$p || !isset(MUESTRA_PREPARACION[$p])) return null;
+    $txt = MUESTRA_PREPARACION[$p];
+    if ($p === 'por_programar' && !empty($s['fecha_estimada_pt'])) {
+        $txt .= ' · fecha estimada ' . date('d/m/Y', strtotime($s['fecha_estimada_pt']));
+    }
+    return $txt;
 }
 
 function etiquetaEstadoMuestra(string $estado): string {
@@ -161,7 +179,9 @@ function enviarCorreoMuestra(string $destino, string $asunto, string $html): boo
 function cargarSolicitudMuestra(PDO $db, int $id): ?array {
     $stmt = $db->prepare(
         "SELECT s.*, u.nombre AS vendedor_nombre, u.email AS vendedor_email, u.telefono AS vendedor_telefono,
-                c.nombre_contacto AS cliente_contacto, c.telefono AS cliente_telefono
+                -- Contacto: el que se copió al pedirla; las de antes, el de la ficha.
+                COALESCE(s.contacto_nombre, c.nombre_contacto) AS cliente_contacto,
+                COALESCE(s.contacto_telefono, c.telefono) AS cliente_telefono
          FROM muestras_solicitudes s
          JOIN usuarios u ON u.id = s.vendedor_id
          LEFT JOIN clientes c ON c.id = s.cliente_id
@@ -232,6 +252,7 @@ function notificarNuevaSolicitudMuestra(PDO $db, array $s): void {
         [
             'Vendedor'        => $s['vendedor_nombre'] . ($s['vendedor_telefono'] ? ' · ' . $s['vendedor_telefono'] : ''),
             'Cliente'         => $s['cliente_nombre'],
+            'Contacto'        => trim(($s['cliente_contacto'] ?? '') . (!empty($s['cliente_telefono']) ? ' · ' . $s['cliente_telefono'] : '')),
             'Estilo'          => $s['estilo_nombre'],
             'Color'           => $s['color'] ?? null,
             'Talla'           => $s['talla'],
@@ -254,14 +275,29 @@ function notificarNuevaSolicitudMuestra(PDO $db, array $s): void {
     }
 }
 
-/** Aviso + correo al vendedor cuando su solicitud cambia de estado. */
-function notificarCambioEstadoMuestra(PDO $db, array $s): void {
+/**
+ * Aviso + correo al vendedor cuando su solicitud cambia de estado.
+ * $yaEnPt: true cuando una "por programar" pasa a Producto Terminado.
+ */
+function notificarCambioEstadoMuestra(PDO $db, array $s, bool $yaEnPt = false): void {
     $folio = $s['folio'];
     $que   = $s['estilo_nombre'] . ' para ' . $s['cliente_nombre'];
     switch ($s['estado']) {
         case 'en_preparacion':
-            $titulo  = "Tu muestra $folio está en preparación";
-            $mensaje = "Ya se está preparando tu muestra de $que.";
+            if ($yaEnPt) {
+                $titulo  = "Tu muestra $folio ya está lista en almacén";
+                $mensaje = "Ya se fabricó tu muestra de $que y está en Producto Terminado. Se está preparando el envío.";
+            } elseif (($s['preparacion'] ?? '') === 'por_programar') {
+                $titulo  = "Tu muestra $folio se va a fabricar";
+                $mensaje = "Tu muestra de $que no está en almacén: se va a programar para fabricarla."
+                         . (!empty($s['fecha_estimada_pt']) ? ' Fecha estimada para tenerla lista: ' . date('d/m/Y', strtotime($s['fecha_estimada_pt'])) . '.' : '');
+            } elseif (($s['preparacion'] ?? '') === 'pt') {
+                $titulo  = "Tu muestra $folio está en preparación";
+                $mensaje = "Ya hay en almacén (Producto Terminado): se está preparando el envío de tu muestra de $que.";
+            } else {
+                $titulo  = "Tu muestra $folio está en preparación";
+                $mensaje = "Ya se está preparando tu muestra de $que.";
+            }
             break;
         case 'embarcada':
             $titulo  = "Tu muestra $folio ya se embarcó";
@@ -279,6 +315,7 @@ function notificarCambioEstadoMuestra(PDO $db, array $s): void {
 
     if (!empty($s['vendedor_email'])) {
         $renglones = ['Cliente' => $s['cliente_nombre'], 'Estilo' => $s['estilo_nombre'], 'Color' => $s['color'] ?? null, 'Talla' => $s['talla'], 'Cantidad' => textoParesMuestra($s['cantidad'] ?? 1)];
+        if ($s['estado'] === 'en_preparacion') $renglones['Preparación'] = textoPreparacionMuestra($s);
         if ($s['estado'] === 'embarcada') {
             $renglones['Envío'] = textoEnvioMuestra($s);
             $renglones['Entregar a'] = textoEntregarAMuestra($s);
@@ -306,14 +343,32 @@ function textoCambiosMuestra(array $cambios): ?string {
 
 /**
  * Cambia el estado de una solicitud (solo la responsable de muestras).
- * $datos: envio_modo/paqueteria/guia para 'embarcada', motivo para
- * 'cancelada'. Valida la transición, guarda historial y avisa al vendedor.
+ * $datos: preparacion ('pt'|'por_programar') y fecha_estimada (opcional,
+ * solo por programar) para 'en_preparacion'; envio_modo/paqueteria/guia
+ * para 'embarcada'; motivo para 'cancelada'. Una que ya está "en
+ * preparación · por programar" puede volver a marcarse en preparación con
+ * preparacion = 'pt' (ya se fabricó). Valida la transición, guarda
+ * historial y avisa al vendedor.
  * Devuelve ['ok'=>bool, 'error'?=>string, 'solicitud'?=>array].
  */
 function cambiarEstadoSolicitudMuestra(PDO $db, int $id, int $usuarioId, string $nuevo, array $datos): array {
     if (!isset(MUESTRA_ESTADOS[$nuevo])) return ['ok' => false, 'error' => 'Estado no válido'];
 
     $envioModo = null; $paqueteria = null; $guia = null; $motivo = null; $nota = null;
+    $preparacion = null; $fechaEstimada = null;
+    if ($nuevo === 'en_preparacion') {
+        $preparacion = (string)($datos['preparacion'] ?? '');
+        if (!isset(MUESTRA_PREPARACION[$preparacion])) return ['ok' => false, 'error' => 'Elige si está en Producto Terminado o por programar'];
+        if ($preparacion === 'por_programar') {
+            $f = trim((string)($datos['fecha_estimada'] ?? ''));
+            if ($f !== '') {
+                $dt = DateTime::createFromFormat('Y-m-d', $f);
+                if (!$dt || $dt->format('Y-m-d') !== $f) return ['ok' => false, 'error' => 'La fecha estimada no es válida'];
+                $fechaEstimada = $f;
+            }
+        }
+        $nota = MUESTRA_PREPARACION[$preparacion] . ($fechaEstimada ? ' · fecha estimada ' . date('d/m/Y', strtotime($fechaEstimada)) : '');
+    }
     if ($nuevo === 'embarcada') {
         $envioModo = ($datos['envio_modo'] ?? '') === 'en_persona' ? 'en_persona' : 'paqueteria';
         if ($envioModo === 'paqueteria') {
@@ -335,11 +390,16 @@ function cambiarEstadoSolicitudMuestra(PDO $db, int $id, int $usuarioId, string 
 
     try {
         $db->beginTransaction();
-        $stmt = $db->prepare('SELECT estado FROM muestras_solicitudes WHERE id = ? FOR UPDATE');
+        $stmt = $db->prepare('SELECT estado, preparacion FROM muestras_solicitudes WHERE id = ? FOR UPDATE');
         $stmt->execute([$id]);
-        $actual = $stmt->fetchColumn();
-        if ($actual === false) { $db->rollBack(); return ['ok' => false, 'error' => 'Solicitud no encontrada']; }
-        if (!in_array($nuevo, MUESTRA_TRANSICIONES[$actual] ?? [], true)) {
+        $fila = $stmt->fetch();
+        if (!$fila) { $db->rollBack(); return ['ok' => false, 'error' => 'Solicitud no encontrada']; }
+        $actual = $fila['estado'];
+        // "Por programar" -> "En Producto Terminado" (sigue en preparación).
+        $yaEnPt = $actual === 'en_preparacion' && $nuevo === 'en_preparacion'
+               && $fila['preparacion'] === 'por_programar' && $preparacion === 'pt';
+        if ($yaEnPt) $nota = 'Ya está en Producto Terminado';
+        if (!$yaEnPt && !in_array($nuevo, MUESTRA_TRANSICIONES[$actual] ?? [], true)) {
             $db->rollBack();
             return ['ok' => false, 'error' => 'La solicitud ya está "' . etiquetaEstadoMuestra($actual) . '" y no puede pasar a "' . etiquetaEstadoMuestra($nuevo) . '". Recarga la página.'];
         }
@@ -350,6 +410,10 @@ function cambiarEstadoSolicitudMuestra(PDO $db, int $id, int $usuarioId, string 
                     guia = COALESCE(?, guia), motivo_cancelacion = COALESCE(?, motivo_cancelacion)
               WHERE id = ?'
         )->execute([$nuevo, $envioModo, $paqueteria, $guia, $motivo, $id]);
+        if ($nuevo === 'en_preparacion') {
+            $db->prepare('UPDATE muestras_solicitudes SET preparacion = ?, fecha_estimada_pt = ? WHERE id = ?')
+               ->execute([$preparacion, $fechaEstimada, $id]);
+        }
         $db->prepare('INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id, nota) VALUES (?,?,?,?)')
            ->execute([$id, $nuevo, $usuarioId, $nota]);
         // Los avisos de "nueva solicitud" de esta muestra ya no hacen falta.
@@ -363,7 +427,7 @@ function cambiarEstadoSolicitudMuestra(PDO $db, int $id, int $usuarioId, string 
     }
 
     $s = cargarSolicitudMuestra($db, $id);
-    notificarCambioEstadoMuestra($db, $s);
+    notificarCambioEstadoMuestra($db, $s, $yaEnPt);
     return ['ok' => true, 'solicitud' => $s];
 }
 
@@ -377,6 +441,8 @@ function solicitudMuestraParaJson(array $s): array {
         'vendedor_email'     => $s['vendedor_email'] ?? null,
         'vendedor_telefono'  => $s['vendedor_telefono'] ?? null,
         'cliente_nombre'     => $s['cliente_nombre'],
+        'contacto_nombre'    => $s['cliente_contacto'] ?? $s['contacto_nombre'] ?? null,
+        'contacto_telefono'  => $s['cliente_telefono'] ?? $s['contacto_telefono'] ?? null,
         'estilo_nombre'      => $s['estilo_nombre'],
         'color'              => $s['color'] ?? null,
         'talla'              => $s['talla'],
@@ -391,6 +457,8 @@ function solicitudMuestraParaJson(array $s): array {
         'destino_direccion'  => $s['destino_direccion'],
         'estado'             => $s['estado'],
         'estado_etiqueta'    => etiquetaEstadoMuestra($s['estado']),
+        'preparacion'        => $s['preparacion'] ?? null,
+        'fecha_estimada_pt'  => $s['fecha_estimada_pt'] ?? null,
         'envio_modo'         => $s['envio_modo'],
         'paqueteria'         => $s['paqueteria'],
         'guia'               => $s['guia'],

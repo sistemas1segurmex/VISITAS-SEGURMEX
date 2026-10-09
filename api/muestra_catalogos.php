@@ -18,7 +18,7 @@ $u  = requireRole('vendedor');
 $db = getDB();
 
 $stmt = $db->prepare(
-    "SELECT id, nombre, etapa, direccion FROM clientes WHERE vendedor_id = ? ORDER BY nombre"
+    "SELECT id, nombre, etapa, direccion, nombre_contacto, telefono FROM clientes WHERE vendedor_id = ? ORDER BY nombre"
 );
 $stmt->execute([$u['id']]);
 $clientes = $stmt->fetchAll();

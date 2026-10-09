@@ -58,11 +58,39 @@ $db = getDB();
 
 // El cliente/prospecto tiene que ser de ESTE vendedor -- nadie pide muestra
 // a nombre de un cliente ajeno solo cambiando el id en la petición.
-$stmt = $db->prepare('SELECT id, nombre FROM clientes WHERE id = ? AND vendedor_id = ?');
+$stmt = $db->prepare('SELECT id, nombre, nombre_contacto, telefono FROM clientes WHERE id = ? AND vendedor_id = ?');
 $stmt->execute([$clienteId, $u['id']]);
 $cliente = $stmt->fetch();
 if (!$cliente) {
     jsonResponse(['ok' => false, 'error' => 'Cliente no encontrado'], 404);
+}
+
+// Contacto del cliente: sale de su ficha. Si a la ficha le falta el nombre
+// de contacto o el teléfono, el vendedor lo escribe aquí (obligatorio) y se
+// guarda también en la ficha -- solo lo que faltaba, nunca se pisa un dato
+// que ya tenía. Lo que mande el navegador para un dato que la ficha ya tiene
+// se ignora.
+$fichaContacto = trim((string)($cliente['nombre_contacto'] ?? ''));
+$fichaTelefono = trim((string)($cliente['telefono'] ?? ''));
+$llenarFicha   = []; // columna => valor nuevo
+$contactoNombre = $fichaContacto;
+if ($contactoNombre === '') {
+    $contactoNombre = mb_substr(trim((string)($_POST['contacto_nombre'] ?? '')), 0, 150);
+    if ($contactoNombre === '') {
+        jsonResponse(['ok' => false, 'error' => 'Escribe el nombre de contacto del cliente'], 400);
+    }
+    $llenarFicha['nombre_contacto'] = $contactoNombre;
+}
+$contactoTelefono = $fichaTelefono;
+if ($contactoTelefono === '') {
+    $contactoTelefono = normalizarTelefonoMx((string)($_POST['contacto_telefono'] ?? ''));
+    if ($contactoTelefono === '') {
+        jsonResponse(['ok' => false, 'error' => 'Escribe el teléfono de contacto del cliente'], 400);
+    }
+    if ($contactoTelefono === null) {
+        jsonResponse(['ok' => false, 'error' => MSG_TELEFONO_INVALIDO], 400);
+    }
+    $llenarFicha['telefono'] = $contactoTelefono;
 }
 
 // El estilo tiene que estar en el catálogo de la Nueva cotización (modelo
@@ -125,19 +153,26 @@ try {
     $ins = $db->prepare(
         'INSERT INTO muestras_solicitudes
             (vendedor_id, cliente_id, cliente_nombre, id_estilo_erp, id_modelo_legacy, estilo_nombre, color, talla, fecha_promesa, tipo, cambios, entregar_a, destino_direccion,
-             motivo, notas_planta, cantidad, tiempo_prueba_dias)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?) RETURNING id'
+             motivo, notas_planta, cantidad, tiempo_prueba_dias, contacto_nombre, contacto_telefono)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?,?,?) RETURNING id'
     );
     $ins->execute([
         (int)$u['id'], $clienteId, mb_substr($cliente['nombre'], 0, 200), $estilo['id_estilo'], $estilo['id_modelo_legacy'], mb_substr($estiloNombre, 0, 200),
         $color !== '' ? mb_substr($color, 0, 40) : null, $talla ?: null, $fechaPromesa ?: null, $tipo, json_encode($cambios, JSON_UNESCAPED_UNICODE), $entregarA, $direccion,
         $motivo, $notasPlanta !== '' ? $notasPlanta : null, $cantidad, $tiempoPrueba,
+        mb_substr($contactoNombre, 0, 150), mb_substr($contactoTelefono, 0, 20),
     ]);
     $id = (int)$ins->fetchColumn();
     $folio = sprintf('MV-%04d', $id);
     $db->prepare('UPDATE muestras_solicitudes SET folio = ? WHERE id = ?')->execute([$folio, $id]);
     $db->prepare("INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id) VALUES (?, 'enviada', ?)")
        ->execute([$id, (int)$u['id']]);
+    // Completa la ficha del cliente con lo que le faltaba (columnas fijas,
+    // no vienen del navegador).
+    foreach ($llenarFicha as $col => $valor) {
+        $db->prepare("UPDATE clientes SET $col = ? WHERE id = ? AND COALESCE(TRIM($col), '') = ''")
+           ->execute([$valor, $clienteId]);
+    }
     $db->commit();
 } catch (Throwable $e) {
     if ($db->inTransaction()) $db->rollBack();
@@ -146,6 +181,12 @@ try {
 }
 
 registrarCambio($db, (int)$u['id'], 'muestra', $id, 'alta', "Solicitó la muestra {$folio} para {$cliente['nombre']}");
+if ($llenarFicha) {
+    $etiquetas = ['nombre_contacto' => 'Contacto', 'telefono' => 'Teléfono'];
+    $diff = [];
+    foreach ($llenarFicha as $col => $valor) $diff[$etiquetas[$col]] = [null, $valor];
+    registrarCambio($db, (int)$u['id'], 'cliente', $clienteId, 'edicion', "Completó la ficha de {$cliente['nombre']} al pedir la muestra {$folio}", $diff);
+}
 
 $s = cargarSolicitudMuestra($db, $id);
 notificarNuevaSolicitudMuestra($db, $s);
