@@ -82,6 +82,10 @@ $TXT_HISTORIAL = [
       <?php endif; ?>
     </div>
 
+    <div class="mu-botones mb-3">
+      <a href="<?= e(urlPdfMuestra((int)$s['id'], '../')) ?>" class="v26-btn v26-btn-ghost" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a>
+    </div>
+
     <?php if ($puedeCambiar && $siguientes): ?>
     <div class="v26-card mu-acciones">
       <div class="mu-sec-titulo">¿Qué sigue?</div>
@@ -132,6 +136,7 @@ $TXT_HISTORIAL = [
         <dt>Estilo</dt><dd><?= e($s['estilo_nombre']) ?></dd>
         <?php if (!empty($s['color'])): ?><dt>Color</dt><dd><?= e($s['color']) ?></dd><?php endif; ?>
         <dt>Talla</dt><dd><?= $s['talla'] ? e($s['talla']) : '<span class="text-muted">No la indicó</span>' ?></dd>
+        <dt>Cantidad</dt><dd><?= e(textoParesMuestra($s['cantidad'] ?? 1)) ?></dd>
         <dt>Tipo</dt><dd><?= $s['tipo'] === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo' ?></dd>
         <?php if ($s['cambios']): ?>
         <dt>Cambios</dt>
@@ -144,7 +149,10 @@ $TXT_HISTORIAL = [
           </ul>
         </dd>
         <?php endif; ?>
+        <dt>Motivo</dt><dd><?= !empty($s['motivo']) ? nl2br(e($s['motivo'])) : '<span class="text-muted">No lo indicó</span>' ?></dd>
+        <?php if (!empty($s['notas_planta'])): ?><dt>Notas para planta</dt><dd><?= nl2br(e($s['notas_planta'])) ?></dd><?php endif; ?>
         <dt>Fecha promesa</dt><dd><?= $s['fecha_promesa'] ? e(date('d/m/Y', strtotime($s['fecha_promesa']))) : '<span class="text-muted">Sin fecha</span>' ?></dd>
+        <?php if (!empty($s['tiempo_prueba_dias'])): ?><dt>Tiempo de prueba</dt><dd><?= e(textoTiempoPruebaMuestra($s['tiempo_prueba_dias'])) ?></dd><?php endif; ?>
         <dt>Entregar a</dt><dd><?= e(textoEntregarAMuestra($s)) ?></dd>
         <dt>Dirección</dt><dd><?= nl2br(e($s['destino_direccion'])) ?></dd>
       </dl>

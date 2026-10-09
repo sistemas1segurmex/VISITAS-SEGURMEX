@@ -46,6 +46,7 @@ $u = requireRole('vendedor');
         <li><span><i class="bi bi-truck"></i></span><div><strong>Embarcada</strong><small>Con la paquetería y la guía</small></div></li>
       </ol>
       <a href="muestras.php" class="v26-btn v26-btn-primary v26-btn-block"><i class="bi bi-box-seam"></i> Ver mis muestras</a>
+      <a href="#" class="v26-btn v26-btn-ghost v26-btn-block mt-2 d-none" id="btn-pdf-exito" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a>
       <a href="solicitar_muestra.php" class="v26-btn v26-btn-ghost v26-btn-block mt-2" id="btn-pedir-otra"><i class="bi bi-plus-lg"></i> Pedir otra</a>
     </div>
 
@@ -95,9 +96,15 @@ $u = requireRole('vendedor');
                 </div>
               </div>
             </div>
-            <div class="v26-field">
-              <label>Talla <span class="mu-opc">(opcional)</span></label>
-              <input type="text" id="talla" class="v26-input" maxlength="30" placeholder="Ej. 27">
+            <div class="row g-2">
+              <div class="col-7 v26-field">
+                <label>Talla <span class="mu-opc">(opcional)</span></label>
+                <input type="text" id="talla" class="v26-input" maxlength="30" placeholder="Ej. 27">
+              </div>
+              <div class="col-5 v26-field">
+                <label>Pares</label>
+                <input type="number" id="cantidad" class="v26-input" min="1" max="99" step="1" value="1" inputmode="numeric" required>
+              </div>
             </div>
             <div class="v26-field">
               <label>Tipo de muestra</label>
@@ -116,13 +123,27 @@ $u = requireRole('vendedor');
               <div id="adendum-otros"></div>
               <button type="button" class="v26-btn v26-btn-ghost" id="btn-agregar-otro"><i class="bi bi-plus-lg"></i> Agregar otro cambio</button>
             </div>
+            <div class="v26-field mt-3">
+              <label>Motivo de la muestra</label>
+              <textarea id="motivo" class="v26-textarea" rows="2" maxlength="500" required placeholder="Ej. Prueba de uso en planta, licitación, presentación al área de compras…"></textarea>
+            </div>
+            <div class="v26-field mb-0">
+              <label>Notas para planta <span class="mu-opc">(opcional)</span></label>
+              <textarea id="notas_planta" class="v26-textarea" rows="3" maxlength="2000" placeholder="Lo que deba saber quien la prepara: contexto del cliente, competencia, volumen del proyecto…"></textarea>
+            </div>
           </section>
 
           <section class="v26-card mu-paso">
             <div class="mu-paso-head"><span class="mu-paso-n">3</span><div><strong>¿Cuándo y a dónde?</strong><small>La fecha que le prometiste y dónde entregarla</small></div></div>
-            <div class="v26-field">
-              <label>Fecha promesa <span class="mu-opc">(opcional)</span></label>
-              <input type="date" id="fecha_promesa" class="v26-input">
+            <div class="row g-2">
+              <div class="col-sm-6 v26-field">
+                <label>Fecha promesa <span class="mu-opc">(opcional)</span></label>
+                <input type="date" id="fecha_promesa" class="v26-input">
+              </div>
+              <div class="col-sm-6 v26-field">
+                <label>Tiempo de prueba <span class="mu-opc">(días, opcional)</span></label>
+                <input type="number" id="tiempo_prueba_dias" class="v26-input" min="1" max="365" step="1" inputmode="numeric" placeholder="Ej. 15">
+              </div>
             </div>
             <div class="v26-field">
               <label>¿A quién se entrega?</label>
@@ -154,8 +175,11 @@ $u = requireRole('vendedor');
             <dt>Estilo</dt><dd id="r-estilo">—</dd>
             <dt>Color</dt><dd id="r-color">—</dd>
             <dt>Talla</dt><dd id="r-talla">—</dd>
+            <dt>Pares</dt><dd id="r-cantidad">1</dd>
             <dt>Tipo</dt><dd id="r-tipo">Idéntico al estilo</dd>
+            <dt>Motivo</dt><dd id="r-motivo">—</dd>
             <dt>Promesa</dt><dd id="r-fecha">—</dd>
+            <dt>Prueba</dt><dd id="r-prueba">—</dd>
             <dt>Entregar a</dt><dd id="r-entrega">Al cliente</dd>
             <dt>Dirección</dt><dd id="r-dir">—</dd>
           </dl>
@@ -202,6 +226,10 @@ function pintarResumen() {
   document.getElementById('r-estilo').textContent = est ? est.clave + (est.atributo ? ' · ' + est.atributo : '') : '—';
   document.getElementById('r-color').textContent = colorElegido || '—';
   document.getElementById('r-talla').textContent = val('talla') || '—';
+  document.getElementById('r-cantidad').textContent = val('cantidad') || '—';
+  document.getElementById('r-motivo').textContent = val('motivo') || '—';
+  const tp = parseInt(val('tiempo_prueba_dias'), 10);
+  document.getElementById('r-prueba').textContent = tp > 0 ? tp + (tp === 1 ? ' día' : ' días') : '—';
   document.getElementById('r-tipo').textContent = tipo === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo';
   const f = val('fecha_promesa');
   document.getElementById('r-fecha').textContent = f ? new Date(f + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -209,7 +237,7 @@ function pintarResumen() {
   document.getElementById('r-dir').textContent = val('destino_direccion') || '—';
 }
 function entregaElegida() { return document.querySelector('#seg-entrega .v26-seg-btn.active').dataset.entrega; }
-['talla', 'fecha_promesa', 'destino_direccion'].forEach(id => document.getElementById(id).addEventListener('input', pintarResumen));
+['talla', 'cantidad', 'motivo', 'fecha_promesa', 'tiempo_prueba_dias', 'destino_direccion'].forEach(id => document.getElementById(id).addEventListener('input', pintarResumen));
 document.getElementById('id_cliente').addEventListener('change', (e) => {
   const c = clientesCat.find(x => String(x.id) === e.target.value);
   const dir = document.getElementById('destino_direccion');
@@ -479,6 +507,10 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     fd.append('id_estilo_base', document.getElementById('id_estilo_base').value);
     fd.append('color', colorElegido);
     fd.append('talla', document.getElementById('talla').value);
+    fd.append('cantidad', document.getElementById('cantidad').value);
+    fd.append('motivo', document.getElementById('motivo').value);
+    fd.append('notas_planta', document.getElementById('notas_planta').value);
+    fd.append('tiempo_prueba_dias', document.getElementById('tiempo_prueba_dias').value);
     fd.append('fecha_promesa', document.getElementById('fecha_promesa').value);
     fd.append('tipo', tipo);
     fd.append('entregar_a', entregaElegida());
@@ -491,6 +523,9 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
       document.getElementById('pantalla-form').classList.add('d-none');
       window.scrollTo({ top: 0 });
       document.getElementById('folio-exito').textContent = data.folio || '';
+      const pdf = document.getElementById('btn-pdf-exito');
+      pdf.href = '../muestra_pdf.php?id=' + encodeURIComponent(data.id);
+      pdf.classList.remove('d-none');
       if (data.restantes === 0) document.getElementById('btn-pedir-otra').classList.add('d-none');
       document.getElementById('aviso-tope').classList.add('d-none');
       document.getElementById('pantalla-exito').classList.remove('d-none');

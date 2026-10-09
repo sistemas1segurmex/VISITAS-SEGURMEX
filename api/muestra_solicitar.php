@@ -29,10 +29,24 @@ $tipo         = ($_POST['tipo'] ?? '') === 'variante' ? 'variante' : 'identico';
 // A quién se entrega: en la dirección del cliente o al propio vendedor (su
 // domicilio o una paquetería -- la escribe él). La dirección va en ambos casos.
 $entregarA    = ($_POST['entregar_a'] ?? '') === 'vendedor' ? 'vendedor' : 'cliente';
+$motivo       = mb_substr(trim((string)($_POST['motivo'] ?? '')), 0, 500);
+$notasPlanta  = mb_substr(trim((string)($_POST['notas_planta'] ?? '')), 0, 2000);
+$cantidad     = (int)($_POST['cantidad'] ?? 1);
+$tiempoPrueba = trim((string)($_POST['tiempo_prueba_dias'] ?? ''));
 
 if (!$clienteId || !preg_match('/^[me]:\d+$/', $itemEstilo)) {
     jsonResponse(['ok' => false, 'error' => 'Selecciona un cliente y un estilo'], 400);
 }
+if ($motivo === '') {
+    jsonResponse(['ok' => false, 'error' => 'Escribe el motivo de la muestra'], 400);
+}
+if ($cantidad < 1 || $cantidad > 99) {
+    jsonResponse(['ok' => false, 'error' => 'La cantidad de pares debe ser de 1 a 99'], 400);
+}
+if ($tiempoPrueba !== '' && (!ctype_digit($tiempoPrueba) || (int)$tiempoPrueba < 1 || (int)$tiempoPrueba > 365)) {
+    jsonResponse(['ok' => false, 'error' => 'El tiempo de prueba debe ser de 1 a 365 días'], 400);
+}
+$tiempoPrueba = $tiempoPrueba === '' ? null : (int)$tiempoPrueba;
 if ($direccion === '') {
     jsonResponse(['ok' => false, 'error' => 'Indica la dirección de entrega'], 400);
 }
@@ -110,12 +124,14 @@ try {
 
     $ins = $db->prepare(
         'INSERT INTO muestras_solicitudes
-            (vendedor_id, cliente_id, cliente_nombre, id_estilo_erp, id_modelo_legacy, estilo_nombre, color, talla, fecha_promesa, tipo, cambios, entregar_a, destino_direccion)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?) RETURNING id'
+            (vendedor_id, cliente_id, cliente_nombre, id_estilo_erp, id_modelo_legacy, estilo_nombre, color, talla, fecha_promesa, tipo, cambios, entregar_a, destino_direccion,
+             motivo, notas_planta, cantidad, tiempo_prueba_dias)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?) RETURNING id'
     );
     $ins->execute([
         (int)$u['id'], $clienteId, mb_substr($cliente['nombre'], 0, 200), $estilo['id_estilo'], $estilo['id_modelo_legacy'], mb_substr($estiloNombre, 0, 200),
         $color !== '' ? mb_substr($color, 0, 40) : null, $talla ?: null, $fechaPromesa ?: null, $tipo, json_encode($cambios, JSON_UNESCAPED_UNICODE), $entregarA, $direccion,
+        $motivo, $notasPlanta !== '' ? $notasPlanta : null, $cantidad, $tiempoPrueba,
     ]);
     $id = (int)$ins->fetchColumn();
     $folio = sprintf('MV-%04d', $id);

@@ -175,6 +175,8 @@ function metaMuestraHTML(m) {
   const chips = [];
   if (m.color) chips.push(`<span><i class="bi bi-palette"></i> ${escHtml(m.color)}</span>`);
   if (m.talla) chips.push(`<span><i class="bi bi-rulers"></i> Talla ${escHtml(m.talla)}</span>`);
+  const pares = m.cantidad || 1;
+  chips.push(`<span><i class="bi bi-boxes"></i> ${pares} ${pares === 1 ? 'par' : 'pares'}</span>`);
   chips.push(`<span><i class="bi bi-shuffle"></i> ${escHtml(ETIQUETAS_TIPO_MUESTRA[m.tipo] || m.tipo)}</span>`);
   if (m.fecha_promesa) chips.push(`<span><i class="bi bi-calendar-event"></i> Promesa: ${fechaCorta(m.fecha_promesa)}</span>`);
   return `<div class="v26-muestra-meta">${chips.join('')}</div>`;
@@ -183,6 +185,9 @@ function metaMuestraHTML(m) {
 function detalleMuestraHTML(m) {
   const filas = [];
   filas.push(`<div>Solicitada el <strong>${fechaCorta(m.created_at)}</strong></div>`);
+  if (m.motivo) filas.push(`<div>Motivo: <strong>${escHtml(m.motivo)}</strong></div>`);
+  if (m.tiempo_prueba_dias) filas.push(`<div>Tiempo de prueba: <strong>${m.tiempo_prueba_dias} ${m.tiempo_prueba_dias === 1 ? 'día' : 'días'}</strong></div>`);
+  if (m.notas_planta) filas.push(`<div>Notas para planta: <strong>${escHtml(m.notas_planta)}</strong></div>`);
   filas.push(`<div>Entregar: <strong>${m.entregar_a === 'vendedor' ? 'A ti' : 'Al cliente'}</strong></div>`);
   if (m.destino_direccion) filas.push(`<div>Dirección: <strong>${escHtml(m.destino_direccion)}</strong></div>`);
   (m.cambios || []).forEach(c => {
@@ -190,6 +195,7 @@ function detalleMuestraHTML(m) {
     filas.push(`<div>${escHtml(cat)}: <strong>${escHtml(c.descripcion)}</strong></div>`);
   });
   if (m.estado === 'embarcada') filas.push(`<div>Embarcada el <strong>${fechaCorta(m.actualizada_en)}</strong> · ${escHtml(textoEnvioMuestra(m))}</div>`);
+  filas.push(`<div class="mt-2"><a href="../muestra_pdf.php?id=${encodeURIComponent(m.id)}" class="v26-btn v26-btn-ghost" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a></div>`);
   return `<div class="v26-muestra-detalle-inner">${filas.join('')}</div>`;
 }
 
@@ -255,6 +261,7 @@ function pintarCupo(usadas, tope) {
 document.querySelectorAll('.mu-stat').forEach(b => b.addEventListener('click', () => { filtro = b.dataset.estado; renderLista(); }));
 document.getElementById('btn-todas').addEventListener('click', () => { filtro = 'todas'; renderLista(); });
 document.getElementById('lista-muestras').addEventListener('click', (e) => {
+  if (e.target.closest('a')) return; // "Ver PDF" no abre/cierra la tarjeta
   const card = e.target.closest('.v26-muestra-card');
   if (card) card.classList.toggle('abierta');
 });
