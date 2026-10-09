@@ -183,7 +183,8 @@ function metaMuestraHTML(m) {
 function detalleMuestraHTML(m) {
   const filas = [];
   filas.push(`<div>Solicitada el <strong>${fechaCorta(m.created_at)}</strong></div>`);
-  if (m.destino_direccion) filas.push(`<div>Entregar en: <strong>${escHtml(m.destino_direccion)}</strong></div>`);
+  filas.push(`<div>Entregar: <strong>${m.entregar_a === 'vendedor' ? 'A ti' : 'Al cliente'}</strong></div>`);
+  if (m.destino_direccion) filas.push(`<div>Dirección: <strong>${escHtml(m.destino_direccion)}</strong></div>`);
   (m.cambios || []).forEach(c => {
     const cat = c.categoria === 'otro' ? (c.categoria_otro || 'Otro') : (CATEGORIAS_CAMBIO_MUESTRA[c.categoria] || c.categoria);
     filas.push(`<div>${escHtml(cat)}: <strong>${escHtml(c.descripcion)}</strong></div>`);

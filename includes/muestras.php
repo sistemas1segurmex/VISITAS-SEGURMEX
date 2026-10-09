@@ -70,6 +70,14 @@ function catalogoParaMuestraErp(?string $item = null): ?array {
     return array_values($lista);
 }
 
+/** "Al cliente" / "Al vendedor (Nombre)" -- a quién se entrega la muestra. */
+function textoEntregarAMuestra(array $s): string {
+    if (($s['entregar_a'] ?? 'cliente') === 'vendedor') {
+        return 'Al vendedor' . (!empty($s['vendedor_nombre']) ? ' (' . $s['vendedor_nombre'] . ')' : '');
+    }
+    return 'Al cliente' . (!empty($s['cliente_nombre']) ? ' (' . $s['cliente_nombre'] . ')' : '');
+}
+
 function etiquetaEstadoMuestra(string $estado): string {
     return MUESTRA_ESTADOS[$estado] ?? $estado;
 }
@@ -210,7 +218,8 @@ function notificarNuevaSolicitudMuestra(PDO $db, array $s): void {
             'Tipo'            => $s['tipo'] === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo',
             'Cambios'         => textoCambiosMuestra($s['cambios']),
             'Fecha promesa'   => $s['fecha_promesa'] ? date('d/m/Y', strtotime($s['fecha_promesa'])) : null,
-            'Entregar en'     => $s['destino_direccion'],
+            'Entregar a'      => textoEntregarAMuestra($s),
+            'Dirección'       => $s['destino_direccion'],
         ],
         urlBaseVisitas() . $enlaceRel,
         'Abrir solicitud'
@@ -248,7 +257,8 @@ function notificarCambioEstadoMuestra(PDO $db, array $s): void {
         $renglones = ['Cliente' => $s['cliente_nombre'], 'Estilo' => $s['estilo_nombre'], 'Color' => $s['color'] ?? null, 'Talla' => $s['talla']];
         if ($s['estado'] === 'embarcada') {
             $renglones['Envío'] = textoEnvioMuestra($s);
-            $renglones['Entregar en'] = $s['destino_direccion'];
+            $renglones['Entregar a'] = textoEntregarAMuestra($s);
+            $renglones['Dirección']  = $s['destino_direccion'];
         }
         if ($s['estado'] === 'cancelada') $renglones['Motivo'] = $s['motivo_cancelacion'];
         enviarCorreoMuestra($s['vendedor_email'], $titulo, correoMuestraHtml(
@@ -349,6 +359,7 @@ function solicitudMuestraParaJson(array $s): array {
         'fecha_promesa'      => $s['fecha_promesa'],
         'tipo'               => $s['tipo'],
         'cambios'            => is_array($s['cambios']) ? $s['cambios'] : (json_decode($s['cambios'] ?? '[]', true) ?: []),
+        'entregar_a'         => $s['entregar_a'] ?? 'cliente',
         'destino_direccion'  => $s['destino_direccion'],
         'estado'             => $s['estado'],
         'estado_etiqueta'    => etiquetaEstadoMuestra($s['estado']),

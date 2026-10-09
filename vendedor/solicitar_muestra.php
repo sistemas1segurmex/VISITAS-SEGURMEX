@@ -124,6 +124,17 @@ $u = requireRole('vendedor');
               <label>Fecha promesa <span class="mu-opc">(opcional)</span></label>
               <input type="date" id="fecha_promesa" class="v26-input">
             </div>
+            <div class="v26-field">
+              <label>¿A quién se entrega?</label>
+              <div class="mu-tipos" id="seg-entrega">
+                <button type="button" class="v26-seg-btn mu-tipo active" data-entrega="cliente">
+                  <i class="bi bi-building"></i><strong>Al cliente</strong><small>En la dirección del cliente</small>
+                </button>
+                <button type="button" class="v26-seg-btn mu-tipo" data-entrega="vendedor">
+                  <i class="bi bi-person"></i><strong>A mí</strong><small>Mi domicilio o una paquetería</small>
+                </button>
+              </div>
+            </div>
             <div class="v26-field mb-0">
               <label>Dirección de entrega</label>
               <textarea id="destino_direccion" class="v26-textarea" rows="3" required placeholder="Calle, número, colonia, ciudad..."></textarea>
@@ -145,7 +156,8 @@ $u = requireRole('vendedor');
             <dt>Talla</dt><dd id="r-talla">—</dd>
             <dt>Tipo</dt><dd id="r-tipo">Idéntico al estilo</dd>
             <dt>Promesa</dt><dd id="r-fecha">—</dd>
-            <dt>Entregar en</dt><dd id="r-dir">—</dd>
+            <dt>Entregar a</dt><dd id="r-entrega">Al cliente</dd>
+            <dt>Dirección</dt><dd id="r-dir">—</dd>
           </dl>
           <p class="mu-nota mb-0"><i class="bi bi-info-circle"></i> Al enviarla le llega al equipo de Segurmex.</p>
         </aside>
@@ -193,13 +205,16 @@ function pintarResumen() {
   document.getElementById('r-tipo').textContent = tipo === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo';
   const f = val('fecha_promesa');
   document.getElementById('r-fecha').textContent = f ? new Date(f + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  document.getElementById('r-entrega').textContent = entregaElegida() === 'vendedor' ? 'A mí (vendedor)' : 'Al cliente';
   document.getElementById('r-dir').textContent = val('destino_direccion') || '—';
 }
+function entregaElegida() { return document.querySelector('#seg-entrega .v26-seg-btn.active').dataset.entrega; }
 ['talla', 'fecha_promesa', 'destino_direccion'].forEach(id => document.getElementById(id).addEventListener('input', pintarResumen));
 document.getElementById('id_cliente').addEventListener('change', (e) => {
   const c = clientesCat.find(x => String(x.id) === e.target.value);
   const dir = document.getElementById('destino_direccion');
   const nota = document.getElementById('nota-direccion');
+  if (entregaElegida() !== 'cliente') { pintarResumen(); return; } // la de "a mí" la escribe el vendedor
   if (c && c.direccion && (dir.value.trim() === '' || dir.value === direccionAutollenada)) {
     dir.value = c.direccion; direccionAutollenada = c.direccion; nota.classList.remove('d-none');
   } else if (!c && dir.value === direccionAutollenada) {
@@ -209,6 +224,35 @@ document.getElementById('id_cliente').addEventListener('change', (e) => {
 });
 document.getElementById('destino_direccion').addEventListener('input', (e) => {
   if (e.target.value !== direccionAutollenada) document.getElementById('nota-direccion').classList.add('d-none');
+});
+// A quién se entrega: "Al cliente" llena sola la dirección del cliente; "A mí"
+// la deja en blanco para que el vendedor escriba su domicilio o la paquetería
+// (cambia cada vez). Solo se borra/rellena lo que pusimos solos, nunca lo que
+// él escribió.
+const PH_DIR_CLIENTE  = 'Calle, número, colonia, ciudad...';
+const PH_DIR_VENDEDOR = 'Tu domicilio o la sucursal de paquetería donde la recoges';
+document.querySelectorAll('#seg-entrega .v26-seg-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.classList.contains('active')) return;
+    document.querySelectorAll('#seg-entrega .v26-seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const dir = document.getElementById('destino_direccion');
+    const nota = document.getElementById('nota-direccion');
+    if (btn.dataset.entrega === 'vendedor') {
+      if (direccionAutollenada !== null && dir.value === direccionAutollenada) dir.value = '';
+      direccionAutollenada = null;
+      nota.classList.add('d-none');
+      dir.placeholder = PH_DIR_VENDEDOR;
+      dir.focus();
+    } else {
+      dir.placeholder = PH_DIR_CLIENTE;
+      const c = clientesCat.find(x => String(x.id) === document.getElementById('id_cliente').value);
+      if (c && c.direccion && dir.value.trim() === '') {
+        dir.value = c.direccion; direccionAutollenada = c.direccion; nota.classList.remove('d-none');
+      }
+    }
+    pintarResumen();
+  });
 });
 // ---- Catálogo visual de estilos (mismo diseño que la Nueva cotización, sin precios) ----
 const FOTOS_URL = '/erp/assets/img/cotizador/';
@@ -437,6 +481,7 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     fd.append('talla', document.getElementById('talla').value);
     fd.append('fecha_promesa', document.getElementById('fecha_promesa').value);
     fd.append('tipo', tipo);
+    fd.append('entregar_a', entregaElegida());
     fd.append('destino_direccion', document.getElementById('destino_direccion').value);
     fd.append('adendum', JSON.stringify(adendum));
 

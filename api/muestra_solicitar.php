@@ -26,6 +26,9 @@ $direccion    = trim($_POST['destino_direccion'] ?? '');
 $talla        = mb_substr(trim($_POST['talla'] ?? ''), 0, 30);
 $fechaPromesa = trim($_POST['fecha_promesa'] ?? '');
 $tipo         = ($_POST['tipo'] ?? '') === 'variante' ? 'variante' : 'identico';
+// A quién se entrega: en la dirección del cliente o al propio vendedor (su
+// domicilio o una paquetería -- la escribe él). La dirección va en ambos casos.
+$entregarA    = ($_POST['entregar_a'] ?? '') === 'vendedor' ? 'vendedor' : 'cliente';
 
 if (!$clienteId || !preg_match('/^[me]:\d+$/', $itemEstilo)) {
     jsonResponse(['ok' => false, 'error' => 'Selecciona un cliente y un estilo'], 400);
@@ -107,12 +110,12 @@ try {
 
     $ins = $db->prepare(
         'INSERT INTO muestras_solicitudes
-            (vendedor_id, cliente_id, cliente_nombre, id_estilo_erp, id_modelo_legacy, estilo_nombre, color, talla, fecha_promesa, tipo, cambios, destino_direccion)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?::jsonb,?) RETURNING id'
+            (vendedor_id, cliente_id, cliente_nombre, id_estilo_erp, id_modelo_legacy, estilo_nombre, color, talla, fecha_promesa, tipo, cambios, entregar_a, destino_direccion)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?) RETURNING id'
     );
     $ins->execute([
         (int)$u['id'], $clienteId, mb_substr($cliente['nombre'], 0, 200), $estilo['id_estilo'], $estilo['id_modelo_legacy'], mb_substr($estiloNombre, 0, 200),
-        $color !== '' ? mb_substr($color, 0, 40) : null, $talla ?: null, $fechaPromesa ?: null, $tipo, json_encode($cambios, JSON_UNESCAPED_UNICODE), $direccion,
+        $color !== '' ? mb_substr($color, 0, 40) : null, $talla ?: null, $fechaPromesa ?: null, $tipo, json_encode($cambios, JSON_UNESCAPED_UNICODE), $entregarA, $direccion,
     ]);
     $id = (int)$ins->fetchColumn();
     $folio = sprintf('MV-%04d', $id);
