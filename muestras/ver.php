@@ -78,7 +78,9 @@ $TXT_HISTORIAL = [
       <?php if ($s['estado'] === 'en_preparacion' && textoPreparacionMuestra($s)): ?>
         <div class="mu-estado-extra"><i class="bi <?= $s['preparacion'] === 'pt' ? 'bi-box-seam' : 'bi-gear' ?>"></i> <?= e(textoPreparacionMuestra($s)) ?></div>
       <?php elseif ($s['estado'] === 'embarcada'): ?>
-        <div class="mu-estado-extra"><i class="bi bi-truck"></i> <?= e(textoEnvioMuestra($s)) ?></div>
+        <div class="mu-estado-extra"><i class="bi bi-truck"></i> <?= e(textoEnvioMuestra($s)) ?>
+          <?php if (!empty($s['guia_url'])): ?> · <a href="<?= e($s['guia_url']) ?>" target="_blank" rel="noopener">Rastrear envío <i class="bi bi-box-arrow-up-right"></i></a><?php endif; ?>
+        </div>
       <?php elseif ($s['estado'] === 'cancelada'): ?>
         <div class="mu-estado-extra"><i class="bi bi-x-circle"></i> <?= e($s['motivo_cancelacion']) ?></div>
       <?php endif; ?>
@@ -134,15 +136,11 @@ $TXT_HISTORIAL = [
         </div>
         <div id="campos-paqueteria">
           <div class="v26-field">
-            <label>Paquetería</label>
-            <input type="text" id="paqueteria" class="v26-input" maxlength="80" placeholder="DHL, Estafeta, FedEx...">
-          </div>
-          <div class="v26-field">
-            <label>Número de guía</label>
-            <input type="text" id="guia" class="v26-input" maxlength="80">
+            <label>Link de la guía</label>
+            <input type="url" id="guia_url" class="v26-input" maxlength="1000" inputmode="url" placeholder="Pega aquí el link de rastreo" autocomplete="off">
           </div>
         </div>
-        <p class="mu-nota">Al guardar, a <?= e($s['vendedor_nombre']) ?> le llega un aviso con estos datos.</p>
+        <p class="mu-nota">Al guardar, a <?= e($s['vendedor_nombre']) ?> le llega un aviso con el link para rastrear su muestra.</p>
         <button type="submit" class="v26-btn v26-btn-primary v26-btn-block">Guardar como embarcada</button>
       </form>
 
@@ -292,13 +290,13 @@ document.querySelectorAll('#seg-envio .v26-seg-btn').forEach(b => b.addEventList
 
 document.getElementById('form-embarcada').addEventListener('submit', (e) => {
   e.preventDefault();
-  const paqueteria = document.getElementById('paqueteria').value.trim();
-  const guia = document.getElementById('guia').value.trim();
-  if (modoEnvio === 'paqueteria' && (!paqueteria || !guia)) {
-    document.getElementById('msg').innerHTML = '<div class="alert alert-danger py-2">Escribe la paquetería y el número de guía.</div>';
+  const guiaUrl = document.getElementById('guia_url').value.trim();
+  if (modoEnvio === 'paqueteria' && !/^https?:\/\/\S+$/i.test(guiaUrl)) {
+    document.getElementById('msg').innerHTML = '<div class="alert alert-danger py-2">Pega el link de rastreo de la guía (debe empezar con http:// o https://).</div>';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
-  cambiarEstado('embarcada', { envio_modo: modoEnvio, paqueteria, guia }, e.submitter);
+  cambiarEstado('embarcada', { envio_modo: modoEnvio, guia_url: modoEnvio === 'paqueteria' ? guiaUrl : '' }, e.submitter);
 });
 
 document.getElementById('form-cancelar').addEventListener('submit', (e) => {

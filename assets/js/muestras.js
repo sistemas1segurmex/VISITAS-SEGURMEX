@@ -46,7 +46,10 @@ function promesaVencida(m) {
   return m.fecha_promesa < hoy;
 }
 
+// Las nuevas traen solo el link de rastreo (guia_url); las embarcadas antes
+// del 09-oct-2026, paquetería y número de guía.
 function textoEnvio(m) {
   if (m.envio_modo === 'en_persona') return 'Entregada en persona';
+  if (m.guia_url) return 'Por paquetería';
   return [m.paqueteria, m.guia ? 'guía ' + m.guia : ''].filter(Boolean).join(', ') || 'Por paquetería';
 }

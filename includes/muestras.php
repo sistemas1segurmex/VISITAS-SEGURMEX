@@ -205,9 +205,14 @@ function historialSolicitudMuestra(PDO $db, int $id): array {
     return $stmt->fetchAll();
 }
 
-/** Texto corto de cómo se envió ("DHL, guía 123" / "Entregada en persona"). */
+/**
+ * Texto corto de cómo se envió: "Por paquetería" (las nuevas: el link de
+ * rastreo va aparte, en guia_url) / "Entregada en persona". Las embarcadas
+ * antes del 09-oct-2026 traen paquetería y número de guía: "DHL, guía 123".
+ */
 function textoEnvioMuestra(array $s): string {
     if (($s['envio_modo'] ?? '') === 'en_persona') return 'Entregada en persona';
+    if (!empty($s['guia_url'])) return 'Por paquetería';
     $partes = [];
     if (!empty($s['paqueteria'])) $partes[] = $s['paqueteria'];
     if (!empty($s['guia']))       $partes[] = 'guía ' . $s['guia'];
@@ -301,7 +306,9 @@ function notificarCambioEstadoMuestra(PDO $db, array $s, bool $yaEnPt = false): 
             break;
         case 'embarcada':
             $titulo  = "Tu muestra $folio ya se embarcó";
-            $mensaje = "Tu muestra de $que ya salió: " . textoEnvioMuestra($s) . '.';
+            $mensaje = !empty($s['guia_url'])
+                ? "Tu muestra de $que ya salió por paquetería. Toca para rastrearla."
+                : "Tu muestra de $que ya salió: " . textoEnvioMuestra($s) . '.';
             break;
         case 'cancelada':
             $titulo  = "Tu muestra $folio se canceló";
@@ -322,8 +329,12 @@ function notificarCambioEstadoMuestra(PDO $db, array $s, bool $yaEnPt = false): 
             $renglones['Dirección']  = $s['destino_direccion'];
         }
         if ($s['estado'] === 'cancelada') $renglones['Motivo'] = $s['motivo_cancelacion'];
+        // Embarcada con link de rastreo: el botón del correo abre el rastreo.
+        $conRastreo = $s['estado'] === 'embarcada' && !empty($s['guia_url']);
         enviarCorreoMuestra($s['vendedor_email'], $titulo, correoMuestraHtml(
-            $titulo, $mensaje, $renglones, urlBaseVisitas() . $enlaceRel, 'Ver mis muestras'
+            $titulo, $conRastreo ? "Tu muestra de $que ya salió por paquetería." : $mensaje, $renglones,
+            $conRastreo ? $s['guia_url'] : urlBaseVisitas() . $enlaceRel,
+            $conRastreo ? 'Rastrear envío' : 'Ver mis muestras'
         ));
     }
 }
@@ -344,7 +355,7 @@ function textoCambiosMuestra(array $cambios): ?string {
 /**
  * Cambia el estado de una solicitud (solo la responsable de muestras).
  * $datos: preparacion ('pt'|'por_programar') y fecha_estimada (opcional,
- * solo por programar) para 'en_preparacion'; envio_modo/paqueteria/guia
+ * solo por programar) para 'en_preparacion'; envio_modo/guia_url
  * para 'embarcada'; motivo para 'cancelada'. Una que ya está "en
  * preparación · por programar" puede volver a marcarse en preparación con
  * preparacion = 'pt' (ya se fabricó). Valida la transición, guarda
@@ -354,7 +365,7 @@ function textoCambiosMuestra(array $cambios): ?string {
 function cambiarEstadoSolicitudMuestra(PDO $db, int $id, int $usuarioId, string $nuevo, array $datos): array {
     if (!isset(MUESTRA_ESTADOS[$nuevo])) return ['ok' => false, 'error' => 'Estado no válido'];
 
-    $envioModo = null; $paqueteria = null; $guia = null; $motivo = null; $nota = null;
+    $envioModo = null; $guiaUrl = null; $motivo = null; $nota = null;
     $preparacion = null; $fechaEstimada = null;
     if ($nuevo === 'en_preparacion') {
         $preparacion = (string)($datos['preparacion'] ?? '');
@@ -372,14 +383,15 @@ function cambiarEstadoSolicitudMuestra(PDO $db, int $id, int $usuarioId, string 
     if ($nuevo === 'embarcada') {
         $envioModo = ($datos['envio_modo'] ?? '') === 'en_persona' ? 'en_persona' : 'paqueteria';
         if ($envioModo === 'paqueteria') {
-            $paqueteria = trim((string)($datos['paqueteria'] ?? ''));
-            $guia       = trim((string)($datos['guia'] ?? ''));
-            if ($paqueteria === '') return ['ok' => false, 'error' => 'Escribe la paquetería'];
-            if ($guia === '')       return ['ok' => false, 'error' => 'Escribe el número de guía'];
-            $paqueteria = mb_substr($paqueteria, 0, 80);
-            $guia       = mb_substr($guia, 0, 80);
+            // Solo el link de rastreo de la guía (ya no paquetería ni número).
+            $guiaUrl = trim((string)($datos['guia_url'] ?? ''));
+            $esquema = strtolower((string)parse_url($guiaUrl, PHP_URL_SCHEME));
+            if ($guiaUrl === '' || strlen($guiaUrl) > 1000 || !filter_var($guiaUrl, FILTER_VALIDATE_URL)
+                || !in_array($esquema, ['http', 'https'], true)) {
+                return ['ok' => false, 'error' => 'Pega el link de rastreo de la guía (debe empezar con http:// o https://)'];
+            }
         }
-        $nota = $envioModo === 'en_persona' ? 'Entregada en persona' : "$paqueteria, guía $guia";
+        $nota = $envioModo === 'en_persona' ? 'Entregada en persona' : 'Por paquetería · con link de rastreo';
     }
     if ($nuevo === 'cancelada') {
         $motivo = trim((string)($datos['motivo'] ?? ''));
@@ -406,10 +418,10 @@ function cambiarEstadoSolicitudMuestra(PDO $db, int $id, int $usuarioId, string 
         $db->prepare(
             'UPDATE muestras_solicitudes
                 SET estado = ?, actualizada_en = NOW(),
-                    envio_modo = COALESCE(?, envio_modo), paqueteria = COALESCE(?, paqueteria),
-                    guia = COALESCE(?, guia), motivo_cancelacion = COALESCE(?, motivo_cancelacion)
+                    envio_modo = COALESCE(?, envio_modo), guia_url = COALESCE(?, guia_url),
+                    motivo_cancelacion = COALESCE(?, motivo_cancelacion)
               WHERE id = ?'
-        )->execute([$nuevo, $envioModo, $paqueteria, $guia, $motivo, $id]);
+        )->execute([$nuevo, $envioModo, $guiaUrl, $motivo, $id]);
         if ($nuevo === 'en_preparacion') {
             $db->prepare('UPDATE muestras_solicitudes SET preparacion = ?, fecha_estimada_pt = ? WHERE id = ?')
                ->execute([$preparacion, $fechaEstimada, $id]);
@@ -462,6 +474,7 @@ function solicitudMuestraParaJson(array $s): array {
         'envio_modo'         => $s['envio_modo'],
         'paqueteria'         => $s['paqueteria'],
         'guia'               => $s['guia'],
+        'guia_url'           => $s['guia_url'] ?? null,
         'motivo_cancelacion' => $s['motivo_cancelacion'],
         'created_at'         => $s['created_at'],
         'actualizada_en'     => $s['actualizada_en'],

@@ -150,6 +150,7 @@ function grupoEstadoMuestra(m) {
 
 function textoEnvioMuestra(m) {
   if (m.envio_modo === 'en_persona') return 'Entregada en persona';
+  if (m.guia_url) return 'Por paquetería';
   return [m.paqueteria, m.guia ? 'guía ' + m.guia : ''].filter(Boolean).join(', ') || 'Por paquetería';
 }
 
@@ -173,7 +174,8 @@ function textoEstadoMuestra(m) {
       + ' Te avisaremos cuando esté lista y cuando se embarque.';
     return 'El equipo de Segurmex ya la está preparando. Te avisaremos cuando se embarque.';
   }
-  if (m.estado === 'embarcada') return `<i class="bi bi-truck"></i> ${escHtml(textoEnvioMuestra(m))}`;
+  if (m.estado === 'embarcada') return `<i class="bi bi-truck"></i> ${escHtml(textoEnvioMuestra(m))}`
+    + (m.guia_url ? ` · <a href="${escHtml(m.guia_url)}" target="_blank" rel="noopener">Rastrear envío <i class="bi bi-box-arrow-up-right"></i></a>` : '');
   return '';
 }
 
@@ -268,7 +270,7 @@ function pintarCupo(usadas, tope) {
 document.querySelectorAll('.mu-stat').forEach(b => b.addEventListener('click', () => { filtro = b.dataset.estado; renderLista(); }));
 document.getElementById('btn-todas').addEventListener('click', () => { filtro = 'todas'; renderLista(); });
 document.getElementById('lista-muestras').addEventListener('click', (e) => {
-  if (e.target.closest('a')) return; // "Ver PDF" no abre/cierra la tarjeta
+  if (e.target.closest('a')) return; // "Ver PDF" y "Rastrear envío" no abren/cierran la tarjeta
   const card = e.target.closest('.v26-muestra-card');
   if (card) card.classList.toggle('abierta');
 });
