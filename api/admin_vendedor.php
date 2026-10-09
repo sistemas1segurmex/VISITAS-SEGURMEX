@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/visita_checkins.php';
 
 $admin = requireRole('admin');
 $db    = getDB();
@@ -86,7 +87,8 @@ $sqlLineasCheckin = "
                 (SELECT distancia_metros FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='entrada' ORDER BY ch.id DESC LIMIT 1) AS entrada_distancia_metros,
                 (SELECT verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' ORDER BY ch.id DESC LIMIT 1) AS checkin_verificado_salida,
                 (SELECT fecha_hora FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' ORDER BY ch.id DESC LIMIT 1) AS salida_fecha_hora,
-                (SELECT distancia_metros FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' ORDER BY ch.id DESC LIMIT 1) AS salida_distancia_metros,";
+                (SELECT distancia_metros FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo='salida' ORDER BY ch.id DESC LIMIT 1) AS salida_distancia_metros,
+                " . sqlIntentosCheckin($db) . ",";
 
 if ($accion === 'citas_proximas') {
     $stmt = $db->prepare(
@@ -103,7 +105,9 @@ if ($accion === 'citas_proximas') {
          ORDER BY c.fecha_hora ASC LIMIT 100"
     );
     $stmt->execute([$vendedorId]);
-    jsonResponse(['ok' => true, 'citas' => $stmt->fetchAll()]);
+    $citas = $stmt->fetchAll();
+    agregarGpsEnSitio($db, $citas); // ver includes/visita_checkins.php
+    jsonResponse(['ok' => true, 'citas' => $citas]);
 }
 
 if ($accion === 'citas_todas') {
@@ -121,7 +125,9 @@ if ($accion === 'citas_todas') {
          ORDER BY c.fecha_hora DESC LIMIT 200"
     );
     $stmt->execute([$vendedorId]);
-    jsonResponse(['ok' => true, 'citas' => $stmt->fetchAll()]);
+    $citas = $stmt->fetchAll();
+    agregarGpsEnSitio($db, $citas); // ver includes/visita_checkins.php
+    jsonResponse(['ok' => true, 'citas' => $citas]);
 }
 
 if ($accion === 'clientes') {

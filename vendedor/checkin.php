@@ -198,6 +198,27 @@ let interesSel = null;
 const estadoGps = document.getElementById('estado-gps');
 const btn = document.getElementById('btn-registrar');
 
+// Deja rastro de lo que pasa antes de que el check-in quede registrado
+// (abrir la pantalla, GPS impreciso, envío fallido) para que el admin vea
+// por qué una entrada se registró tarde. Ver api/checkin_intento.php. Nunca
+// debe estorbar: sin señal simplemente se pierde.
+function reportarIntento(etapa, motivo) {
+  if (!tipo) return;
+  try {
+    const fd = new FormData();
+    fd.append('cita_id', citaId);
+    fd.append('tipo', tipo);
+    fd.append('etapa', etapa);
+    if (motivo) fd.append('motivo', String(motivo).slice(0, 250));
+    if (lat && lng) { fd.append('lat', lat); fd.append('lng', lng); }
+    if (accuracy !== null && isFinite(accuracy)) fd.append('accuracy', accuracy);
+    const url = '../api/checkin_intento.php';
+    if (!(navigator.sendBeacon && navigator.sendBeacon(url, fd))) {
+      fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', keepalive: true }).catch(() => {});
+    }
+  } catch (e) { /* solo es registro */ }
+}
+
 // El primer fix del GPS suele ser el peor (arrancando en frío, dentro de un
 // vehículo/edificio, cae a red/wifi en vez de satélite -- así se marcó a
 // una vendedora "fuera de zona" a 29 km estando en el estacionamiento de la
@@ -213,6 +234,7 @@ let mejorAccuracy = Infinity;
 function iniciarCapturaGps() {
   if (!('geolocation' in navigator)) {
     estadoGps.innerHTML = 'Tu navegador no soporta geolocalización.';
+    reportarIntento('gps_impreciso', 'El navegador no soporta geolocalización');
     return;
   }
   mejorAccuracy = Infinity;
@@ -233,6 +255,7 @@ function iniciarCapturaGps() {
       if (mejorAccuracy <= PRECISION_BUENA_M || yaEsperoBastante) {
         navigator.geolocation.clearWatch(watchId);
         if (mejorAccuracy > PRECISION_MINIMA_ACEPTABLE_M) {
+          reportarIntento('gps_impreciso', `No logró precisión aceptable (±${Math.round(mejorAccuracy)} m)`);
           // Peor que 1 km casi siempre es "Ubicación exacta" apagada (vendedor.js).
           estadoGps.innerHTML = mejorAccuracy > UMBRAL_UBICACION_APROXIMADA_M
             ? htmlUbicacionAproximada(mejorAccuracy)
@@ -261,6 +284,7 @@ function iniciarCapturaGps() {
       }
       // Solo llegó una lectura aproximada y el teléfono no mandó más.
       if (lat && mejorAccuracy > UMBRAL_UBICACION_APROXIMADA_M) {
+        reportarIntento('gps_impreciso', `Solo ubicación aproximada (±${Math.round(mejorAccuracy)} m)`);
         estadoGps.innerHTML = htmlUbicacionAproximada(mejorAccuracy);
         document.getElementById('btn-reintentar-gps')?.addEventListener('click', iniciarCapturaGps);
         return;
@@ -269,6 +293,7 @@ function iniciarCapturaGps() {
       if (err.code === 1) msg = '⚠️ Permiso de ubicación denegado en el navegador.';
       else if (err.code === 2) msg = '⚠️ Posición GPS no disponible.';
       else if (err.code === 3) msg = '⚠️ Tiempo de espera agotado al obtener GPS.';
+      reportarIntento('gps_impreciso', msg.replace('⚠️ ', '') + ` (código ${err.code})`);
       // Bloqueada en el teléfono: pasos para activarla (ver vendedor.js). La
       // foto ya tomada se conserva: reintentar no recarga la página.
       // Apagada o sin señal (2/3): cómo activarla o salir a espacio abierto.
@@ -282,7 +307,10 @@ function iniciarCapturaGps() {
   );
 }
 
-if (tipo) iniciarCapturaGps();
+if (tipo) {
+  reportarIntento('abrio_pantalla');
+  iniciarCapturaGps();
+}
 
 function revisarListoParaEnviar() {
   if (!btn) return;
@@ -603,6 +631,7 @@ async function enviarCheckin(motivoNoShow, corregirUbicacion) {
       revisarListoParaEnviar();
     }
   } catch (e) {
+    reportarIntento('error_envio', (e && (e.name === 'AbortError' ? 'Tiempo agotado al enviar' : e.message)) || 'Error de conexión');
     msg.innerHTML = `<div class="alert alert-danger py-2">${mensajeErrorEnvio(e)}</div>`;
     btn.disabled = false;
     revisarListoParaEnviar();

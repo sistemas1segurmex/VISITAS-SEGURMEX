@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/visita_checkins.php';
 
 $u  = requireRole('vendedor');
 $db = getDB();
@@ -25,16 +26,28 @@ $motivo  = trim($_POST['motivo'] ?? '');
 // la salida (ver comentario junto al UPDATE de abajo).
 $interes = trim($_POST['interes'] ?? '');
 $INTERES_VALIDOS = ['bajo', 'medio', 'interesado', 'muy_interesado'];
+
+// Todo rechazo queda en checkin_intentos antes de contestar, para que el
+// admin vea qué pasó si la entrada se registra tarde (ver
+// includes/visita_checkins.php). $distancia se lee por referencia: vale
+// null hasta que se calcula más abajo.
+$distancia = null;
+$rechazar = function (string $error, int $code = 400, array $extra = [], string $etapa = 'rechazo_servidor')
+    use ($db, $u, &$citaId, &$tipo, &$lat, &$lng, &$accuracy, &$distancia): void {
+    registrarIntentoCheckin($db, (int)$citaId, (int)$u['id'], (string)$tipo, $etapa, $error,
+        $lat ?: null, $lng ?: null, $accuracy, $distancia);
+    jsonResponse(['ok' => false, 'error' => $error] + $extra, $code);
+};
 if ($tipo === 'salida' && !$noShow && !in_array($interes, $INTERES_VALIDOS, true)) {
-    jsonResponse(['ok' => false, 'error' => 'Elige qué tan interesado se mostró el cliente.'], 400);
+    $rechazar('Elige qué tan interesado se mostró el cliente.');
 }
 
 if (!$citaId || !$lat || !$lng || !in_array($tipo, ['entrada', 'salida'], true)) {
-    jsonResponse(['ok' => false, 'error' => 'Datos incompletos (cita, GPS o tipo)'], 400);
+    $rechazar('Datos incompletos (cita, GPS o tipo)');
 }
 
 if ($noShow && $motivo === '') {
-    jsonResponse(['ok' => false, 'error' => 'Cuéntanos brevemente qué pasó (motivo obligatorio).'], 400);
+    $rechazar('Cuéntanos brevemente qué pasó (motivo obligatorio).');
 }
 
 $stmt = $db->prepare(
@@ -61,18 +74,17 @@ if ($stmt->fetchColumn()) {
 }
 
 if (in_array($cita['estado'], ['cancelada', 'no_realizada', 'completada'], true)) {
-    jsonResponse(['ok' => false, 'error' => 'Esta cita ya no admite check-in (estado: ' . $cita['estado'] . ').'], 400);
+    $rechazar('Esta cita ya no admite check-in (estado: ' . $cita['estado'] . ').');
 }
 
 if ($noShow) {
     $minutosPasados = (time() - strtotime($cita['fecha_hora'])) / 60;
     if ($minutosPasados < ESPERA_NO_SHOW_MINUTOS) {
         $faltan = ceil(ESPERA_NO_SHOW_MINUTOS - $minutosPasados);
-        jsonResponse(['ok' => false, 'error' => "Espera $faltan minuto(s) más desde la hora programada antes de reportar que el cliente no llegó."], 400);
+        $rechazar("Espera $faltan minuto(s) más desde la hora programada antes de reportar que el cliente no llegó.");
     }
 }
 
-$distancia  = null;
 $verificado = 0;
 if ($cita['cliente_lat'] !== null && $cita['cliente_lng'] !== null) {
     // El propio checkin.php del vendedor ya reintenta el GPS hasta lograr
@@ -81,7 +93,7 @@ if ($cita['cliente_lat'] !== null && $cita['cliente_lng'] !== null) {
     // agotado). Se rechaza en vez de calcular "fuera de zona" con un GPS
     // que puede estar a kilómetros de error.
     if ($accuracy !== null && $accuracy > PRECISION_MINIMA_CHECKIN_METROS) {
-        jsonResponse(['ok' => false, 'error' => 'Tu ubicación no es lo bastante precisa (±' . round($accuracy) . ' m). Sal a espacio abierto o espera unos segundos e intenta de nuevo.'], 400);
+        $rechazar('Tu ubicación no es lo bastante precisa (±' . round($accuracy) . ' m). Sal a espacio abierto o espera unos segundos e intenta de nuevo.');
     }
     $distancia  = haversineDistance($lat, $lng, (float)$cita['cliente_lat'], (float)$cita['cliente_lng']);
     $verificado = $distancia <= RADIO_VERIFICACION_METROS ? 1 : 0;
@@ -104,13 +116,11 @@ if ($tipo === 'entrada' && !$noShow && $verificado === 0 && $distancia !== null
     && !($distancia > CORRECCION_REVISAR_MAX_M && $cita['aviso_pendiente'])) {
     $respuesta = $_POST['corregir_ubicacion'] ?? null;
     if ($respuesta === null) {
-        jsonResponse([
-            'ok'                 => false,
+        $rechazar('Tu ubicación no coincide con la guardada para el cliente. Vuelve a intentar.', 200, [
             'pregunta_ubicacion' => true,
             'distancia_metros'   => round($distancia),
             'cliente_nombre'     => $cita['cliente_nombre'],
-            'error'              => 'Tu ubicación no coincide con la guardada para el cliente. Vuelve a intentar.',
-        ]);
+        ], 'pregunta_ubicacion');
     }
     if ($respuesta === '1' && $distancia > CORRECCION_REVISAR_MAX_M) {
         $correccion = [
@@ -140,7 +150,7 @@ if (!empty($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
     $tmp  = $_FILES['foto']['tmp_name'];
     $info = @getimagesize($tmp);
     if ($info === false) {
-        jsonResponse(['ok' => false, 'error' => 'El archivo no es una imagen válida'], 400);
+        $rechazar('El archivo no es una imagen válida');
     }
     $ext    = image_type_to_extension($info[2], false) ?: 'jpg';
     $nombre = 'checkin_' . $citaId . '_' . $tipo . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
@@ -159,7 +169,7 @@ if (!empty($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
     if (!$guardado) {
         $lastErr = error_get_last();
         $msgErr = !empty($lastErr['message']) ? ' (' . $lastErr['message'] . ')' : '';
-        jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la foto en el servidor' . $msgErr], 500);
+        $rechazar('No se pudo guardar la foto en el servidor' . $msgErr, 500);
     }
     $fotoPath = 'uploads/checkins/' . $nombre;
 } elseif (!empty($_POST['foto_base64'])) {
@@ -174,24 +184,24 @@ if (!empty($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
     }
     $decoded = base64_decode($base64Data);
     if ($decoded === false) {
-        jsonResponse(['ok' => false, 'error' => 'Error al decodificar la imagen'], 400);
+        $rechazar('Error al decodificar la imagen');
     }
     $nombre = 'checkin_' . $citaId . '_' . $tipo . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     $destino = $destinoDir . '/' . $nombre;
     if (@file_put_contents($destino, $decoded) === false) {
-        jsonResponse(['ok' => false, 'error' => 'No se pudo guardar la foto en el servidor'], 500);
+        $rechazar('No se pudo guardar la foto en el servidor', 500);
     }
     $fotoPath = 'uploads/checkins/' . $nombre;
 } elseif (!$noShow) {
     if (isset($_FILES['foto']['error']) && $_FILES['foto']['error'] !== UPLOAD_ERR_NO_FILE) {
         $err = $_FILES['foto']['error'];
         if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
-            jsonResponse(['ok' => false, 'error' => 'La foto es demasiado pesada para el servidor.'], 400);
+            $rechazar('La foto es demasiado pesada para el servidor.');
         } else {
-            jsonResponse(['ok' => false, 'error' => 'Error al recibir la foto (código ' . $err . ')'], 400);
+            $rechazar('Error al recibir la foto (código ' . $err . ')');
         }
     }
-    jsonResponse(['ok' => false, 'error' => 'Toma la foto de evidencia'], 400);
+    $rechazar('Toma la foto de evidencia');
 }
 
 // El check-in y la corrección del pin van juntos o no va ninguno.
