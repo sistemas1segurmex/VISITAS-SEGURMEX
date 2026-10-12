@@ -564,7 +564,8 @@ const FOTOS_URL = '/erp/assets/img/cotizador/';
 // Renglón: {it (item del catálogo), cantidad, color, extra_abierto,
 // extra_concepto, extra_precio, base, extra, precio_final}.
 // El precio por par ya NO se teclea: es (lista + extra) con los descuentos
-// que apliquen. El extra (p. ej. otro casco) va a precio de lista. Dickies: sin extra.
+// que apliquen + el extra. El extra (p. ej. otro casco) es un monto DIRECTO por
+// par: no lleva descuento. Dickies: sin extra.
 let renglones = [];
 let tipoLista = 'industria';
 let prontoPago = false;
@@ -738,7 +739,7 @@ function calcularRenglon(r) {
   if (esDickies(r.it)) { r.extra_abierto = false; r.extra_concepto = ''; r.extra_precio = ''; }
   const v = parseFloat(r.extra_precio);
   r.extra = r.extra_abierto && v > 0 ? Math.round(v * 100) / 100 : 0;
-  r.minimo = calcularMinimo(r.it, r.base + r.extra, prontoPago);
+  r.minimo = Math.round((calcularMinimo(r.it, r.base, prontoPago) + r.extra) * 100) / 100;
   r.precio_final = r.minimo;
 }
 function recalcularTodo() {
@@ -758,7 +759,7 @@ const fmtPct = n => n.toLocaleString('es-MX', { maximumFractionDigits: 1 }) + '%
 function pasosDescuento(r) {
   const pasos = [];
   if (esDickies(r.it)) return pasos;
-  let va = r.base + (r.extra || 0);
+  let va = r.base;
   if (prontoPago) { va *= (1 - CFG.descuento_pronto_pago); pasos.push({ txt: 'Pronto pago', pct: CFG.descuento_pronto_pago * 100, queda: va }); }
   if (aplicaMayoreo()) { va *= (1 - CFG.descuento_mayoreo); pasos.push({ txt: 'Mayoreo', pct: CFG.descuento_mayoreo * 100, queda: va }); }
   return pasos;
@@ -771,10 +772,10 @@ function refHTML(r) {
   const chipExtra = extra > 0 ? `<span class="nc-desc-chip extra">+ ${escHtml(concepto)} ${money(extra)}</span>` : '';
   if (!(r.precio_final < listaConExtra - 0.004)) return `<span class="nc-ref-lista">Lista ${money(r.base)}</span>${chipExtra}`;
   const pasos = pasosDescuento(r);
-  const chips = chipExtra + pasos.map(p => `<span class="nc-desc-chip">${escHtml(p.txt)} −${fmtPct(p.pct)}</span>`).join('');
+  const chips = pasos.map(p => `<span class="nc-desc-chip">${escHtml(p.txt)} −${fmtPct(p.pct)}</span>`).join('') + chipExtra;
   const calculo = [`Precio de lista: ${money(r.base)}`]
-    .concat(extra > 0 ? [`+ ${concepto}: ${money(extra)} → ${money(listaConExtra)}`] : [])
     .concat(pasos.map(p => `− ${fmtPct(p.pct)} ${p.txt.toLowerCase()} → ${money(p.queda)}`))
+    .concat(extra > 0 ? [`+ ${concepto} (sin descuento): ${money(extra)} → ${money(r.precio_final)}`] : [])
     .concat(pasos.length > 1 ? ['Cada descuento se aplica sobre el precio que dejó el anterior.'] : []);
   return `<details class="nc-desglose"><summary><s class="nc-tachado">${money(listaConExtra)}</s>${chips}<i class="bi bi-info-circle"></i></summary>`
        + `<div class="nc-calculo">${calculo.map(escHtml).join('<br>')}</div></details>`;
@@ -786,9 +787,9 @@ function extraHTML(r, i) {
   const falta = r.extra > 0 && !(r.extra_concepto || '').trim();
   return `<div class="nc-extra">
         <input type="text" class="input-extra-concepto${falta ? ' falta' : ''}" data-i="${i}" maxlength="120" value="${escHtml(r.extra_concepto || '')}" placeholder="Concepto (ej. Casco dieléctrico)" aria-label="Concepto del extra" enterkeyhint="next">
-        <div class="nc-extra-monto"><span>+$</span><input type="text" inputmode="decimal" class="input-extra-precio" data-i="${i}" value="${escHtml(r.extra_precio ?? '')}" placeholder="0.00" aria-label="Extra por par a precio de lista" enterkeyhint="done"></div>
+        <div class="nc-extra-monto"><span>+$</span><input type="text" inputmode="decimal" class="input-extra-precio" data-i="${i}" value="${escHtml(r.extra_precio ?? '')}" placeholder="0.00" aria-label="Extra por par (monto directo)" enterkeyhint="done"></div>
         <button type="button" class="nc-extra-del" data-i="${i}" aria-label="Quitar el extra"><i class="bi bi-x-lg"></i></button>
-        <div class="nc-extra-ayuda">Por par, a precio de lista. Lleva los mismos descuentos que el modelo.</div>
+        <div class="nc-extra-ayuda">Por par. Se suma directo al precio ya con descuentos (el extra no lleva descuento).</div>
       </div>`;
 }
 

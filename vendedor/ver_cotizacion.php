@@ -358,7 +358,7 @@ function renglonHTML(d) {
           ${d.atributo ? `<span class="vc-tag vc-tag--attr">${escHtml(d.atributo)}</span>` : ''}
           ${d.color ? `<span class="vc-tag">${escHtml(d.color)}</span>` : ''}
           ${d.entrega_dias ? `<span class="vc-tag vc-tag--entrega"><i class="bi bi-truck"></i>Entrega: ${parseInt(d.entrega_dias)} días hábiles</span>` : ''}
-          ${extra > 0 ? `<span class="vc-tag vc-tag--extra" title="Extra por par a precio de lista">+ ${escHtml(d.extra_concepto || 'Extra')} ${money(extra)}</span>` : ''}
+          ${extra > 0 ? `<span class="vc-tag vc-tag--extra" title="Extra por par, monto directo (no lleva descuento)">+ ${escHtml(d.extra_concepto || 'Extra')} ${money(extra)}</span>` : ''}
           <span>${pares} ${pares === 1 ? 'par' : 'pares'} × ${tachado} ${money(final)}</span>
         </div>
       </div>
