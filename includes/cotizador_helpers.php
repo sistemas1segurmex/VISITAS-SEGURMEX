@@ -130,9 +130,9 @@ function marcaSinDescuentosErp(string $marca): bool {
  * precio e importe. Misma lógica que resolverRenglonesCotizacion() del ERP;
  * solo cambia la forma de la entrada (allá llegan det_item[]... del form).
  *
- * El precio YA NO se teclea: es (lista + extra por par) con los descuentos
- * que apliquen. El extra (p. ej. otro tipo de casco) va a precio de lista y
- * lleva los mismos descuentos. Dickies: precio fijo, sin extra.
+ * El precio YA NO se teclea: es la lista con los descuentos que apliquen +
+ * el extra por par. El extra (p. ej. otro tipo de casco) es un monto DIRECTO:
+ * no lleva descuento. Dickies: precio fijo, sin extra.
  *
  * El mayoreo lo decide la suma de pares SEGURMEX (los Dickies no cuentan ni
  * reciben descuento). total_pares sigue siendo TODOS los pares.
@@ -172,8 +172,9 @@ function resolverRenglonesCotizacionErp(array $catalogo, array $renglones, strin
         }
 
         $base   = $tipoLista === 'distribuidor' ? $item['precio_distribuidor'] : $item['precio_industria'];
-        // Precio = (lista + extra) con descuentos; mínimo y final son el mismo.
-        $minimo = $sinDescuentos ? $base : calcularPrecioMinimoErp($base + $extra, $mayoreo, $prontoPago, $cfg);
+        // Precio = lista con descuentos + extra directo; mínimo y final son el mismo.
+        $conDescuentos = $sinDescuentos ? $base : calcularPrecioMinimoErp($base, $mayoreo, $prontoPago, $cfg);
+        $minimo = round($conDescuentos + $extra, 2);
         $precio = $minimo;
         $importe = round($cantidad * $precio, 2);
         $subtotal += $importe;

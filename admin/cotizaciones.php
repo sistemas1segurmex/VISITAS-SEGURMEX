@@ -405,7 +405,7 @@ function pintarFicha(d) {
           <div class="nom">${esc(r.nombre_estilo)}</div>
           <div class="text-muted">${r.color ? esc(r.color) + ' · ' : ''}${parseInt(r.cantidad) || 0} pares × ${money(r.precio_final)}</div>
           ${r.entrega_dias ? `<div style="font-size:.75rem;color:#075985;font-weight:600"><i class="bi bi-truck"></i> Entrega: ${parseInt(r.entrega_dias)} días hábiles</div>` : ''}
-          ${parseFloat(r.extra_precio) > 0 ? `<div style="font-size:.75rem;color:#92400E;font-weight:600">+ ${esc(r.extra_concepto || 'Extra')} ${money(r.extra_precio)} por par (a precio de lista)</div>` : ''}
+          ${parseFloat(r.extra_precio) > 0 ? `<div style="font-size:.75rem;color:#92400E;font-weight:600">+ ${esc(r.extra_concepto || 'Extra')} ${money(r.extra_precio)} por par (sin descuento)</div>` : ''}
         </div>
       </div>`).join('')}
     ${Object.keys(d.atributos || {}).length ? `<div style="font-size:.72rem;color:#6B7280;margin:6px 0">${Object.entries(d.atributos).map(([k, s]) => `<strong>${esc(k)}</strong> = ${esc(s)}`).join(' · ')}</div>` : ''}
