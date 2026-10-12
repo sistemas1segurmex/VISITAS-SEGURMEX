@@ -54,7 +54,10 @@ function calcularPrecioMinimoErp(float $base, bool $aplicaMayoreo, bool $prontoP
     $f = 1.0;
     if ($prontoPago)    $f *= (1 - (float)($cfg['descuento_pronto_pago'] ?? 0.05));
     if ($aplicaMayoreo) $f *= (1 - (float)($cfg['descuento_mayoreo'] ?? 0.10));
-    return round($base * $f, 2);
+    // Se CORTA al centavo (no se redondea), igual que el cotizador anterior:
+    // 631×0.95×0.90 = 539.505 → 539.50. El round(…, 6) evita que un
+    // 512.99999999 de punto flotante se corte a 512.99.
+    return floor(round($base * $f * 100, 6)) / 100;
 }
 
 /** Copia exacta de folioCotizacion(). */

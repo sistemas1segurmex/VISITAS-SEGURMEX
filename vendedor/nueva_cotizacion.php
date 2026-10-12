@@ -598,8 +598,12 @@ function calcularMinimo(it, base, pp) {
   let f = 1;
   if (pp) f *= (1 - CFG.descuento_pronto_pago);
   if (aplicaMayoreo()) f *= (1 - CFG.descuento_mayoreo);
-  return Math.round(base * f * 100) / 100;
+  return cortarCentavos(base * f);
 }
+// Se CORTA al centavo (no se redondea), igual que el ERP y el cotizador
+// anterior: 539.505 → 539.50. El redondeo a 6 decimales evita que un
+// 512.99999999 de punto flotante se corte a 512.99.
+function cortarCentavos(n) { return Math.floor(Math.round(n * 100 * 1e6) / 1e6) / 100; }
 function fotoHTML(it) {
   return it.foto
     ? `<img src="${FOTOS_URL}${encodeURIComponent(it.foto)}" alt="" loading="lazy" class="nc-foto">`
@@ -760,8 +764,8 @@ function pasosDescuento(r) {
   const pasos = [];
   if (esDickies(r.it)) return pasos;
   let va = r.base;
-  if (prontoPago) { va *= (1 - CFG.descuento_pronto_pago); pasos.push({ txt: 'Pronto pago', pct: CFG.descuento_pronto_pago * 100, queda: va }); }
-  if (aplicaMayoreo()) { va *= (1 - CFG.descuento_mayoreo); pasos.push({ txt: 'Mayoreo', pct: CFG.descuento_mayoreo * 100, queda: va }); }
+  if (prontoPago) { va *= (1 - CFG.descuento_pronto_pago); pasos.push({ txt: 'Pronto pago', pct: CFG.descuento_pronto_pago * 100, queda: cortarCentavos(va) }); }
+  if (aplicaMayoreo()) { va *= (1 - CFG.descuento_mayoreo); pasos.push({ txt: 'Mayoreo', pct: CFG.descuento_mayoreo * 100, queda: cortarCentavos(va) }); }
   return pasos;
 }
 function refHTML(r) {
