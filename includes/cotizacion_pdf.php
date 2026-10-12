@@ -78,12 +78,13 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
 
     $filas = '';
     foreach ($detalle as $d) {
-        $lista = (float)($d['precio_lista'] ?? 0);
+        $lista = (float)($d['precio_lista'] ?? 0) + (float)($d['extra_precio'] ?? 0); // lista + extra por par
         $final = (float)($d['precio_final'] ?? 0);
-        $tachado = ($lista > 0 && $final < $lista) ? '<div class="tachado">' . money($lista) . '</div>' : '';
+        $tachado = ($lista > 0 && $final < $lista - 0.004) ? '<div class="tachado">' . money($lista) . '</div>' : '';
         $meta = ['Clave ' . pdfH($d['clave_estilo'])];
         if (!empty($d['color']))        $meta[] = 'Color: ' . pdfH($d['color']);
         if (!empty($d['entrega_dias'])) $meta[] = 'Entrega: ' . (int)$d['entrega_dias'] . ' días hábiles';
+        if ((float)($d['extra_precio'] ?? 0) > 0) $meta[] = 'Incluye: ' . pdfH($d['extra_concepto'] ?: 'extra');
         $src  = pdfFotoModelo($d['foto'] ?? null);
         $foto = $src !== '' ? '<img src="' . $src . '" alt="">' : '<div class="sinfoto">SIN<br>FOTO</div>';
         $filas .= '<tr>'

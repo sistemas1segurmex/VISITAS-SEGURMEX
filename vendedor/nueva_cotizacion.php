@@ -144,6 +144,21 @@ body.nc-sheet-abierta { overflow: hidden; }
 .nc-tachado { color: var(--v26-ink-soft); font-weight: 600; text-decoration-color: #DC2626; text-decoration-thickness: 1.5px; margin-right: 2px; }
 .nc-desc-chip { font-size: .68rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; white-space: nowrap; }
 .nc-desc-chip.mano { background: #ECFDF5; border-color: #6EE7B7; color: #065F46; }
+.nc-desc-chip.extra { background: #FFF7E6; border-color: #F5C77E; color: #92400E; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+/* Precio por par: lo calcula el sistema (lista + extra con descuentos) */
+.nc-precio[readonly] { background: rgba(20,23,31,.03); border-color: transparent; cursor: default; }
+/* Extra por par (p. ej. otro tipo de casco) */
+.nc-extra-add { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 12px; min-height: 36px; border: 1px dashed #F5A623; border-radius: 999px; background: #FFFBF2; color: #92400E; font-size: .8rem; font-weight: 700; font-family: inherit; }
+.nc-extra-add small { font-weight: 500; color: #B45309; }
+.nc-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding: 10px; border: 1px solid #F5C77E; border-radius: 12px; background: #FFFBF2; }
+.nc-extra .input-extra-concepto { flex: 1 1 100%; min-width: 0; height: 40px; border: 1px solid var(--v26-border); border-radius: 10px; padding: 0 10px; font-size: 16px; font-family: inherit; background: var(--v26-surface-solid); }
+.nc-extra-monto { position: relative; flex: 1; min-width: 0; }
+.nc-extra-monto > span { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #92400E; font-weight: 800; pointer-events: none; }
+.nc-extra-monto input { width: 100%; height: 40px; border: 1px solid var(--v26-border); border-radius: 10px; padding: 0 10px 0 30px; font-size: 16px; font-weight: 700; text-align: right; font-family: inherit; background: var(--v26-surface-solid); }
+.nc-extra input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--v26-brand-1); }
+.nc-extra input.falta { border-color: var(--v26-red); background: rgba(225,29,72,.05); }
+.nc-extra-del { width: 40px; height: 40px; border: none; border-radius: 10px; background: var(--v26-surface-solid); color: var(--v26-ink-soft); flex: none; }
+.nc-extra-ayuda { flex-basis: 100%; font-size: .7rem; color: #92400E; }
 .nc-calculo { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: #F9FAFB; border: 1px solid var(--v26-border); font-size: .72rem; line-height: 1.55; color: var(--v26-ink); }
 /* Opciones de lista y pronto pago con su descuento */
 .nc-seg .v26-seg-btn { flex-direction: column; line-height: 1.15; }
@@ -546,8 +561,10 @@ const CLIENTE_PRELLENADO = <?= (int)$clientePrellenado ?>;
 let CFG = { descuento_distribuidor: 0.15, descuento_pronto_pago: 0.05, descuento_mayoreo: 0.10, minimo_pares_mayoreo: 16, minimo_pares_dickies: 16, tasa_iva: 0.16, vigencia_default_dias: 15 };
 // Fotos del catálogo: viven en el ERP (mismo servidor), no se duplican aquí.
 const FOTOS_URL = '/erp/assets/img/cotizador/';
-// Renglón: {it (item del catálogo), cantidad, precio_final, auto, color}.
-// auto = el precio lo pone la lista (true) o lo tecleó el vendedor (false).
+// Renglón: {it (item del catálogo), cantidad, color, extra_abierto,
+// extra_concepto, extra_precio, base, extra, precio_final}.
+// El precio por par ya NO se teclea: es (lista + extra) con los descuentos
+// que apliquen. El extra (p. ej. otro casco) va a precio de lista. Dickies: sin extra.
 let renglones = [];
 let tipoLista = 'industria';
 let prontoPago = false;
@@ -714,49 +731,65 @@ async function cargarClientes() {
 }
 
 // ================= Renglones =================
-// Recalcula lista, mínimo y precio de cada renglón (como recalcRow() del
-// ERP): el precio arranca YA con los descuentos que aplican (pronto pago y/o
-// mayoreo) y se recalcula solo mientras el vendedor no lo cambie a mano; si
-// lo tecleó y quedó por debajo del mínimo, se sube al mínimo (con parpadeo).
+// Precio de un renglón (como recalcRow() del ERP): (lista + extra por par)
+// con los descuentos que aplican (pronto pago y/o mayoreo). Solo lectura.
+function calcularRenglon(r) {
+  r.base = precioLista(r.it, tipoLista);
+  if (esDickies(r.it)) { r.extra_abierto = false; r.extra_concepto = ''; r.extra_precio = ''; }
+  const v = parseFloat(r.extra_precio);
+  r.extra = r.extra_abierto && v > 0 ? Math.round(v * 100) / 100 : 0;
+  r.minimo = calcularMinimo(r.it, r.base + r.extra, prontoPago);
+  r.precio_final = r.minimo;
+}
 function recalcularTodo() {
   renglones.forEach(r => {
     r.cantidad = Math.max(1, parseInt(r.cantidad) || 1);
-    r.base = precioLista(r.it, tipoLista);
-    r.minimo = calcularMinimo(r.it, r.base, prontoPago);
-    r.ajustado = false;
-    if (r.auto || r.precio_final == null) r.precio_final = r.minimo;
-    else if (r.precio_final < r.minimo) { r.precio_final = r.minimo; r.ajustado = true; }
+    calcularRenglon(r);
   });
   renderRenglones();
   recalcularSoloTotales();
 }
 
-// Debajo del precio, igual que el ERP: la lista tachada y cada descuento por
-// separado («Pronto pago −5%», «Mayoreo −10%», «Precio a mano»), SIN el %
+// Debajo del precio, igual que el ERP: la lista (+ extra) tachada, el extra y
+// cada descuento por separado («Pronto pago −5%», «Mayoreo −10%»), SIN el %
 // total (5% y 10% dan 14.5%, no 15%, y eso confundía). Al tocarlo se abre el
 // cálculo paso a paso.
 const fmtPct = n => n.toLocaleString('es-MX', { maximumFractionDigits: 1 }) + '%';
 function pasosDescuento(r) {
   const pasos = [];
   if (esDickies(r.it)) return pasos;
-  let va = r.base;
+  let va = r.base + (r.extra || 0);
   if (prontoPago) { va *= (1 - CFG.descuento_pronto_pago); pasos.push({ txt: 'Pronto pago', pct: CFG.descuento_pronto_pago * 100, queda: va }); }
   if (aplicaMayoreo()) { va *= (1 - CFG.descuento_mayoreo); pasos.push({ txt: 'Mayoreo', pct: CFG.descuento_mayoreo * 100, queda: va }); }
   return pasos;
 }
 function refHTML(r) {
   if (esDickies(r.it)) return `<span class="nc-ref-lista">Precio fijo ${money(r.base)}</span>`;
-  if (!(r.precio_final < r.base - 0.004)) return `<span class="nc-ref-lista">Lista ${money(r.base)}</span>`;
+  const extra = r.extra || 0;
+  const listaConExtra = r.base + extra;
+  const concepto = (r.extra_concepto || '').trim() || 'Extra';
+  const chipExtra = extra > 0 ? `<span class="nc-desc-chip extra">+ ${escHtml(concepto)} ${money(extra)}</span>` : '';
+  if (!(r.precio_final < listaConExtra - 0.004)) return `<span class="nc-ref-lista">Lista ${money(r.base)}</span>${chipExtra}`;
   const pasos = pasosDescuento(r);
-  const aMano = !r.auto && Math.abs(r.precio_final - r.minimo) > 0.004;
-  const chips = pasos.map(p => `<span class="nc-desc-chip">${escHtml(p.txt)} −${fmtPct(p.pct)}</span>`).join('')
-              + (aMano ? '<span class="nc-desc-chip mano">Precio a mano</span>' : '');
+  const chips = chipExtra + pasos.map(p => `<span class="nc-desc-chip">${escHtml(p.txt)} −${fmtPct(p.pct)}</span>`).join('');
   const calculo = [`Precio de lista: ${money(r.base)}`]
+    .concat(extra > 0 ? [`+ ${concepto}: ${money(extra)} → ${money(listaConExtra)}`] : [])
     .concat(pasos.map(p => `− ${fmtPct(p.pct)} ${p.txt.toLowerCase()} → ${money(p.queda)}`))
-    .concat(aMano ? [`Precio puesto a mano: ${money(r.precio_final)}`] : [])
     .concat(pasos.length > 1 ? ['Cada descuento se aplica sobre el precio que dejó el anterior.'] : []);
-  return `<details class="nc-desglose"><summary><s class="nc-tachado">${money(r.base)}</s>${chips}<i class="bi bi-info-circle"></i></summary>`
+  return `<details class="nc-desglose"><summary><s class="nc-tachado">${money(listaConExtra)}</s>${chips}<i class="bi bi-info-circle"></i></summary>`
        + `<div class="nc-calculo">${calculo.map(escHtml).join('<br>')}</div></details>`;
+}
+// Extra por par del renglón: botón «Agregar extra» o la cajita abierta.
+function extraHTML(r, i) {
+  if (esDickies(r.it)) return '';
+  if (!r.extra_abierto) return `<button type="button" class="nc-extra-add" data-i="${i}"><i class="bi bi-plus-circle"></i> Agregar extra <small>(ej. otro casco)</small></button>`;
+  const falta = r.extra > 0 && !(r.extra_concepto || '').trim();
+  return `<div class="nc-extra">
+        <input type="text" class="input-extra-concepto${falta ? ' falta' : ''}" data-i="${i}" maxlength="120" value="${escHtml(r.extra_concepto || '')}" placeholder="Concepto (ej. Casco dieléctrico)" aria-label="Concepto del extra" enterkeyhint="next">
+        <div class="nc-extra-monto"><span>+$</span><input type="text" inputmode="decimal" class="input-extra-precio" data-i="${i}" value="${escHtml(r.extra_precio ?? '')}" placeholder="0.00" aria-label="Extra por par a precio de lista" enterkeyhint="done"></div>
+        <button type="button" class="nc-extra-del" data-i="${i}" aria-label="Quitar el extra"><i class="bi bi-x-lg"></i></button>
+        <div class="nc-extra-ayuda">Por par, a precio de lista. Lleva los mismos descuentos que el modelo.</div>
+      </div>`;
 }
 
 function renderRenglones() {
@@ -794,9 +827,10 @@ function renderRenglones() {
         </div>
         <div class="nc-precio-wrap">
           <span>$</span>
-          <input type="text" inputmode="decimal" class="nc-precio input-precio${r.ajustado ? ' ajustado' : ''}${!r.auto && !esDickies(it) && Math.abs(r.precio_final - r.minimo) > 0.004 ? ' editado' : ''}" data-i="${i}" value="${Number(r.precio_final).toFixed(2)}" aria-label="Precio por par" enterkeyhint="done" ${esDickies(it) ? 'readonly' : ''}${r.ajustado ? ` title="Se ajustó al mínimo permitido (${money(r.minimo)})"` : ''}>
+          <input type="text" class="nc-precio input-precio" data-i="${i}" value="${Number(r.precio_final).toFixed(2)}" aria-label="Precio por par" readonly tabindex="-1" title="Lo calcula el sistema: lista + extra, con los descuentos que apliquen">
         </div>
       </div>
+      ${extraHTML(r, i)}
       <div class="nc-r-ref">
         <span class="ref" data-i="${i}">${refHTML(r)}</span>
         <span class="importe" data-i="${i}">${money(r.cantidad * r.precio_final)}</span>
@@ -808,6 +842,16 @@ function renderRenglones() {
 // Eventos de los renglones (delegados: la lista se vuelve a pintar seguido).
 const contR = $('lista-renglones');
 contR.addEventListener('click', e => {
+  const x = e.target.closest('.nc-extra-add, .nc-extra-del');
+  if (x) {
+    const r = renglones[+x.dataset.i];
+    if (!r) return;
+    if (x.classList.contains('nc-extra-add')) r.extra_abierto = true;
+    else { r.extra_abierto = false; r.extra_concepto = ''; r.extra_precio = ''; }
+    recalcularTodo();
+    if (r.extra_abierto) contR.querySelector(`.input-extra-concepto[data-i="${x.dataset.i}"]`)?.focus();
+    return;
+  }
   const b = e.target.closest('.nc-menos, .nc-mas, .nc-quitar');
   if (!b) return;
   const i = +b.dataset.i;
@@ -824,27 +868,40 @@ contR.addEventListener('input', e => {
     t.value = t.value.replace(/\D/g, '').slice(0, 5);
     r.cantidad = parseInt(t.value) || 0;
     recalcularSoloTotales();
-  } else if (t.classList.contains('input-precio')) {
-    const v = t.value.replace(',', '.').replace(/[^\d.]/g, '');
-    r.auto = v.trim() === '';
-    r.precio_final = Math.max(0, parseFloat(v) || 0);
-    const bajo = !r.auto && r.precio_final < r.minimo;
-    t.classList.toggle('bajo', bajo);
-    const ref = contR.querySelector(`.ref[data-i="${t.dataset.i}"]`);
-    if (ref) ref.innerHTML = bajo ? `<span class="bajo-txt">Mínimo ${money(r.minimo)}</span>` : refHTML(r);
+  } else if (t.classList.contains('input-extra-precio') || t.classList.contains('input-extra-concepto')) {
+    if (t.classList.contains('input-extra-precio')) {
+      // Solo números y punto decimal (la coma se confundiría con miles).
+      const limpio = t.value.replace(',', '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+      if (limpio !== t.value) t.value = limpio;
+      r.extra_precio = limpio;
+    } else {
+      r.extra_concepto = t.value;
+      t.classList.remove('falta');
+    }
+    // Sin volver a pintar la lista (perdería el foco): solo precio, desglose e importe.
+    calcularRenglon(r);
+    const i = t.dataset.i;
+    const inpP = contR.querySelector(`.input-precio[data-i="${i}"]`);
+    if (inpP) inpP.value = Number(r.precio_final).toFixed(2);
+    const ref = contR.querySelector(`.ref[data-i="${i}"]`);
+    if (ref) ref.innerHTML = refHTML(r);
     recalcularSoloTotales();
   }
 });
-// Al salir del campo: cantidad vacía = 1; precio vacío = el automático (con
-// descuentos); abajo del mínimo = sube al mínimo.
+// Al salir del campo: cantidad vacía = 1; el extra queda con 2 decimales.
 contR.addEventListener('change', e => {
   const t = e.target;
   if (t.classList.contains('sel-color')) {
     renglones[+t.dataset.i].color = t.value;
     t.classList.toggle('falta', !t.value);
     recalcularSoloTotales();
-  } else if (t.classList.contains('input-cant') || t.classList.contains('input-precio')) {
+  } else if (t.classList.contains('input-cant')) {
     recalcularTodo();
+  } else if (t.classList.contains('input-extra-precio') && t.value !== '') {
+    const r = renglones[+t.dataset.i];
+    const v = parseFloat(t.value);
+    t.value = v > 0 ? v.toFixed(2) : '';
+    if (r) r.extra_precio = t.value;
   }
 });
 // Al entrar a cantidad o precio se selecciona todo para teclear encima. El
@@ -852,14 +909,14 @@ contR.addEventListener('change', e => {
 // el primer click.
 contR.addEventListener('focusin', e => {
   const t = e.target;
-  if (!t.matches('.input-cant, .input-precio')) return;
+  if (!t.matches('.input-cant, .input-extra-precio')) return;
   t._seleccionar = true;
   const valor = t.value;
   setTimeout(() => { if (t.value === valor) t.select(); }, 0);
 });
 contR.addEventListener('click', e => {
   const t = e.target;
-  if (t._seleccionar && t.matches('.input-cant, .input-precio')) { t._seleccionar = false; t.select(); }
+  if (t._seleccionar && t.matches('.input-cant, .input-extra-precio')) { t._seleccionar = false; t.select(); }
 });
 contR.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); e.target.blur(); } });
 
@@ -889,7 +946,8 @@ function recalcularSoloTotales() {
   pintarAvisos();
   marcarEstilosEnCarrito();
   $('input-renglones').value = JSON.stringify(
-    renglones.map(r => ({ item: r.it.item, cantidad: Math.max(1, parseInt(r.cantidad) || 1), precio_final: r.precio_final, color: r.color || '' }))
+    renglones.map(r => ({ item: r.it.item, cantidad: Math.max(1, parseInt(r.cantidad) || 1), color: r.color || '',
+                          extra_concepto: r.extra > 0 ? (r.extra_concepto || '').trim() : '', extra_precio: r.extra || 0 }))
   );
 }
 
@@ -964,7 +1022,8 @@ function agregarItem(el) {
   if (existente) {
     existente.cantidad = (parseInt(existente.cantidad) || 0) + 1;
   } else {
-    renglones.push({ it, cantidad: 1, precio_final: null, auto: true, color: it.colores.length === 1 ? it.colores[0] : '' });
+    renglones.push({ it, cantidad: 1, precio_final: null, color: it.colores.length === 1 ? it.colores[0] : '',
+                     extra_abierto: false, extra_concepto: '', extra_precio: '' });
   }
   recalcularTodo();
   el.classList.remove('pulso'); void el.offsetWidth; el.classList.add('pulso');
@@ -1189,6 +1248,12 @@ $('form-cotizacion').addEventListener('submit', async (e) => {
     mostrarError(`Elige el color de: ${sinColor.join(', ')}.`, contR.querySelector('.sel-color.falta'));
     return;
   }
+  const sinConcepto = renglones.filter(r => r.extra > 0 && !(r.extra_concepto || '').trim());
+  if (sinConcepto.length) {
+    renderRenglones();
+    mostrarError(`Escribe el concepto del extra de: ${sinConcepto.map(r => r.it.clave).join(', ')} (por ejemplo, «Casco dieléctrico»).`, contR.querySelector('.input-extra-concepto.falta'));
+    return;
+  }
   const email = $('input-email').value.trim();
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     mostrarError('Revisa el correo del cliente.', $('input-email'));
@@ -1235,7 +1300,7 @@ function pasosTourNuevaCotizacion() {
     esEscritorio()
       ? { selector: '#sheet-catalogo .nc-sheet-search', texto: 'Busca el modelo y tócalo para agregarlo. La etiqueta junto a la clave (PP+D, O…) dice qué protección tiene.' }
       : { selector: '#btn-abrir-catalogo', texto: 'Toca aquí para abrir el catálogo. Luego toca cada modelo que quieras agregar.' },
-    { selector: '#sec-resumen', texto: 'Aquí ves lo que llevas. Puedes cambiar los pares y el precio; el precio nunca puede quedar abajo del mínimo.' },
+    { selector: '#sec-resumen', texto: 'Aquí ves lo que llevas. Puedes cambiar los pares; el precio lo calcula el sistema. Si el modelo lleva algo más (por ejemplo, otro casco), toca «Agregar extra».' },
     esEscritorio()
       ? { selector: '#sec-condiciones', texto: 'Elige vigencia, tiempo de entrega y forma de pago. Si llevas Dickies, aquí te avisa en cuántos días se entregan.' }
       : { selector: '#chips-entrega', texto: 'Aquí eliges el tiempo de entrega (arriba la vigencia y abajo la forma de pago). Si llevas Dickies, aquí te avisa en cuántos días se entregan.' },

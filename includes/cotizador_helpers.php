@@ -126,9 +126,13 @@ function marcaSinDescuentosErp(string $marca): bool {
 
 /**
  * Valida los renglones que manda nueva_cotizacion.php (JSON: item, cantidad,
- * precio_final, color) contra el catálogo y calcula lista, mínimo e importe.
- * Misma lógica que resolverRenglonesCotizacion() del ERP; solo cambia la
- * forma de la entrada (allá llegan det_item[], det_cantidad[]... del form).
+ * color, extra_concepto, extra_precio) contra el catálogo y calcula lista,
+ * precio e importe. Misma lógica que resolverRenglonesCotizacion() del ERP;
+ * solo cambia la forma de la entrada (allá llegan det_item[]... del form).
+ *
+ * El precio YA NO se teclea: es (lista + extra por par) con los descuentos
+ * que apliquen. El extra (p. ej. otro tipo de casco) va a precio de lista y
+ * lleva los mismos descuentos. Dickies: precio fijo, sin extra.
  *
  * El mayoreo lo decide la suma de pares SEGURMEX (los Dickies no cuentan ni
  * reciben descuento). total_pares sigue siendo TODOS los pares.
@@ -147,12 +151,19 @@ function resolverRenglonesCotizacionErp(array $catalogo, array $renglones, strin
     foreach ($renglones as $i => $r) {
         $llave    = (string)($r['item'] ?? '');
         $cantidad = (int)($r['cantidad'] ?? 0);
-        $precio   = max(0, (float)($r['precio_final'] ?? 0));
         $color    = trim((string)($r['color'] ?? ''));
+        $extra    = round(max(0, (float)($r['extra_precio'] ?? 0)), 2);
+        $extraConcepto = mb_substr(trim((string)($r['extra_concepto'] ?? '')), 0, 120);
         if ($llave === '' || $cantidad <= 0) continue;
 
         $item = $catalogo[$llave] ?? null;
         if (!$item) { $errores[] = 'El modelo del renglón #' . ($i + 1) . ' ya no está disponible'; continue; }
+        $sinDescuentos = marcaSinDescuentosErp($item['marca']);
+        if ($sinDescuentos) { $extra = 0.0; $extraConcepto = ''; } // Dickies: precio fijo, sin extra
+        if ($extra > 0 && $extraConcepto === '') {
+            $errores[] = "{$item['clave']}: escribe el concepto del extra (por ejemplo, «Casco dieléctrico»)";
+        }
+        if ($extra <= 0) $extraConcepto = '';
 
         if (count($item['colores']) > 1) {
             if (!in_array($color, $item['colores'], true)) { $errores[] = "{$item['clave']}: elige el color"; $color = null; }
@@ -161,10 +172,9 @@ function resolverRenglonesCotizacionErp(array $catalogo, array $renglones, strin
         }
 
         $base   = $tipoLista === 'distribuidor' ? $item['precio_distribuidor'] : $item['precio_industria'];
-        $minimo = marcaSinDescuentosErp($item['marca']) ? $base : calcularPrecioMinimoErp($base, $mayoreo, $prontoPago, $cfg);
-        if ($precio < $minimo) {
-            $errores[] = "{$item['clave']}: el precio (" . money($precio) . ") está por debajo del mínimo permitido (" . money($minimo) . ")";
-        }
+        // Precio = (lista + extra) con descuentos; mínimo y final son el mismo.
+        $minimo = $sinDescuentos ? $base : calcularPrecioMinimoErp($base + $extra, $mayoreo, $prontoPago, $cfg);
+        $precio = $minimo;
         $importe = round($cantidad * $precio, 2);
         $subtotal += $importe;
         $lineas[] = [
@@ -172,6 +182,7 @@ function resolverRenglonesCotizacionErp(array $catalogo, array $renglones, strin
             'clave_estilo' => $item['clave'], 'nombre_estilo' => $item['nombre'], 'color' => $color,
             'cantidad' => $cantidad, 'precio_lista' => $base, 'precio_minimo' => $minimo,
             'precio_final' => $precio, 'importe' => $importe,
+            'extra_concepto' => $extraConcepto !== '' ? $extraConcepto : null, 'extra_precio' => $extra,
             'entrega_dias' => $item['entrega_dias'] ?? null,  // solo informativo, no se guarda en cotizacion_detalle
             'atributo'     => $item['atributo'] ?? null,      // idem (PP, PP+D…)
         ];
