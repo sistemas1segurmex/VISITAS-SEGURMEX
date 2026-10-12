@@ -113,6 +113,7 @@ if (!$id) { header('Location: cotizaciones.php'); exit; }
 .vc-tag { display: inline-flex; align-items: center; gap: 4px; font-size: .68rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: rgba(20,23,31,.06); color: var(--v26-ink-soft); }
 .vc-tag--desc { background: rgba(22,163,74,.1); color: var(--v26-green); }
 .vc-tag--entrega { background: #E0F2FE; color: #075985; }
+.vc-tag--extra { background: #FFF7E6; color: #92400E; }
 .vc-tag--attr { background: transparent; border: 1px solid #F5A623; color: #92400E; }
 .vc-leyenda-attr { font-size: .72rem; color: var(--v26-ink-soft); margin-top: 8px; line-height: 1.5; }
 .vc-aviso-entrega { display: flex; gap: 8px; align-items: flex-start; font-size: .78rem; font-weight: 600; color: #B45309; background: #FFFBEB; border-radius: 10px; padding: 8px 10px; margin: 2px 0 8px; }
@@ -342,9 +343,10 @@ function renglonHTML(d) {
   const foto = d.foto
     ? `<img src="${FOTOS_URL}${encodeURIComponent(d.foto)}" alt="" loading="lazy" class="vc-foto">`
     : '<span class="vc-foto vc-foto--vacia"><i class="bi bi-box-seam"></i></span>';
-  const lista = parseFloat(d.precio_lista) || 0;
+  const extra = parseFloat(d.extra_precio) || 0;
+  const lista = (parseFloat(d.precio_lista) || 0) + extra; // lista + extra por par
   const final = parseFloat(d.precio_final) || 0;
-  const tachado = lista > 0 && final < lista ? `<span class="vc-tachado">${money(lista)}</span>` : '';
+  const tachado = lista > 0 && final < lista - 0.004 ? `<span class="vc-tachado">${money(lista)}</span>` : '';
   const pares = parseInt(d.cantidad) || 0;
   return `
     <div class="vc-renglon">
@@ -356,6 +358,7 @@ function renglonHTML(d) {
           ${d.atributo ? `<span class="vc-tag vc-tag--attr">${escHtml(d.atributo)}</span>` : ''}
           ${d.color ? `<span class="vc-tag">${escHtml(d.color)}</span>` : ''}
           ${d.entrega_dias ? `<span class="vc-tag vc-tag--entrega"><i class="bi bi-truck"></i>Entrega: ${parseInt(d.entrega_dias)} días hábiles</span>` : ''}
+          ${extra > 0 ? `<span class="vc-tag vc-tag--extra" title="Extra por par a precio de lista">+ ${escHtml(d.extra_concepto || 'Extra')} ${money(extra)}</span>` : ''}
           <span>${pares} ${pares === 1 ? 'par' : 'pares'} × ${tachado} ${money(final)}</span>
         </div>
       </div>

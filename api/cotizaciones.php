@@ -134,11 +134,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         generarTokenPublicoCotizacionErp($dbErp, $newId);
 
         $insDet = $dbErp->prepare("INSERT INTO cotizacion_detalle
-            (id_cotizacion, id_estilo, id_modelo_legacy, clave_estilo, nombre_estilo, color, cantidad, precio_lista, precio_minimo, precio_final, importe, orden)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
+            (id_cotizacion, id_estilo, id_modelo_legacy, clave_estilo, nombre_estilo, color, cantidad, precio_lista, precio_minimo, precio_final, importe, orden, extra_concepto, extra_precio)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
         foreach ($lineas as $ord => $l) {
             $insDet->execute([$newId, $l['id_estilo'], $l['id_modelo_legacy'], $l['clave_estilo'], $l['nombre_estilo'], $l['color'],
-                $l['cantidad'], $l['precio_lista'], $l['precio_minimo'], $l['precio_final'], $l['importe'], $ord]);
+                $l['cantidad'], $l['precio_lista'], $l['precio_minimo'], $l['precio_final'], $l['importe'], $ord,
+                $l['extra_concepto'] ?? null, (float)($l['extra_precio'] ?? 0)]);
         }
 
         $dbErp->prepare("INSERT INTO cotizacion_historial (id_cotizacion, estado_anterior, estado_nuevo, id_usuario) VALUES (?,NULL,'pendiente',?)")
