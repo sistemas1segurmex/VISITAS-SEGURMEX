@@ -562,10 +562,14 @@ let CFG = { descuento_distribuidor: 0.15, descuento_pronto_pago: 0.05, descuento
 // Fotos del catálogo: viven en el ERP (mismo servidor), no se duplican aquí.
 const FOTOS_URL = '/erp/assets/img/cotizador/';
 // Renglón: {it (item del catálogo), cantidad, color, extra_abierto,
-// extra_concepto, extra_precio, base, extra, precio_final}.
-// El precio por par ya NO se teclea: es (lista + extra) con los descuentos
-// que apliquen + el extra. El extra (p. ej. otro casco) es un monto DIRECTO por
-// par: no lleva descuento. Dickies: sin extra.
+// extra_concepto, extra_precio, base, extra, minimo, minimo_exacto, mano,
+// precio_final}.
+// Precio por par: arranca en el MÍNIMO = lista con los descuentos que
+// apliquen + el extra. El vendedor lo puede SUBIR (mano), nunca dejarlo abajo
+// del mínimo; también en Dickies. El extra (p. ej. otro casco) es un monto
+// DIRECTO por par: no lleva descuento. Dickies: sin extra.
+// Centavos como el cotizador anterior: todo con decimales completos y solo se
+// redondea al mostrar (money() / redondearCentavos()).
 let renglones = [];
 let tipoLista = 'industria';
 let prontoPago = false;
@@ -593,17 +597,27 @@ function paresPorMarca() {
   return p;
 }
 function aplicaMayoreo() { return paresPorMarca().segurmex >= CFG.minimo_pares_mayoreo; }
+// Mismo factor que el ERP y el cotizador anterior: (mayoreo ? 0.90 : 1) × (pronto pago ? 0.95 : 1).
+function factorDescuentos(may, pp) {
+  const r10 = n => Math.round(n * 1e10) / 1e10;
+  return (may ? r10(1 - CFG.descuento_mayoreo) : 1) * (pp ? r10(1 - CFG.descuento_pronto_pago) : 1);
+}
+// Mínimo EXACTO (sin redondear).
 function calcularMinimo(it, base, pp) {
   if (esDickies(it)) return base; // Dickies: precio fijo, sin descuentos
-  let f = 1;
-  if (pp) f *= (1 - CFG.descuento_pronto_pago);
-  if (aplicaMayoreo()) f *= (1 - CFG.descuento_mayoreo);
-  return cortarCentavos(base * f);
+  return base * factorDescuentos(aplicaMayoreo(), pp);
 }
-// Se CORTA al centavo (no se redondea), igual que el ERP y el cotizador
-// anterior: 539.505 → 539.50. El redondeo a 6 decimales evita que un
-// 512.99999999 de punto flotante se corte a 512.99.
-function cortarCentavos(n) { return Math.floor(Math.round(n * 100 * 1e6) / 1e6) / 100; }
+// Redondeo a centavos igual que money() / el cotizador anterior / el ERP:
+// mitad hacia arriba sobre el número como se escribe (744.705 → 744.71).
+function redondearCentavos(n) {
+  const s = String(Math.abs(n));
+  if (/e/i.test(s)) return Math.round(n * 100) / 100;
+  const [ent, dec = ''] = s.split('.');
+  const d = (dec + '000').slice(0, 3);
+  const c = parseInt(ent, 10) * 100 + parseInt(d.slice(0, 2), 10) + (parseInt(d[2], 10) >= 5 ? 1 : 0);
+  return (n < 0 ? -c : c) / 100;
+}
+function leerPrecio(v) { const n = parseFloat(String(v || '').replace(/[,$\s]/g, '')); return n > 0 ? Math.round(n * 100) / 100 : 0; }
 function fotoHTML(it) {
   return it.foto
     ? `<img src="${FOTOS_URL}${encodeURIComponent(it.foto)}" alt="" loading="lazy" class="nc-foto">`
@@ -736,15 +750,36 @@ async function cargarClientes() {
 }
 
 // ================= Renglones =================
-// Precio de un renglón (como recalcRow() del ERP): (lista + extra por par)
-// con los descuentos que aplican (pronto pago y/o mayoreo). Solo lectura.
+// Precio de un renglón (como recalcRow() del ERP): mínimo = lista con los
+// descuentos que aplican (pronto pago y/o mayoreo) + extra por par. Si el
+// vendedor subió el precio (r.mano) se respeta mientras quede arriba del
+// mínimo; si el mínimo lo alcanza, vuelve al mínimo (r.ajustado avisa).
 function calcularRenglon(r) {
   r.base = precioLista(r.it, tipoLista);
   if (esDickies(r.it)) { r.extra_abierto = false; r.extra_concepto = ''; r.extra_precio = ''; }
   const v = parseFloat(r.extra_precio);
   r.extra = r.extra_abierto && v > 0 ? Math.round(v * 100) / 100 : 0;
-  r.minimo = Math.round((calcularMinimo(r.it, r.base, prontoPago) + r.extra) * 100) / 100;
-  r.precio_final = r.minimo;
+  r.minimo_exacto = calcularMinimo(r.it, r.base, prontoPago) + r.extra;
+  r.minimo = redondearCentavos(r.minimo_exacto);
+  if (r.mano > 0 && !(r.mano > r.minimo + 0.004)) { if (r.mano < r.minimo - 0.004) marcarAjustado(r); r.mano = 0; }
+  r.precio_final = r.mano > 0 ? r.mano : r.minimo;
+}
+// Aviso «quedó en el mínimo» por unos segundos.
+function marcarAjustado(r) {
+  r.ajustado = true;
+  clearTimeout(r._tAjuste);
+  r._tAjuste = setTimeout(() => {
+    r.ajustado = false;
+    const i = renglones.indexOf(r);
+    const ref = contR.querySelector(`.ref[data-i="${i}"]`);
+    if (ref) ref.innerHTML = refHTML(r);
+    contR.querySelector(`.input-precio[data-i="${i}"]`)?.classList.remove('ajustado');
+  }, 4000);
+}
+// Importe EXACTO del renglón (pares × precio con todos sus decimales).
+function importeExacto(r) {
+  const n = parseInt(r.cantidad) || 0;
+  return r.mano > 0 ? n * r.mano : n * (r.minimo_exacto ?? r.precio_final);
 }
 function recalcularTodo() {
   renglones.forEach(r => {
@@ -764,22 +799,29 @@ function pasosDescuento(r) {
   const pasos = [];
   if (esDickies(r.it)) return pasos;
   let va = r.base;
-  if (prontoPago) { va *= (1 - CFG.descuento_pronto_pago); pasos.push({ txt: 'Pronto pago', pct: CFG.descuento_pronto_pago * 100, queda: cortarCentavos(va) }); }
-  if (aplicaMayoreo()) { va *= (1 - CFG.descuento_mayoreo); pasos.push({ txt: 'Mayoreo', pct: CFG.descuento_mayoreo * 100, queda: cortarCentavos(va) }); }
+  if (prontoPago) { va *= (1 - CFG.descuento_pronto_pago); pasos.push({ txt: 'Pronto pago', pct: CFG.descuento_pronto_pago * 100, queda: redondearCentavos(va) }); }
+  if (aplicaMayoreo()) { va *= (1 - CFG.descuento_mayoreo); pasos.push({ txt: 'Mayoreo', pct: CFG.descuento_mayoreo * 100, queda: redondearCentavos(va) }); }
   return pasos;
 }
+// Chip del precio a mano: solo lo ve el vendedor (el cliente ve el precio final).
+function chipManoHTML(r) {
+  if (r.ajustado) return `<span class="nc-desc-chip" style="background:#FEF2F2;border-color:#FECACA;color:#B91C1C">No puede ser menor al mínimo: quedó en ${money(r.minimo)}</span>`;
+  return r.mano > 0 ? `<span class="nc-desc-chip mano">Subiste +${money(r.mano - r.minimo)} · mínimo ${money(r.minimo)}</span>` : `<span class="nc-ref-lista">Mínimo ${money(r.minimo)}</span>`;
+}
 function refHTML(r) {
-  if (esDickies(r.it)) return `<span class="nc-ref-lista">Precio fijo ${money(r.base)}</span>`;
+  if (esDickies(r.it)) return `<span class="nc-ref-lista">Precio fijo ${money(r.base)}</span>${r.mano > 0 || r.ajustado ? chipManoHTML(r) : ''}`;
   const extra = r.extra || 0;
   const listaConExtra = r.base + extra;
   const concepto = (r.extra_concepto || '').trim() || 'Extra';
   const chipExtra = extra > 0 ? `<span class="nc-desc-chip extra">+ ${escHtml(concepto)} ${money(extra)}</span>` : '';
-  if (!(r.precio_final < listaConExtra - 0.004)) return `<span class="nc-ref-lista">Lista ${money(r.base)}</span>${chipExtra}`;
+  if (!(r.minimo < listaConExtra - 0.004)) return `<span class="nc-ref-lista">Lista ${money(r.base)}</span>${chipExtra}${r.mano > 0 || r.ajustado ? chipManoHTML(r) : ''}`;
   const pasos = pasosDescuento(r);
-  const chips = pasos.map(p => `<span class="nc-desc-chip">${escHtml(p.txt)} −${fmtPct(p.pct)}</span>`).join('') + chipExtra;
+  const chips = pasos.map(p => `<span class="nc-desc-chip">${escHtml(p.txt)} −${fmtPct(p.pct)}</span>`).join('') + chipExtra + chipManoHTML(r);
   const calculo = [`Precio de lista: ${money(r.base)}`]
     .concat(pasos.map(p => `− ${fmtPct(p.pct)} ${p.txt.toLowerCase()} → ${money(p.queda)}`))
-    .concat(extra > 0 ? [`+ ${concepto} (sin descuento): ${money(extra)} → ${money(r.precio_final)}`] : [])
+    .concat(extra > 0 ? [`+ ${concepto} (sin descuento): ${money(extra)} → ${money(r.minimo)}`] : [])
+    .concat([`Mínimo: ${money(r.minimo)} (puedes subirlo, no bajarlo)`])
+    .concat(r.mano > 0 ? [`Tu precio: ${money(r.mano)} (+${money(r.mano - r.minimo)})`] : [])
     .concat(pasos.length > 1 ? ['Cada descuento se aplica sobre el precio que dejó el anterior.'] : []);
   return `<details class="nc-desglose"><summary><s class="nc-tachado">${money(listaConExtra)}</s>${chips}<i class="bi bi-info-circle"></i></summary>`
        + `<div class="nc-calculo">${calculo.map(escHtml).join('<br>')}</div></details>`;
@@ -832,13 +874,13 @@ function renderRenglones() {
         </div>
         <div class="nc-precio-wrap">
           <span>$</span>
-          <input type="text" class="nc-precio input-precio" data-i="${i}" value="${Number(r.precio_final).toFixed(2)}" aria-label="Precio por par" readonly tabindex="-1" title="Lo calcula el sistema: lista + extra, con los descuentos que apliquen">
+          <input type="text" inputmode="decimal" class="nc-precio input-precio${r.mano > 0 ? ' editado' : ''}${r.ajustado ? ' ajustado' : ''}" data-i="${i}" value="${Number(r.precio_final).toFixed(2)}" aria-label="Precio por par" autocomplete="off" enterkeyhint="done" title="Puedes subirlo; no puede quedar abajo del mínimo">
         </div>
       </div>
       ${extraHTML(r, i)}
       <div class="nc-r-ref">
         <span class="ref" data-i="${i}">${refHTML(r)}</span>
-        <span class="importe" data-i="${i}">${money(r.cantidad * r.precio_final)}</span>
+        <span class="importe" data-i="${i}">${money(importeExacto(r))}</span>
       </div>
     </div>`;
   }).join('');
@@ -873,6 +915,20 @@ contR.addEventListener('input', e => {
     t.value = t.value.replace(/\D/g, '').slice(0, 5);
     r.cantidad = parseInt(t.value) || 0;
     recalcularSoloTotales();
+  } else if (t.classList.contains('input-precio')) {
+    // Mientras teclea: si va arriba del mínimo cuenta ya en el importe; si va
+    // abajo (o a medias) se usa el mínimo. Se valida al salir del campo.
+    const limpio = t.value.replace(',', '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+    if (limpio !== t.value) t.value = limpio;
+    const v = leerPrecio(limpio);
+    r.ajustado = false;
+    r.mano = v > r.minimo + 0.004 ? v : 0;
+    r.precio_final = r.mano || r.minimo;
+    t.classList.toggle('bajo', v > 0 && v < r.minimo - 0.004);
+    t.classList.toggle('editado', r.mano > 0);
+    const ref = contR.querySelector(`.ref[data-i="${t.dataset.i}"]`);
+    if (ref) ref.innerHTML = refHTML(r);
+    recalcularSoloTotales();
   } else if (t.classList.contains('input-extra-precio') || t.classList.contains('input-extra-concepto')) {
     if (t.classList.contains('input-extra-precio')) {
       // Solo números y punto decimal (la coma se confundiría con miles).
@@ -902,6 +958,14 @@ contR.addEventListener('change', e => {
     recalcularSoloTotales();
   } else if (t.classList.contains('input-cant')) {
     recalcularTodo();
+  } else if (t.classList.contains('input-precio')) {
+    // Al salir: abajo del mínimo (o vacío) vuelve al mínimo y se avisa.
+    const r = renglones[+t.dataset.i];
+    if (!r) return;
+    const v = leerPrecio(t.value);
+    if (v > 0 && v < r.minimo - 0.004) marcarAjustado(r);
+    r.mano = v > r.minimo + 0.004 ? v : 0;
+    recalcularTodo();
   } else if (t.classList.contains('input-extra-precio') && t.value !== '') {
     const r = renglones[+t.dataset.i];
     const v = parseFloat(t.value);
@@ -914,29 +978,32 @@ contR.addEventListener('change', e => {
 // el primer click.
 contR.addEventListener('focusin', e => {
   const t = e.target;
-  if (!t.matches('.input-cant, .input-extra-precio')) return;
+  if (!t.matches('.input-cant, .input-extra-precio, .input-precio')) return;
   t._seleccionar = true;
   const valor = t.value;
   setTimeout(() => { if (t.value === valor) t.select(); }, 0);
 });
 contR.addEventListener('click', e => {
   const t = e.target;
-  if (t._seleccionar && t.matches('.input-cant, .input-extra-precio')) { t._seleccionar = false; t.select(); }
+  if (t._seleccionar && t.matches('.input-cant, .input-extra-precio, .input-precio')) { t._seleccionar = false; t.select(); }
 });
 contR.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); e.target.blur(); } });
 
 // Totales, avisos y lo que se manda al guardar. No toca los precios: el
 // vendedor puede ir tecleando sin que se le muevan a media escritura.
 function recalcularSoloTotales() {
+  // Como el cotizador anterior y el ERP: importes y subtotal con decimales
+  // completos; money() redondea solo al mostrar.
   let subtotal = 0;
   renglones.forEach((r, i) => {
-    r.importe = Math.round((parseInt(r.cantidad) || 0) * r.precio_final * 100) / 100;
-    subtotal += r.importe;
+    const ex = importeExacto(r);
+    r.importe = redondearCentavos(ex);
+    subtotal += ex;
     const celda = contR.querySelector(`.importe[data-i="${i}"]`);
-    if (celda) celda.textContent = money(r.importe);
+    if (celda) celda.textContent = money(ex);
   });
-  const iva = Math.round(subtotal * CFG.tasa_iva * 100) / 100;
-  const total = Math.round((subtotal + iva) * 100) / 100;
+  const iva = subtotal * CFG.tasa_iva;
+  const total = subtotal + iva;
   const p = paresPorMarca();
   $('tot-pares').textContent = p.total;
   $('tot-subtotal').textContent = money(subtotal);
@@ -952,7 +1019,8 @@ function recalcularSoloTotales() {
   marcarEstilosEnCarrito();
   $('input-renglones').value = JSON.stringify(
     renglones.map(r => ({ item: r.it.item, cantidad: Math.max(1, parseInt(r.cantidad) || 1), color: r.color || '',
-                          extra_concepto: r.extra > 0 ? (r.extra_concepto || '').trim() : '', extra_precio: r.extra || 0 }))
+                          extra_concepto: r.extra > 0 ? (r.extra_concepto || '').trim() : '', extra_precio: r.extra || 0,
+                          precio_final: r.mano > 0 ? r.mano : '' }))
   );
 }
 
@@ -1027,7 +1095,7 @@ function agregarItem(el) {
   if (existente) {
     existente.cantidad = (parseInt(existente.cantidad) || 0) + 1;
   } else {
-    renglones.push({ it, cantidad: 1, precio_final: null, color: it.colores.length === 1 ? it.colores[0] : '',
+    renglones.push({ it, cantidad: 1, precio_final: null, mano: 0, color: it.colores.length === 1 ? it.colores[0] : '',
                      extra_abierto: false, extra_concepto: '', extra_precio: '' });
   }
   recalcularTodo();

@@ -93,8 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mayoreoAplica = $res['aplica_mayoreo'];
 
     $tasaIva = (float)($cfg['tasa_iva'] ?? 0.16);
-    $iva     = round($subtotal * $tasaIva, 2);
-    $total   = round($subtotal + $iva, 2);
+    ['iva' => $iva, 'total' => $total] = totalesCotizacionErp($res['subtotal_exacto'], $tasaIva);
 
     try {
         $dbErp->beginTransaction();
