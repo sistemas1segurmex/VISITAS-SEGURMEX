@@ -49,15 +49,48 @@ function aplicaMayoreoErp(int $totalPares, array $cfg): bool {
     return $totalPares >= (int)($cfg['minimo_pares_mayoreo'] ?? 16);
 }
 
-/** Copia exacta de calcularPrecioMinimo(). */
+/** Copia exacta de factorDescuentos(): (mayoreo ? 0.90 : 1) × (pronto pago ? 0.95 : 1). */
+function factorDescuentosErp(bool $aplicaMayoreo, bool $prontoPago, array $cfg): float {
+    $may = $aplicaMayoreo ? round(1 - (float)($cfg['descuento_mayoreo'] ?? 0.10), 10) : 1.0;
+    $pp  = $prontoPago    ? round(1 - (float)($cfg['descuento_pronto_pago'] ?? 0.05), 10) : 1.0;
+    return $may * $pp;
+}
+
+/** Copia exacta de calcularPrecioMinimo(): mínimo EXACTO, sin redondear. */
 function calcularPrecioMinimoErp(float $base, bool $aplicaMayoreo, bool $prontoPago, array $cfg): float {
-    $f = 1.0;
-    if ($prontoPago)    $f *= (1 - (float)($cfg['descuento_pronto_pago'] ?? 0.05));
-    if ($aplicaMayoreo) $f *= (1 - (float)($cfg['descuento_mayoreo'] ?? 0.10));
-    // Se CORTA al centavo (no se redondea), igual que el cotizador anterior:
-    // 631×0.95×0.90 = 539.505 → 539.50. El round(…, 6) evita que un
-    // 512.99999999 de punto flotante se corte a 512.99.
-    return floor(round($base * $f * 100, 6)) / 100;
+    return $base * factorDescuentosErp($aplicaMayoreo, $prontoPago, $cfg);
+}
+
+/**
+ * Copia exacta de redondearCentavos(): mitad hacia arriba sobre el número
+ * como se escribe, igual que el cotizador anterior (744.705 → 744.71,
+ * 648.9449999999999 → 648.94). round() de PHP daría 648.95.
+ */
+function redondearCentavosErp(float $x): float {
+    $s = var_export($x, true);
+    if (stripos($s, 'e') !== false || stripos($s, 'n') !== false) return round($x, 2);
+    $neg = $s[0] === '-';
+    if ($neg) $s = substr($s, 1);
+    [$ent, $dec] = array_pad(explode('.', $s, 2), 2, '');
+    $dec = str_pad($dec, 3, '0');
+    $centavos = (int)$ent * 100 + (int)substr($dec, 0, 2) + ((int)$dec[2] >= 5 ? 1 : 0);
+    return ($neg ? -$centavos : $centavos) / 100;
+}
+
+/** Copia exacta de totalesCotizacion(). */
+function totalesCotizacionErp(float $subtotalExacto, float $tasaIva): array {
+    $iva = $subtotalExacto * $tasaIva;
+    return [
+        'subtotal' => redondearCentavosErp($subtotalExacto),
+        'iva'      => redondearCentavosErp($iva),
+        'total'    => redondearCentavosErp($subtotalExacto + $iva),
+    ];
+}
+
+/** Copia exacta de leerPrecioTecleado(). */
+function leerPrecioTecleadoErp($v): float {
+    $v = str_replace([',', '$', ' '], '', (string)($v ?? ''));
+    return is_numeric($v) ? max(0.0, round((float)$v, 2)) : 0.0;
 }
 
 /** Copia exacta de folioCotizacion(). */
@@ -129,13 +162,16 @@ function marcaSinDescuentosErp(string $marca): bool {
 
 /**
  * Valida los renglones que manda nueva_cotizacion.php (JSON: item, cantidad,
- * color, extra_concepto, extra_precio) contra el catálogo y calcula lista,
- * precio e importe. Misma lógica que resolverRenglonesCotizacion() del ERP;
- * solo cambia la forma de la entrada (allá llegan det_item[]... del form).
+ * color, extra_concepto, extra_precio, precio_final) contra el catálogo y
+ * calcula lista, mínimo, precio e importe. Misma lógica que
+ * resolverRenglonesCotizacion() del ERP; solo cambia la forma de la entrada
+ * (allá llegan det_item[]... del form).
  *
- * El precio YA NO se teclea: es la lista con los descuentos que apliquen +
- * el extra por par. El extra (p. ej. otro tipo de casco) es un monto DIRECTO:
- * no lleva descuento. Dickies: precio fijo, sin extra.
+ * Mínimo = lista con los descuentos que apliquen + el extra por par (monto
+ * DIRECTO, sin descuento). Dickies: precio fijo, sin extra.
+ * Precio a mano: el vendedor puede SUBIRLO (precio_final), nunca dejarlo
+ * abajo del mínimo; también en Dickies. Centavos como el cotizador anterior:
+ * importe = pares × precio exacto, se redondea solo al final.
  *
  * El mayoreo lo decide la suma de pares SEGURMEX (los Dickies no cuentan ni
  * reciben descuento). total_pares sigue siendo TODOS los pares.
@@ -150,8 +186,9 @@ function resolverRenglonesCotizacionErp(array $catalogo, array $renglones, strin
     }
     $mayoreo = aplicaMayoreoErp($paresSegurmex, $cfg);
 
-    $lineas = []; $errores = []; $subtotal = 0.0;
+    $lineas = []; $errores = []; $subtotalExacto = 0.0;
     foreach ($renglones as $i => $r) {
+        $tecleado = leerPrecioTecleadoErp($r['precio_final'] ?? '');
         $llave    = (string)($r['item'] ?? '');
         $cantidad = (int)($r['cantidad'] ?? 0);
         $color    = trim((string)($r['color'] ?? ''));
@@ -175,12 +212,22 @@ function resolverRenglonesCotizacionErp(array $catalogo, array $renglones, strin
         }
 
         $base   = $tipoLista === 'distribuidor' ? $item['precio_distribuidor'] : $item['precio_industria'];
-        // Precio = lista con descuentos + extra directo; mínimo y final son el mismo.
+        // Mínimo = lista con descuentos + extra directo (sin descuento), exacto.
         $conDescuentos = $sinDescuentos ? $base : calcularPrecioMinimoErp($base, $mayoreo, $prontoPago, $cfg);
-        $minimo = round($conDescuentos + $extra, 2);
-        $precio = $minimo;
-        $importe = round($cantidad * $precio, 2);
-        $subtotal += $importe;
+        $minimoExacto  = $conDescuentos + $extra;
+        $minimo        = redondearCentavosErp($minimoExacto);
+        if ($tecleado > 0 && $tecleado < $minimo - 0.004) {
+            $errores[] = "{$item['clave']}: el precio (" . money($tecleado) . ") no puede ser menor al mínimo (" . money($minimo) . ")";
+        }
+        if ($tecleado > $minimo + 0.004) {          // precio a mano, arriba del mínimo
+            $precio = $tecleado;
+            $importeExacto = $cantidad * $tecleado;
+        } else {
+            $precio = $minimo;
+            $importeExacto = $cantidad * $minimoExacto;
+        }
+        $importe = redondearCentavosErp($importeExacto);
+        $subtotalExacto += $importeExacto;
         $lineas[] = [
             'id_estilo' => $item['id_estilo'], 'id_modelo_legacy' => $item['id_modelo_legacy'],
             'clave_estilo' => $item['clave'], 'nombre_estilo' => $item['nombre'], 'color' => $color,
@@ -196,7 +243,8 @@ function resolverRenglonesCotizacionErp(array $catalogo, array $renglones, strin
     return [
         'lineas' => $lineas, 'errores' => $errores,
         'total_pares' => $totalPares, 'pares_dickies' => $paresDickies,
-        'aplica_mayoreo' => $mayoreo, 'subtotal' => round($subtotal, 2),
+        'aplica_mayoreo' => $mayoreo, 'subtotal' => redondearCentavosErp($subtotalExacto),
+        'subtotal_exacto' => $subtotalExacto,
         'entrega' => entregaRequeridaDeLineasErp($lineas),
     ];
 }
