@@ -396,6 +396,26 @@ function registrarAcceso(PDO $db, ?int $usuarioId, string $emailIntentado, strin
 }
 
 /**
+ * Usuario + botón "Salir" del encabezado del panel admin (iniciales en
+ * círculo ámbar, nombre, rol y botón rojo con texto). Estilos en
+ * assets/css/admin-2026.css (.v26-sesion).
+ */
+function v26UsuarioHeader(array $u): string {
+    $nombre = trim((string)($u['nombre'] ?? ''));
+    $palabras = preg_split('/\s+/u', $nombre, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    $ini = '';
+    foreach (array_slice($palabras, 0, 2) as $w) $ini .= mb_strtoupper(mb_substr($w, 0, 1));
+    $roles = ['admin' => 'Administrador', 'vendedor' => 'Vendedor'];
+    $rol = $roles[$u['rol'] ?? ''] ?? ucfirst((string)($u['rol'] ?? ''));
+    $e = fn($t) => htmlspecialchars($t, ENT_QUOTES, 'UTF-8');
+    return '<div class="v26-sesion">'
+        . '<span class="v26-sesion-avatar" aria-hidden="true">' . $e($ini ?: '?') . '</span>'
+        . '<span class="v26-sesion-quien"><span class="nombre">' . $e($nombre) . '</span><span class="rol">' . $e($rol) . '</span></span>'
+        . '<a href="../logout.php" class="v26-sesion-salir" aria-label="Cerrar sesión"><i class="bi bi-box-arrow-right"></i><span>Salir</span></a>'
+        . '</div>';
+}
+
+/**
  * Para romper el caché del navegador en CSS/JS propios: agrega ?v=<fecha de
  * modificación del archivo> a la URL, así el navegador solo vuelve a pedir
  * el archivo cuando de verdad cambió (no en cada carga, y sin depender de
