@@ -51,7 +51,9 @@
 .mt-tabla tr:last-child td { border-bottom: 0; }
 .mt-tabla tfoot td { font-weight: 700; color: var(--v26-ink-soft); border-top: 1px solid var(--v26-border); }
 .mt-tabla tbody tr:hover td { background: #FBF8F0; }
-.mt-tabla tr.sel td { background: #FFF6DB; }
+.mt-tabla tr.sel td { background: #fff; box-shadow: inset 0 2px 0 var(--v26-brand-1), inset 0 -2px 0 var(--v26-brand-1); }
+.mt-tabla tr.sel td:first-child { box-shadow: inset 2px 2px 0 var(--v26-brand-1), inset 0 -2px 0 var(--v26-brand-1); }
+.mt-tabla tr.sel td:last-child { box-shadow: inset -2px 2px 0 var(--v26-brand-1), inset 0 -2px 0 var(--v26-brand-1); }
 .mt-quien { display: flex; align-items: center; gap: 8px; }
 .mt-quien a { color: var(--v26-ink); font-weight: 700; text-decoration: none; }
 .mt-quien a:hover { color: var(--v26-brand-2); }
@@ -158,3 +160,21 @@
 .mt-btn-ranking:hover { background: var(--v26-brand-soft-2); }
 .mt-tabla th:nth-child(2), .mt-tabla td:nth-child(2) { position: sticky; left: 52px; background: var(--v26-surface-solid); z-index: 1; }
 .mt-tabla tr.mt-primero td:nth-child(2) { background: #FFF8E1; }
+
+/* Métricas en 3 bloques (oct-2026): ranking del equipo arriba, resumen del
+   vendedor elegido (o del equipo) y "Todo el equipo" al final. */
+.mt-titulo-sec { display: flex; align-items: center; gap: 8px; }
+.mt-titulo-sec .ico { width: 28px; height: 28px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: .85rem; color: #fff; }
+.mt-titulo-sec .ico--equipo { background: #1F2328; }
+.mt-card-cab p b { color: #374151; font-weight: 700; }
+.mt-viendo { display: inline-block; margin-left: 8px; font-size: .64rem; font-weight: 800; letter-spacing: .02em; color: #fff; background: var(--v26-brand-1); border-radius: 999px; padding: 1px 8px; vertical-align: 1px; }
+.mt-tabla tr[data-v] { cursor: pointer; }
+.mt-divisor { display: flex; align-items: center; gap: 12px; margin: 22px 0 12px; scroll-margin-top: 90px; }
+.mt-divisor::before, .mt-divisor::after { content: ''; flex: 1; height: 1px; background: #F0D592; }
+.mt-divisor span { font-size: .9rem; font-weight: 800; color: var(--v26-brand-ink); text-align: center; }
+.mt-resumen-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: var(--v26-brand-soft); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; }
+.mt-resumen-cab p { margin: 0; font-size: .8rem; color: var(--v26-brand-ink); }
+.mt-nombre { font-weight: 700; color: var(--v26-ink); }
+.mt-tabla tr.mt-sin-lugar .mt-nombre { color: #6B7280; font-weight: 600; }
+.mt-ir { margin-left: 6px; font-size: .72rem; color: #9CA3AF !important; }
+.mt-ir:hover { color: var(--v26-brand-text) !important; }
