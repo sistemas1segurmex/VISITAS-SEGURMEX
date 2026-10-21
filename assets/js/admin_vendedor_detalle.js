@@ -223,9 +223,9 @@ const DURACION_MINIMA_SOSPECHOSA_SEG = 120;
 
 function textoEstadoCheckin(verificado, distancia, correccion) {
   if (verificado == 1) {
-    if (correccion === 'por_revisar') return 'Ubicación por revisar';
-    if (correccion === 'aprobada') return 'Ubicación corregida por admin';
-    if (correccion) return 'Ubicación corregida por la app';
+    if (correccion === 'por_revisar') return 'Pin del cliente por revisar en Ubicaciones';
+    if (correccion === 'aprobada') return 'El pin del cliente se movió a donde estaba el vendedor (aprobado por admin)';
+    if (correccion) return 'El pin del cliente se movió a donde estaba el vendedor';
     return 'GPS verificado';
   }
   return `Fuera de zona${distancia !== null && distancia !== undefined ? ' (' + Math.round(distancia) + ' m)' : ''}`;

@@ -125,15 +125,16 @@ if ($tipo === 'entrada' && !$noShow && $verificado === 0 && $distancia !== null
     if ($respuesta === '1' && $distancia > CORRECCION_REVISAR_MAX_M) {
         $correccion = [
             'estado'  => 'por_revisar',
-            'nota'    => CORRECCION_NOTA_AVISO . ' dice que sí está en el cliente, pero la ubicación registrada está a '
-                       . number_format($distancia / 1000, 1) . ' km. El pin no se movió: al aprobar se mueve a donde estaba el vendedor.',
+            // Debe empezar con CORRECCION_NOTA_AVISO (así lo reconoce api/admin_ubicaciones.php).
+            'nota'    => CORRECCION_NOTA_AVISO . ' dice que sí estaba en el cliente, pero el pin de la dirección registrada está a '
+                       . number_format($distancia / 1000, 1) . ' km. El pin todavía no se ha movido: si se aprueba, pasa a donde estaba el vendedor.',
             'aplicar' => false,
         ];
     } elseif ($respuesta === '1') {
         $lejos = $distancia > CORRECCION_DIRECTA_MAX_M;
         $correccion = [
             'estado'  => $lejos ? 'por_revisar' : 'aplicada',
-            'nota'    => $lejos ? 'La ubicación registrada estaba a más de ' . (CORRECCION_DIRECTA_MAX_M / 1000) . ' km' : null,
+            'nota'    => $lejos ? 'El pin de la dirección registrada estaba a ' . number_format($distancia / 1000, 1) . ' km de donde tomó la foto de entrada (más de ' . (CORRECCION_DIRECTA_MAX_M / 1000) . ' km)' : null,
             'aplicar' => true,
         ];
         $verificado = 1;

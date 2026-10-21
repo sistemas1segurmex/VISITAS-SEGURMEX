@@ -446,7 +446,7 @@ function lineaCheckin(etiqueta, verificado, fechaHora, distancia, correccion) {
   if (verificado === null || verificado === undefined) return '';
   const claseDot = verificado == 1 ? 'ok' : 'no';
   const estadoTxt = verificado == 1
-    ? (correccion === 'por_revisar' ? 'Ubicación por revisar' : correccion === 'aprobada' ? 'Ubicación corregida por admin' : correccion ? 'Ubicación corregida por la app' : 'GPS verificado')
+    ? (correccion === 'por_revisar' ? 'Pin del cliente por revisar en Ubicaciones' : correccion === 'aprobada' ? 'El pin del cliente se movió a donde estaba el vendedor (aprobado por admin)' : correccion ? 'El pin del cliente se movió a donde estaba el vendedor' : 'GPS verificado')
     : `Fuera de zona${distancia !== null && distancia !== undefined ? ' (' + Math.round(distancia) + ' m)' : ''}`;
   return `<div class="v26-checkin-linea"><span class="dot ${claseDot}"></span> <b>${etiqueta}</b> ${horaSoloUTC(fechaHora)} · ${estadoTxt}</div>`;
 }

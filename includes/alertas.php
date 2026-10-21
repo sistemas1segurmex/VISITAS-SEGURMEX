@@ -141,11 +141,11 @@ function generarAlertaUbicacionPorRevisar(PDO $db): void {
         $km = number_format(((float)$r['distancia_metros']) / 1000, 1);
         if (str_starts_with((string)$r['nota'], CORRECCION_NOTA_AVISO)) {
             insertarAlerta($db, (int)$r['vendedor_id'], (int)$r['id'], 'ubicacion_por_revisar',
-                "Avisó que sí está en {$r['cliente_nombre']}, pero la ubicación guardada está a {$km} km. El pin no se movió: apruébalo para moverlo a donde estuvo o revierte.");
+                "{$r['cliente_nombre']}: el vendedor dice que sí estaba en el cliente, pero el pin de la dirección registrada está a {$km} km. El pin todavía no se ha movido: apruébalo en Ubicaciones para moverlo, o revierte.");
             continue;
         }
         insertarAlerta($db, (int)$r['vendedor_id'], (int)$r['id'], 'ubicacion_por_revisar',
-            "Movió el pin de {$r['cliente_nombre']} al hacer check-in. El pin anterior estaba a {$km} km, más de los 3 km que se corrigen solos.");
+            "{$r['cliente_nombre']}: el pin de la dirección registrada estaba a {$km} km de donde llegó el vendedor y la app lo movió ahí. Como pasa de 3 km, revisa en Ubicaciones que sea el cliente correcto.");
     }
 }
 
