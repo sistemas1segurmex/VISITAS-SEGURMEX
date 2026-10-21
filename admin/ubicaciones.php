@@ -40,6 +40,8 @@ $u = requireRole('admin');
   .corr-flecha { align-self: center; color: var(--v26-brand-1); font-size: 1.3rem; }
   .corr-pie { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
   .corr-pie .revisado { font-size: .74rem; color: var(--v26-ink-soft); margin-right: auto; }
+  .corr-ayuda { flex-basis: 100%; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: .72rem; color: var(--v26-ink-soft); text-align: right; }
+  .corr-ayuda b { color: #374151; }
   .corr-btn { border: 0; border-radius: 10px; padding: 8px 16px; font-size: .84rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: background .15s, filter .15s; }
   .corr-btn:disabled { opacity: .6; cursor: wait; }
   .corr-btn--aprobar { background: var(--v26-brand-1); color: #fff; box-shadow: var(--v26-shadow-brand); }
@@ -68,6 +70,7 @@ $u = requireRole('admin');
     .corr-pin .t { font-size: .64rem; }
     .corr-flecha { font-size: 1rem; }
     .corr-pie .revisado { width: 100%; }
+    .corr-ayuda { align-items: flex-start; text-align: left; }
 
     .corr-btn { flex: 1; justify-content: center; white-space: nowrap; padding: 8px 10px; }
     .corr-f { flex: 1 1 0; min-width: 0; } .corr-f:first-child { flex: 1 1 100%; }
@@ -98,7 +101,7 @@ $u = requireRole('admin');
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
       <h5 class="mb-0">Pines de clientes corregidos en visita</h5>
-      <p class="v26-subtitulo mb-0">Cuando el pin estaba lejos y el vendedor confirmó que estaba en el lugar</p>
+      <p class="v26-subtitulo mb-0">El pin del mapa que se puso al registrar la dirección del cliente no coincidía con donde estaba el vendedor al llegar, y el vendedor confirmó que sí estaba en el cliente.</p>
     </div>
     <div class="v26-segmented" id="filtro-estado">
       <button type="button" class="opt active" data-estado="por_revisar"><i class="bi bi-exclamation-circle"></i> Por revisar</button>
@@ -163,7 +166,12 @@ async function cargar() {
     const revisable = c.estado === 'aplicada' || c.estado === 'por_revisar';
     // Aviso del vendedor: el pin no se movió en el check-in; se mueve al aprobar.
     const esAviso = String(c.nota || '').startsWith('Aviso del vendedor:');
-    const nota = c.nota ? c.nota.replace(/^El pin anterior/, 'La ubicación registrada').replace(/el pin anterior/g, 'la ubicación registrada') : '';
+    // El aviso se arma aquí con los datos (no con la nota guardada), para que
+    // las correcciones viejas también se lean con el texto claro.
+    const km = metros(c.distancia_metros);
+    const nota = esAviso
+      ? `<b>El vendedor dice que sí estaba en el cliente, pero el pin de la dirección registrada está a ${km}.</b> El pin todavía no se ha movido: si apruebas, pasa a donde estaba el vendedor.`
+      : (c.nota ? `<b>El pin de la dirección registrada estaba a ${km} de donde tomó la foto de entrada.</b> Por estar tan lejos, revisa que sea el cliente correcto.` : '');
     return `
       <div class="corr-card">
         <div class="corr-top">
@@ -173,19 +181,19 @@ async function cargar() {
             <div class="linea"><i class="bi bi-person"></i> ${esc(c.vendedor_nombre)} · ${formatearFechaUTC(c.creado_en)}</div>
             <div class="linea"><i class="bi bi-broadcast"></i> GPS del vendedor ±${Math.round(c.accuracy)} m</div>
           </div>
-          <div class="corr-km ${revisable ? '' : 'ok'}"><b>${metros(c.distancia_metros)}</b><span>de diferencia</span></div>
+          <div class="corr-km ${revisable ? '' : 'ok'}"><b>${metros(c.distancia_metros)}</b><span>entre el pin y el vendedor</span></div>
         </div>
-        ${nota ? `<div class="corr-aviso"><i class="bi bi-exclamation-triangle"></i> ${esc(nota)}</div>` : ''}
+        ${nota ? `<div class="corr-aviso"><i class="bi bi-exclamation-triangle"></i> ${nota}</div>` : ''}
         <div class="corr-pines">
           <a class="corr-pin corr-pin--antes" href="${mapa(c.lat_anterior, c.lng_anterior)}" target="_blank" rel="noopener">
-            <span class="t"><i class="bi bi-geo"></i> Ubicación registrada</span>
+            <span class="t"><i class="bi bi-geo"></i> Pin de la dirección registrada</span>
             <span class="d" title="${esc(c.direccion)}">${esc(c.direccion)}</span>
             <span class="v">Ver en mapa <i class="bi bi-box-arrow-up-right"></i></span>
           </a>
           <i class="bi bi-arrow-right corr-flecha" aria-hidden="true"></i>
           <a class="corr-pin corr-pin--ahora" href="${mapa(c.lat_nueva, c.lng_nueva)}" target="_blank" rel="noopener">
             <span class="t"><i class="bi bi-geo-alt-fill"></i> Donde estaba el vendedor</span>
-            <span class="d">Al hacer check-in</span>
+            <span class="d">Al tomar la foto de entrada (GPS ±${Math.round(c.accuracy)} m)</span>
             <span class="v">Ver en mapa <i class="bi bi-box-arrow-up-right"></i></span>
           </a>
         </div>
@@ -193,7 +201,11 @@ async function cargar() {
           ${c.revisado_por_nombre ? `<span class="revisado"><i class="bi bi-person-check"></i> Revisó: ${esc(c.revisado_por_nombre)} · ${formatearFechaUTC(c.revisado_en)}</span>` : '<span class="revisado"></span>'}
           ${revisable ? `
             <button type="button" class="corr-btn corr-btn--revertir" data-accion="revertir" data-id="${c.id}"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button>
-            <button type="button" class="corr-btn corr-btn--aprobar" data-accion="aprobar" data-id="${c.id}"><i class="bi bi-check-lg"></i> ${esAviso ? 'Aprobar y mover pin' : 'Aprobar'}</button>` : ''}
+            <button type="button" class="corr-btn corr-btn--aprobar" data-accion="aprobar" data-id="${c.id}"><i class="bi bi-check-lg"></i> ${esAviso ? 'Aprobar y mover pin' : 'Aprobar'}</button>
+            <div class="corr-ayuda">
+              <span><b>Aprobar:</b> ${esAviso ? 'el pin pasa a donde estaba el vendedor' : 'el pin se queda donde estaba el vendedor'}.</span>
+              <span><b>Revertir:</b> ${esAviso ? 'el pin no se mueve' : 'el pin regresa a la dirección registrada'} y la visita queda Fuera de zona.</span>
+            </div>` : ''}
         </div>
       </div>`;
   }).join('');

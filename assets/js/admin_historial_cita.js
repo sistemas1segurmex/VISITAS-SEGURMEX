@@ -188,11 +188,11 @@ function histEventosCampo(intentos, checkins) {
     const t = histEpochUTC(ch.fecha_hora), dia = histDiaUTC(ch.fecha_hora);
     let estado;
     if (Number(ch.verificado) === 1) {
-      if (ch.correccion === 'por_revisar') estado = 'Ubicación por revisar';
-      else if (ch.correccion === 'aprobada') estado = 'Ubicación corregida por admin';
-      else if (ch.correccion || ch.ubicacion_corregida === true || ch.ubicacion_corregida === 't') estado = 'Ubicación corregida por la app';
+      if (ch.correccion === 'por_revisar') estado = 'Pin del cliente por revisar en Ubicaciones';
+      else if (ch.correccion === 'aprobada') estado = 'El pin del cliente se movió a donde estaba el vendedor (aprobado por admin)';
+      else if (ch.correccion || ch.ubicacion_corregida === true || ch.ubicacion_corregida === 't') estado = 'El pin del cliente se movió a donde estaba el vendedor';
       else estado = 'GPS verificado';
-      if (ch.correccion_distancia) estado += ` · la ubicación registrada del cliente estaba a ${histMetros(ch.correccion_distancia)}`;
+      if (ch.correccion_distancia) estado += ` · el pin de la dirección registrada estaba a ${histMetros(ch.correccion_distancia)}`;
       else if (ch.distancia_metros !== null && ch.distancia_metros !== undefined && !ch.correccion) estado += ` · a ${histMetros(ch.distancia_metros)} del cliente`;
     } else {
       estado = `Fuera de zona${ch.distancia_metros ? ' · a ' + histMetros(ch.distancia_metros) + ' del cliente' : ''}`;
