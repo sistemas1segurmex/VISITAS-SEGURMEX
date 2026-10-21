@@ -1015,3 +1015,43 @@ body.v26 { background: var(--v26-bg); }
   box-shadow: var(--v26-shadow-brand);
 }
 @media (max-width: 576px) { .v26-card-titulo { font-size: 1.02rem; } .v26-card-titulo .ico { width: 28px; height: 28px; font-size: .9rem; } }
+
+/* Usuario + "Salir" en el encabezado (v26UsuarioHeader() en includes/helpers.php):
+   iniciales en círculo ámbar, nombre con rol y botón rojo sólido con texto. */
+.v26-sesion { display: flex; align-items: center; gap: 10px; flex: none; }
+.v26-sesion-avatar {
+  width: 38px; height: 38px; border-radius: 50%; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--v26-brand-1); color: #fff; font-weight: 800; font-size: .85rem;
+  box-shadow: var(--v26-shadow-brand);
+}
+.v26-sesion-quien { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.v26-sesion-quien .nombre { font-size: .9rem; font-weight: 800; color: #1F2328; white-space: nowrap; }
+.v26-sesion-quien .rol { font-size: .72rem; font-weight: 600; color: var(--v26-brand-text); }
+.v26-sesion-salir {
+  display: inline-flex; align-items: center; gap: 6px; margin-left: 4px;
+  background: #E11D48; color: #fff; text-decoration: none;
+  border-radius: 10px; padding: 8px 14px; font-size: .85rem; font-weight: 700;
+  box-shadow: 0 6px 14px -8px rgba(225, 29, 72, .7);
+  transition: background .15s, transform .1s;
+}
+.v26-sesion-salir:hover, .v26-sesion-salir:focus-visible { background: #BE123C; color: #fff; }
+.v26-sesion-salir:active { transform: scale(.96); }
+/* Celular: solo iniciales + "Salir" para que quepa con el título */
+@media (max-width: 576px) {
+  .v26-sesion { gap: 6px; }
+  .v26-sesion-quien { display: none; }
+  .v26-sesion-avatar { width: 34px; height: 34px; font-size: .78rem; }
+  .v26-sesion-salir { padding: 7px 10px; font-size: .8rem; margin-left: 0; }
+}
+/* Celular: usuario/Salir fijos arriba a la derecha y los botones del menú
+   en una fila que se desliza (antes se salían de la pantalla). */
+@media (max-width: 760px) {
+  .v26-topbar { position: relative; flex-wrap: wrap; padding: 12px 14px; }
+  .v26-topbar-left { padding-right: 120px; }
+  .v26-topbar .v26-sesion { position: absolute; top: 14px; right: 14px; }
+  .v26-topbar-right { width: 100%; overflow-x: auto; flex-wrap: nowrap; gap: 8px; scrollbar-width: none; padding-bottom: 2px; }
+  .v26-topbar-right::-webkit-scrollbar { display: none; }
+  .v26-topbar-right .v26-btn-chip { flex: none; }
+  .v26-topbar-right:not(:has(.v26-btn-chip)) { width: auto; }
+}

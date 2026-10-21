@@ -88,8 +88,7 @@ $u = requireRole('admin');
     <div class="v26-topbar-right">
       <a href="bitacora.php" class="v26-btn-chip"><i class="bi bi-journal-text"></i> Bitácora</a>
       <a href="ubicaciones.php" class="v26-btn-chip"><i class="bi bi-geo-alt"></i> Ubicaciones</a>
-      <span class="v26-user"><?= htmlspecialchars($u['nombre']) ?></span>
-      <a href="../logout.php" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Cerrar sesión" aria-label="Salir"><i class="bi bi-box-arrow-right"></i></a>
+      <?= v26UsuarioHeader($u) ?>
     </div>
   </div>
 </div>
