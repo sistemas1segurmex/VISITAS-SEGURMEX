@@ -268,6 +268,20 @@ function agruparPuntosCercanos(puntos) {
   return grupos;
 }
 
+// ── Título de la card de citas: "Citas de hoy" o "Citas del 18 de octubre" ──
+// "Hoy" se toma de data-hoy (fecha del servidor, hora de México); no se usa
+// toISOString() porque está en UTC y después de las 6 p.m. ya marcaría mañana.
+function actualizarTituloCitas() {
+  const t = document.getElementById('titulo-citas');
+  const fecha = document.getElementById('filtro-fecha')?.value;
+  if (!t || !fecha) return;
+  if (fecha === t.dataset.hoy) { t.textContent = 'Citas de hoy'; return; }
+  const [a, m, d] = fecha.split('-').map(Number);
+  const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const anioHoy = Number((t.dataset.hoy || '').slice(0, 4));
+  t.textContent = 'Citas del ' + d + ' de ' + MESES[m - 1] + (a !== anioHoy ? ' de ' + a : '');
+}
+
 // ── Líneas de recorrido del día seleccionado ──────────────────────────────
 async function dibujarRutasDia() {
   const fecha = document.getElementById('filtro-fecha')?.value || new Date().toISOString().slice(0, 10);
@@ -586,6 +600,7 @@ function tarjetaVisita(c) {
 }
 
 async function cargarCitasHoy() {
+  actualizarTituloCitas();
   const cont = document.getElementById('tabla-citas');
   const fecha = document.getElementById('filtro-fecha').value;
   const conteo = document.getElementById('conteo-citas-dia');

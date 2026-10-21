@@ -902,3 +902,114 @@ table.v26-tabla-accesos tr.fallido { background: rgba(225,29,72,.06); }
 .v26-cot-hoy--nueva { animation: v26-cot-pulso 1.4s var(--v26-ease) 2; }
 @keyframes v26-cot-pulso { 0%, 100% { box-shadow: var(--v26-shadow-sm); } 50% { box-shadow: 0 0 0 4px rgba(22,163,74,.25); } }
 @media (prefers-reduced-motion: reduce) { .v26-cot-hoy--nueva { animation: none; } }
+
+/* ==================================================================
+   Tema "C · Ámbar vivo" (oct-2026): misma identidad amarilla/naranja
+   de Segurmex pero más luminosa, sobre crema muy claro.
+   Va al final a propósito: solo sobrescribe colores del panel admin,
+   sin tocar la estructura de arriba (para revertir, borrar este bloque).
+   ================================================================== */
+:root {
+  --v26-brand-1: #F29100;            /* ámbar vivo (relleno de botones) */
+  --v26-brand-2: #D97E00;            /* bordes / hover */
+  --v26-brand-grad: #F29100;         /* sin degradado: color sólido */
+  --v26-brand-soft: #FFF4D6;         /* botones secundarios */
+  --v26-brand-soft-2: #FFE9B0;       /* hover de secundarios */
+  --v26-brand-ink: #7A4A00;          /* texto sobre ámbar claro */
+  --v26-brand-text: #B86A00;         /* acento ámbar sobre blanco (legible) */
+  --v26-bg: #FFFCF3;
+  --v26-border: #F5E6C4;
+  --v26-shadow-brand: 0 6px 16px -8px rgba(242, 145, 0, .6);
+}
+
+/* Fondo: un solo tono crema claro, sin manchas de color */
+body.v26 { background: var(--v26-bg); }
+.v26-header { background: rgba(255, 252, 243, .92); }
+.v26-wrap .card, .v26-al-grupo, .v26-al-tile { border-color: var(--v26-border); }
+
+/* Acentos sobre blanco: tono más firme para que se lean */
+.v26-back:hover, .v26-cot-hoy-ver, .v26-cot-hoy-total b,
+.v26-cita-hora-solo .hora, .v26-cita-info .vendedor i, .v26-cita-fecha .dia,
+.v26-wrap .nav-tabs .nav-link.active { color: var(--v26-brand-text); }
+.v26-wrap .nav-tabs .nav-link.active { border-bottom-color: var(--v26-brand-1); }
+.v26-cot-hoy-ver:hover { color: var(--v26-brand-2); }
+
+/* Botones principales: ámbar sólido, texto blanco */
+.v26-wrap .btn-brand:hover, .v26-user-ver-detalle:hover { background: var(--v26-brand-2); filter: none; opacity: 1; }
+.v26-al-filtros .opt.active, .v26-al-vista .opt.active,
+.v26-al-btn.prim { background: var(--v26-brand-1); border-color: var(--v26-brand-1); color: #fff; }
+
+/* Menú superior: ámbar sólido fijo (no solo al pasar el mouse); más oscuro en hover */
+.v26-btn-chip {
+  background: var(--v26-brand-1); color: #fff; border-color: var(--v26-brand-1);
+  box-shadow: var(--v26-shadow-brand);
+  transition: transform .15s var(--v26-ease), background .15s, color .15s;
+}
+.v26-btn-chip:hover, .v26-btn-chip:focus-visible { background: var(--v26-brand-2); border-color: var(--v26-brand-2); color: #fff; }
+
+/* Pestañas de alertas: activo en ámbar (antes negro) */
+.v26-alert-tab.active { background: var(--v26-brand-1); color: #fff; border-color: var(--v26-brand-1); }
+.v26-al-filtros, .v26-al-vista { background: var(--v26-brand-soft); }
+
+/* Botones de las alertas: más grandes y con más contraste */
+.v26-al-btn {
+  padding: 5px 12px; border-radius: 8px; font-weight: 700;
+  background: var(--v26-brand-soft); border-color: transparent; color: var(--v26-brand-ink);
+}
+.v26-al-btn:hover { background: var(--v26-brand-soft-2); border-color: transparent; color: var(--v26-brand-ink); }
+.v26-al-btn.prim { box-shadow: var(--v26-shadow-brand); }
+.v26-al-btn.prim:hover { background: var(--v26-brand-2); border-color: var(--v26-brand-2); color: #fff; }
+.v26-al-btn.peligro { background: #FFF1F2; color: var(--al-crit); }
+.v26-al-resolver {
+  background: #ECFDF5; color: #065F46; text-decoration: none;
+  border-radius: 8px; padding: 4px 10px; font-weight: 700;
+}
+.v26-al-resolver::before { content: "\2713\00a0"; }
+.v26-al-resolver:hover { background: #D1FAE5; }
+
+/* Tarjeta "Cotizaciones de hoy": ámbar muy suave, sin degradado */
+.v26-cot-hoy-total { background: #FFF6DE; border-color: #FBDF9E; }
+
+/* Cards del mapa y de Visitas (inicio admin): ámbar muy suave */
+.v26-wrap .card.v26-card-ambar { background: var(--v26-brand-soft); border-color: #F5DFA6; }
+
+/* Select de vendedor y campo de fecha en esas cards: píldora ámbar sólida,
+   texto blanco, icono a la izquierda (personas / calendario) y flecha blanca. */
+.v26-wrap .card.v26-card-ambar .form-select,
+.v26-wrap .card.v26-card-ambar .form-control {
+  background-color: var(--v26-brand-1); color: #fff; font-weight: 700;
+  border: 1px solid var(--v26-brand-1); border-radius: var(--v26-r-pill);
+  box-shadow: var(--v26-shadow-brand); cursor: pointer;
+  padding-left: 2.1rem; padding-right: 2.2rem;
+  background-repeat: no-repeat, no-repeat;
+  background-position: left .8rem center, right .8rem center;
+  background-size: 15px 15px, 12px 12px;
+}
+.v26-wrap .card.v26-card-ambar .form-select { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3e%3cpath d='M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.24 2.24 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.3 6.3 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5'/%3e%3c/svg%3e"), url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"); }
+.v26-wrap .card.v26-card-ambar .form-control { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3e%3cpath d='M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5M1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4z'/%3e%3c/svg%3e"), url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"); }
+.v26-wrap .card.v26-card-ambar .form-select:hover,
+.v26-wrap .card.v26-card-ambar .form-control:hover { background-color: var(--v26-brand-2); border-color: var(--v26-brand-2); }
+.v26-wrap .card.v26-card-ambar .form-select:focus,
+.v26-wrap .card.v26-card-ambar .form-control:focus { border-color: var(--v26-brand-2); box-shadow: 0 0 0 3px rgba(242,145,0,.3); }
+/* Las opciones de la lista desplegable se quedan en blanco con texto oscuro */
+.v26-wrap .card.v26-card-ambar .form-select option { background: #fff; color: var(--v26-ink); font-weight: 500; }
+/* Si el calendario (Flatpickr) no cargó y queda el input nativo: icono nativo oculto, usa el nuestro */
+.v26-wrap .card.v26-card-ambar input[type=date]::-webkit-calendar-picker-indicator { opacity: 0; cursor: pointer; }
+
+/* Calendario desplegable (Flatpickr): día elegido y hoy en ámbar */
+.flatpickr-day.selected, .flatpickr-day.selected:hover { background: var(--v26-brand-1); border-color: var(--v26-brand-1); color: #fff; }
+.flatpickr-day.today { border-color: var(--v26-brand-1); }
+.flatpickr-day.today:hover { background: var(--v26-brand-soft); color: var(--v26-brand-ink); border-color: var(--v26-brand-1); }
+
+/* Títulos de las cards del mapa y de Visitas: carbón, grueso, icono en cuadro ámbar */
+.v26-card-titulo {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 800; font-size: 1.15rem; color: #1F2328; letter-spacing: -.01em;
+}
+.v26-card-titulo .ico {
+  width: 32px; height: 32px; border-radius: 10px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--v26-brand-1); color: #fff; font-size: 1rem;
+  box-shadow: var(--v26-shadow-brand);
+}
+@media (max-width: 576px) { .v26-card-titulo { font-size: 1.02rem; } .v26-card-titulo .ico { width: 28px; height: 28px; font-size: .9rem; } }

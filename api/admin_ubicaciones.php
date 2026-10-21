@@ -19,7 +19,19 @@ $db = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $soloPorRevisar = ($_GET['estado'] ?? 'por_revisar') !== 'todas';
-    $stmt = $db->query(
+    // Filtros opcionales (pestaña "Todas"): vendedor y rango de fechas.
+    // creado_en es TIMESTAMP en UTC: la fecha se compara en hora de México.
+    $donde = [];
+    $params = [];
+    if ($soloPorRevisar) $donde[] = "cu.estado = 'por_revisar'";
+    $vendedorId = (int)($_GET['vendedor'] ?? 0);
+    if ($vendedorId > 0) { $donde[] = 'cu.vendedor_id = ?'; $params[] = $vendedorId; }
+    $esFecha = fn($f) => is_string($f) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $f);
+    $diaMx = "(cu.creado_en AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City')::date";
+    if ($esFecha($_GET['desde'] ?? null)) { $donde[] = "$diaMx >= ?::date"; $params[] = $_GET['desde']; }
+    if ($esFecha($_GET['hasta'] ?? null)) { $donde[] = "$diaMx <= ?::date"; $params[] = $_GET['hasta']; }
+
+    $stmt = $db->prepare(
         "SELECT cu.id, cu.estado, cu.nota, cu.creado_en, cu.revisado_en,
                 cu.lat_anterior, cu.lng_anterior, cu.lat_nueva, cu.lng_nueva,
                 cu.distancia_metros, cu.accuracy, cu.checkin_id,
@@ -29,11 +41,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
          JOIN clientes cl ON cl.id = cu.cliente_id
          JOIN usuarios v ON v.id = cu.vendedor_id
          LEFT JOIN usuarios r ON r.id = cu.revisado_por
-         " . ($soloPorRevisar ? "WHERE cu.estado = 'por_revisar'" : '') . "
+         " . ($donde ? 'WHERE ' . implode(' AND ', $donde) : '') . "
          ORDER BY cu.creado_en DESC LIMIT 200"
     );
+    $stmt->execute($params);
     $porRevisar = (int)$db->query("SELECT COUNT(*) FROM correcciones_ubicacion WHERE estado = 'por_revisar'")->fetchColumn();
-    jsonResponse(['ok' => true, 'correcciones' => $stmt->fetchAll(), 'por_revisar' => $porRevisar]);
+    // Para el filtro: solo los vendedores que tienen alguna corrección.
+    $vendedores = $db->query(
+        "SELECT DISTINCT v.id, v.nombre FROM correcciones_ubicacion cu
+         JOIN usuarios v ON v.id = cu.vendedor_id ORDER BY v.nombre"
+    )->fetchAll();
+    jsonResponse(['ok' => true, 'correcciones' => $stmt->fetchAll(), 'por_revisar' => $porRevisar, 'vendedores' => $vendedores]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

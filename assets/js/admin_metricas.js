@@ -160,12 +160,24 @@ function pintarKpis() {
     { ico: 'bi-trophy', l: 'Cotizaciones aceptadas', v: pct(t.conversion), d: delta(t.conversion, ta.conversion, 'pct'), s: `${num(t.aceptadas)} aceptadas · ${money(t.monto_aceptado)}`, tip: 'Aceptadas ÷ cotizaciones no canceladas del periodo.' },
     { ico: 'bi-fire', l: 'Muy interesados con cotización', v: pct(t.pct_muy_cot), d: delta(t.pct_muy_cot, ta.pct_muy_cot, 'pct'), s: `${num(t.muy_interesados_cotizados)} de ${num(t.muy_interesados)} visitas`, tip: 'De las visitas donde el cliente quedó «Muy interesado», a cuántos ya se les hizo cotización.' },
   ];
-  document.getElementById('kpis').innerHTML = kpis.map(k => `
-    <div class="mt-kpi" data-tip="${esc(k.tip)}">
-      <div class="l"><i class="bi ${k.ico}"></i>${k.l}</div>
-      <div class="v">${k.v}</div>
-      <div class="s">${k.d} · ${k.s}</div>
-    </div>`).join('');
+  // Agrupados en 3 tarjetas: Visitas / Clientes / Ventas (índices de "kpis")
+  const grupos = [
+    { cls: 'visitas',  ico: 'bi-geo-alt-fill',        t: 'Visitas',  ks: [0, 1, 2, 3] },
+    { cls: 'clientes', ico: 'bi-people-fill',         t: 'Clientes', ks: [4, 7] },
+    { cls: 'ventas',   ico: 'bi-file-earmark-text-fill', t: 'Ventas', ks: [5, 6] },
+  ];
+  document.getElementById('kpis').innerHTML = grupos.map(g => `
+    <section class="mt-grupo mt-grupo--${g.cls}">
+      <div class="mt-grupo-cab"><span class="ico"><i class="bi ${g.ico}"></i></span>${g.t}</div>
+      ${g.ks.map(i => kpis[i]).map(k => `
+        <div class="mt-kpi" data-tip="${esc(k.tip)}">
+          <div class="fila">
+            <div class="l"><i class="bi ${k.ico}"></i>${k.l}</div>
+            <div class="v">${k.v}</div>
+          </div>
+          <div class="s">${k.d} · ${k.s}</div>
+        </div>`).join('')}
+    </section>`).join('');
 }
 
 // ── Tendencia diaria ─────────────────────────────────────────────────────
