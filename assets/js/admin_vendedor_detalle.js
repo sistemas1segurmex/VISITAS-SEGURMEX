@@ -273,7 +273,7 @@ function lineaIntentosCheckin(c) {
   const aFecha = (s) => new Date(String(s).replace(' ', 'T') + (String(s).endsWith('Z') ? '' : 'Z'));
   const espera = c.entrada_fecha_hora ? (aFecha(c.entrada_fecha_hora) - aFecha(c.entrada_primer_intento)) / 1000 : null;
   if (!fallidos && (espera === null || isNaN(espera) || espera < 120)) return '';
-  let txt = `<b>Abrió check-in</b> ${horaLocalDesdeUTC(c.entrada_primer_intento)}`;
+  let txt = `<b>Abrió la pantalla de entrada</b> a las ${horaLocalDesdeUTC(c.entrada_primer_intento)}`;
   if (fallidos) {
     const [etapa, motivo] = String(c.entrada_ultimo_fallo || '').split('|');
     const causa = ETIQUETA_FALLO_CHECKIN[etapa] || motivo || '';

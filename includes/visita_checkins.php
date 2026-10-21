@@ -77,10 +77,19 @@ function sqlIntentosCheckin(PDO $db): string {
         return "NULL AS entrada_primer_intento, 0 AS entrada_intentos_fallidos, NULL AS entrada_ultimo_fallo";
     }
     $fallidos = "'" . implode("','", CHECKIN_INTENTO_FALLIDOS) . "'";
-    return "(SELECT MIN(ci.creado_en) FROM checkin_intentos ci WHERE ci.cita_id = c.id AND ci.tipo = 'entrada') AS entrada_primer_intento,
-            (SELECT COUNT(*) FROM checkin_intentos ci WHERE ci.cita_id = c.id AND ci.tipo = 'entrada' AND ci.etapa IN ($fallidos)) AS entrada_intentos_fallidos,
+    // Solo intentos del día de la visita: el día de la cita (citas.fecha_hora
+    // ya es hora local) o el día en que se registró la entrada. Si la cita se
+    // reprogramó, lo que se abrió para la fecha anterior ya no aplica (caso
+    // AJEMEX: abrió la pantalla el 13 oct y la visita se hizo el 21).
+    // checkin_intentos.creado_en y checkins.fecha_hora están en UTC.
+    $delDia = "(ci.creado_en AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City')::date IN (
+                  c.fecha_hora::date,
+                  (SELECT (ch.fecha_hora AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City')::date
+                     FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo = 'entrada' ORDER BY ch.id DESC LIMIT 1))";
+    return "(SELECT MIN(ci.creado_en) FROM checkin_intentos ci WHERE ci.cita_id = c.id AND ci.tipo = 'entrada' AND $delDia) AS entrada_primer_intento,
+            (SELECT COUNT(*) FROM checkin_intentos ci WHERE ci.cita_id = c.id AND ci.tipo = 'entrada' AND ci.etapa IN ($fallidos) AND $delDia) AS entrada_intentos_fallidos,
             (SELECT ci.etapa || '|' || COALESCE(ci.motivo, '') FROM checkin_intentos ci
-              WHERE ci.cita_id = c.id AND ci.tipo = 'entrada' AND ci.etapa IN ($fallidos)
+              WHERE ci.cita_id = c.id AND ci.tipo = 'entrada' AND ci.etapa IN ($fallidos) AND $delDia
               ORDER BY ci.id DESC LIMIT 1) AS entrada_ultimo_fallo";
 }
 

@@ -1055,3 +1055,24 @@ body.v26 { background: var(--v26-bg); }
   .v26-topbar-right .v26-btn-chip { flex: none; }
   .v26-topbar-right:not(:has(.v26-btn-chip)) { width: auto; }
 }
+
+/* Historial de la cita (oct-2026): botón visible en la tarjeta, días separados
+   y eventos de campo (pantalla abierta, intentos, entrada/salida). */
+.v26-hist-link {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 6px;
+  border: 0; border-radius: 8px; padding: 5px 10px; font-size: .76rem; font-weight: 700;
+  background: var(--v26-brand-soft); color: var(--v26-brand-ink); cursor: pointer;
+}
+.v26-hist-link:hover { background: var(--v26-brand-soft-2); }
+.v26-reprog-linea .v26-hist-link { flex-basis: 100%; width: fit-content; }
+.v26-hist-eyebrow { color: var(--v26-brand-text); }
+.v26-hist-dia {
+  position: relative; z-index: 1; margin: 6px 0 10px 42px; width: fit-content;
+  font-size: .72rem; font-weight: 700; color: var(--v26-brand-ink);
+  background: var(--v26-brand-soft); border-radius: 6px; padding: 3px 9px;
+}
+.v26-hist-ev--campo-abrio .punto { background: #F3F4F6; color: #4B5563; }
+.v26-hist-ev--campo-aviso .punto { background: rgba(217,119,6,.14); color: #B45309; }
+.v26-hist-ev--campo-fallo .punto { background: rgba(225,29,72,.12); color: var(--v26-red); }
+.v26-hist-ev--campo-ok .punto    { background: rgba(22,163,74,.14); color: var(--v26-green); }
+.v26-hist-ev--campo-fuera .punto { background: rgba(225,29,72,.12); color: var(--v26-red); }
