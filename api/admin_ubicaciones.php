@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if ($soloPorRevisar) $donde[] = "cu.estado = 'por_revisar'";
     $vendedorId = (int)($_GET['vendedor'] ?? 0);
     if ($vendedorId > 0) { $donde[] = 'cu.vendedor_id = ?'; $params[] = $vendedorId; }
-    $esFecha = fn($f) => is_string($f) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $f);
+    $esFecha = fn($f) => is_string($f) && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $f, $p) && checkdate((int)$p[2], (int)$p[3], (int)$p[1]);
     $diaMx = "(cu.creado_en AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City')::date";
     if ($esFecha($_GET['desde'] ?? null)) { $donde[] = "$diaMx >= ?::date"; $params[] = $_GET['desde']; }
     if ($esFecha($_GET['hasta'] ?? null)) { $donde[] = "$diaMx <= ?::date"; $params[] = $_GET['hasta']; }
