@@ -296,10 +296,11 @@ function pintarTabla() {
   // Lugar: empates exactos en los 3 criterios comparten lugar.
   conLugar.forEach((f, i) => { f.lugar = i && compararRanking(conLugar[i - 1], f) === 0 ? conLugar[i - 1].lugar : i + 1; });
 
-  // Promedio y semáforo: solo vendedores con visitas realizadas.
+  // Promedio y semáforo: solo vendedores activos con visitas realizadas
+  // (igual que los números de arriba, que tampoco cuentan a los inactivos).
   const prom = {};
   cols.forEach(c => {
-    const vals = conLugar.map(f => f[c.k]).filter(v => v != null);
+    const vals = conLugar.filter(f => f.activo).map(f => f[c.k]).filter(v => v != null);
     prom[c.k] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   });
 
@@ -325,7 +326,7 @@ function pintarTabla() {
   document.getElementById('tabla-vend').innerHTML = `
     <thead><tr><th data-col="ranking">Lugar</th><th data-col="nombre">Vendedor</th>${cols.map(c => `<th data-col="${c.k}" class="${est.orden.col === c.k ? 'orden' + (est.orden.asc ? ' asc' : '') : ''}">${c.t}</th>`).join('')}</tr></thead>
     <tbody>${cuerpo || `<tr><td colspan="${cols.length + 2}" class="mt-muted">Sin vendedores.</td></tr>`}</tbody>
-    <tfoot><tr><td></td><td>Promedio (vendedores con visitas)</td>${cols.map(c => `<td>${prom[c.k] == null ? '—' : c.f(prom[c.k])}</td>`).join('')}</tr></tfoot>`;
+    <tfoot><tr><td></td><td>Promedio (vendedores activos con visitas)</td>${cols.map(c => `<td>${prom[c.k] == null ? '—' : c.f(prom[c.k])}</td>`).join('')}</tr></tfoot>`;
 }
 
 // ── Barras horizontales (HTML) ───────────────────────────────────────────

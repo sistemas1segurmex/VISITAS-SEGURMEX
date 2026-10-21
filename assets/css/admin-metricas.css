@@ -142,7 +142,9 @@
 
 /* Ranking de vendedores (oct-2026) */
 .mt-tabla th:nth-child(2), .mt-tabla td:nth-child(2) { text-align: left; }
-.mt-tabla th:first-child, .mt-tabla td:first-child { width: 52px; }
+/* "Lugar" mide exactamente 52px (relleno incluido) para que "Vendedor",
+   fija en left: 52px, no se le encime al deslizar la tabla en celular. */
+.mt-tabla tr:not(.mt-grupo-sep) > :first-child { width: 52px; min-width: 52px; max-width: 52px; box-sizing: border-box; }
 .mt-lugar { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; font-weight: 800; font-size: .78rem; background: #F3F4F6; color: #374151; }
 .mt-lugar--1 { background: var(--v26-brand-1); color: #fff; box-shadow: var(--v26-shadow-brand); }
 .mt-lugar--2, .mt-lugar--3 { background: #E5E7EB; color: #1F2328; }
