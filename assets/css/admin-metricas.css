@@ -3,8 +3,8 @@
    cotizaciones); --mt-seq-* es una escala de un solo tono (magnitud);
    verde/ámbar/rojo solo para el semáforo y siempre con ícono. */
 .mt-wrap {
-  --mt-s1: #2a78d6; --mt-s2: #eb6834;
-  --mt-seq-1: #e3edfa; --mt-seq-2: #b7d0f1; --mt-seq-3: #7fa9e6; --mt-seq-4: #2a78d6; --mt-seq-5: #1a4f93;
+  --mt-s1: #F29100; --mt-s2: #2563EB;   /* visitas = ámbar (marca), cotizaciones = azul */
+  --mt-seq-1: #FFF1CC; --mt-seq-2: #FFD98A; --mt-seq-3: #FFB840; --mt-seq-4: #F29100; --mt-seq-5: #A35C00;
   --mt-ok: #16A34A; --mt-warn: #D97706; --mt-mal: #E11D48;
   --mt-grid: rgba(20,23,31,.07);
 }
@@ -90,8 +90,49 @@
 /* Tooltip propio para barras, celdas y segmentos */
 .mt-tip { position: fixed; z-index: 2000; pointer-events: none; background: #14171F; color: #fff; font-size: .74rem; padding: 6px 9px; border-radius: 8px; max-width: 240px; box-shadow: 0 8px 20px -8px rgba(0,0,0,.4); }
 
+/* ==================================================================
+   Tema ámbar (oct-2026): indicadores en 3 grupos + filtros en ámbar
+   ================================================================== */
+.mt-periodos button { background: var(--v26-brand-soft); border-color: transparent; color: var(--v26-brand-ink); }
+.mt-periodos button:hover { background: var(--v26-brand-soft-2); }
+.mt-periodos button.active { background: var(--v26-brand-1); border-color: var(--v26-brand-1); color: #fff; box-shadow: var(--v26-shadow-brand); }
+.mt-select, .mt-rango input { border-color: #F0D592; border-radius: var(--v26-r-pill); font-weight: 600; }
+.mt-select { background-color: var(--v26-brand-1); color: #fff; border-color: var(--v26-brand-1); font-weight: 700;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"); }
+.mt-select:hover { background-color: var(--v26-brand-2); }
+.mt-select option { background: #fff; color: var(--v26-ink); }
+.mt-link { color: var(--v26-brand-text); }
+.mt-card { border-color: var(--v26-border); }
+.mt-card-cab h6 { color: #1F2328; }
+.mt-tabs button.active { color: #1F2328; border-bottom-width: 3px; }
+.mt-mini { background: var(--v26-brand-soft); }
+
+.mt-kpis { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.mt-grupo { background: #fff; border: 1px solid var(--v26-border); border-top: 4px solid var(--g-clr); border-radius: 0 0 16px 16px; padding: 12px 14px 6px; box-shadow: var(--v26-shadow-sm); min-width: 0; }
+.mt-grupo--visitas  { --g-clr: #F29100; --g-soft: #FFF4D6; }
+.mt-grupo--clientes { --g-clr: #2563EB; --g-soft: #EFF4FF; }
+.mt-grupo--ventas   { --g-clr: #16A34A; --g-soft: #ECFDF5; }
+.mt-grupo-cab { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1rem; color: #1F2328; margin-bottom: 4px; }
+.mt-grupo-cab .ico { width: 28px; height: 28px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; background: var(--g-clr); color: #fff; font-size: .85rem; }
+.mt-grupo .mt-kpi { background: none; border: 0; border-top: 1px solid #F1ECE0; border-radius: 0; box-shadow: none; padding: 9px 0; }
+.mt-grupo .mt-kpi:first-of-type { border-top: 0; }
+.mt-grupo .mt-kpi .fila { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.mt-grupo .mt-kpi .l { font-size: .8rem; color: #374151; }
+.mt-grupo .mt-kpi .l i { color: var(--g-clr); }
+.mt-grupo .mt-kpi .v { font-size: 1.35rem; margin: 0; flex: none; }
+.mt-grupo .mt-kpi .s { font-size: .7rem; }
+
 @media (min-width: 640px) {
-  .mt-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .mt-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mt-grupo--visitas { grid-column: 1 / -1; }
+  .mt-grupo--visitas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 18px; }
+  .mt-grupo--visitas .mt-grupo-cab { grid-column: 1 / -1; }
+  .mt-grupo--visitas .mt-kpi, .mt-grupo--visitas .mt-kpi:first-of-type { border-top: 1px solid #F1ECE0; }
+  .mt-grupo--visitas .mt-kpi .fila { flex-direction: column; align-items: flex-start; gap: 2px; }
+}
+@media (min-width: 992px) {
+  .mt-kpis { grid-template-columns: 2fr 1fr 1fr; }
+  .mt-grupo--visitas { grid-column: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (min-width: 992px) {
   .mt-grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }

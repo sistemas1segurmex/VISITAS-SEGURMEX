@@ -56,10 +56,10 @@ $hoy = date('Y-m-d');
 
   <div class="row g-3">
     <div class="col-lg-8">
-      <div class="card shadow-sm mb-3">
+      <div class="card shadow-sm mb-3 v26-card-ambar">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-            <h6 class="mb-0">Ubicación en vivo de los vendedores</h6>
+            <h6 class="mb-0 v26-card-titulo"><span class="ico"><i class="bi bi-geo-alt"></i></span>Ubicación en vivo de los vendedores</h6>
             <div class="d-flex align-items-center gap-2 flex-wrap">
               <select id="filtro-vendedor-mapa" class="form-select form-select-sm" style="width:auto;min-width:170px">
                 <option value="0">Todos los vendedores</option>
@@ -78,11 +78,11 @@ $hoy = date('Y-m-d');
         </div>
       </div>
 
-      <div class="card shadow-sm">
+      <div class="card shadow-sm v26-card-ambar">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2">
-              <h6 class="mb-0">Visitas</h6>
+              <h6 class="mb-0 v26-card-titulo"><span class="ico"><i class="bi bi-calendar-event"></i></span><span id="titulo-citas" data-hoy="<?= (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y-m-d') ?>">Citas de hoy</span></h6>
               <span id="conteo-citas-dia" class="v26-badge-conteo"></span>
             </div>
             <input type="date" id="filtro-fecha" class="form-control form-control-sm" style="width:160px" value="<?= $hoy ?>">
