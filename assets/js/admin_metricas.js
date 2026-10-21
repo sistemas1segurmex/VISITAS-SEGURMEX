@@ -220,6 +220,7 @@ const COLUMNAS = {
     { k: 'completadas', t: 'Realizadas', f: num, sem: 'alto' },
     { k: 'no_realizadas', t: 'No realizadas', f: num },
     { k: 'canceladas', t: 'Canceladas', f: num },
+    { k: 'pendientes', t: 'Pendientes', f: num },
     { k: 'cumplimiento', t: 'Cumplidas', f: pct, sem: 'alto' },
     { k: 'pct_verif', t: 'Verif. GPS', f: pct, sem: 'alto' },
     { k: 'dur_prom', t: 'Duración prom.', f: duracion },
@@ -264,6 +265,24 @@ function semaforo(valor, prom, mejor) {
   return ` <span class="mt-sem ${cls}" data-tip="${txt} del equipo"><i class="bi ${ico}"></i></span>`;
 }
 
+// Ranking (oct-2026): por defecto la tabla se ordena por quién cumplió más:
+//   1) más visitas realizadas, 2) mayor % de citas cumplidas, 3) mayor % verificadas por GPS.
+// Quien no tuvo visitas realizadas en el periodo no recibe lugar: va al final
+// en gris, con la razón ("1 cita pendiente", "sin citas"), y no entra al promedio
+// ni lleva semáforo (antes salía en rojo como si hubiera fallado).
+function compararRanking(a, b) {
+  const n = v => (v == null ? -1 : v);
+  return (b.completadas - a.completadas) || (n(b.cumplimiento) - n(a.cumplimiento)) || (n(b.pct_verif) - n(a.pct_verif));
+}
+function motivoSinLugar(f) {
+  if (!f.citas) return 'Sin citas en el periodo';
+  const partes = [];
+  if (f.pendientes) partes.push(`${f.pendientes} pendiente${f.pendientes === 1 ? '' : 's'}`);
+  if (f.no_realizadas) partes.push(`${f.no_realizadas} no realizada${f.no_realizadas === 1 ? '' : 's'}`);
+  if (f.canceladas) partes.push(`${f.canceladas} cancelada${f.canceladas === 1 ? '' : 's'}`);
+  return `${f.citas} cita${f.citas === 1 ? '' : 's'}, ninguna realizada${partes.length ? ' (' + partes.join(', ') + ')' : ''}`;
+}
+
 function pintarTabla() {
   const cols = COLUMNAS[est.tab];
   const filas = datos.por_vendedor.map(v => {
@@ -272,24 +291,41 @@ function pintarTabla() {
     cols.forEach(c => { if (c.k.startsWith('a_') && d[c.k] == null) d[c.k] = 0; });
     return d;
   });
+  const conLugar = filas.filter(f => f.completadas > 0).sort(compararRanking);
+  const sinLugar = filas.filter(f => !(f.completadas > 0)).sort((a, b) => (b.citas - a.citas) || a.nombre.localeCompare(b.nombre));
+  // Lugar: empates exactos en los 3 criterios comparten lugar.
+  conLugar.forEach((f, i) => { f.lugar = i && compararRanking(conLugar[i - 1], f) === 0 ? conLugar[i - 1].lugar : i + 1; });
+
+  // Promedio y semáforo: solo vendedores con visitas realizadas.
   const prom = {};
   cols.forEach(c => {
-    const vals = filas.filter(f => f.activo).map(f => f[c.k]).filter(v => v != null);
+    const vals = conLugar.map(f => f[c.k]).filter(v => v != null);
     prom[c.k] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   });
-  if (est.orden.col && cols.some(c => c.k === est.orden.col)) {
-    const k = est.orden.col;
-    filas.sort((a, b) => ((a[k] ?? -Infinity) - (b[k] ?? -Infinity)) * (est.orden.asc ? 1 : -1));
-  }
+
+  const ordenManual = est.orden.col && cols.some(c => c.k === est.orden.col);
+  let cuerpo;
   const avatar = v => v.foto_path ? `<img class="v26-al-avatar" src="../${esc(v.foto_path)}" alt="">` : `<span class="v26-al-avatar">${esc(iniciales(v.nombre))}</span>`;
+  const lugarHtml = f => f.lugar ? `<span class="mt-lugar mt-lugar--${Math.min(f.lugar, 4)}">${f.lugar}°</span>` : '';
+  const fila = (f, gris) => `
+      <tr data-v="${f.id}" class="${f.id === est.vendedor ? 'sel' : ''} ${gris ? 'mt-sin-lugar' : ''} ${f.lugar === 1 && !ordenManual ? 'mt-primero' : ''}">
+        <td>${lugarHtml(f)}</td>
+        <td><span class="mt-quien">${avatar(f)}<span><a href="vendedor_detalle.php?id=${f.id}">${esc(f.nombre)}</a>${gris ? `<span class="mt-motivo">${esc(motivoSinLugar(f))}</span>` : ''}</span></span></td>
+        ${cols.map(c => `<td>${c.f(f[c.k])}${c.sem && !gris ? semaforo(f[c.k], prom[c.k], c.sem) : ''}</td>`).join('')}
+      </tr>`;
+  if (ordenManual) {
+    const k = est.orden.col;
+    const todas = [...conLugar, ...sinLugar].sort((a, b) => ((a[k] ?? -Infinity) - (b[k] ?? -Infinity)) * (est.orden.asc ? 1 : -1));
+    cuerpo = todas.map(f => fila(f, !f.lugar)).join('');
+  } else {
+    cuerpo = conLugar.map(f => fila(f, false)).join('')
+      + (sinLugar.length ? `<tr class="mt-grupo-sep"><td colspan="${cols.length + 2}">Sin visitas realizadas en el periodo · no entran al ranking ni al promedio</td></tr>` + sinLugar.map(f => fila(f, true)).join('') : '');
+  }
+  document.getElementById('btn-ranking').hidden = !ordenManual;
   document.getElementById('tabla-vend').innerHTML = `
-    <thead><tr><th data-col="nombre">Vendedor</th>${cols.map(c => `<th data-col="${c.k}" class="${est.orden.col === c.k ? 'orden' + (est.orden.asc ? ' asc' : '') : ''}">${c.t}</th>`).join('')}</tr></thead>
-    <tbody>${filas.map(f => `
-      <tr data-v="${f.id}" class="${f.id === est.vendedor ? 'sel' : ''}">
-        <td><span class="mt-quien">${avatar(f)}<a href="vendedor_detalle.php?id=${f.id}">${esc(f.nombre)}</a></span></td>
-        ${cols.map(c => `<td>${c.f(f[c.k])}${c.sem ? semaforo(f[c.k], prom[c.k], c.sem) : ''}</td>`).join('')}
-      </tr>`).join('') || `<tr><td colspan="${cols.length + 1}" class="mt-muted">Sin vendedores.</td></tr>`}</tbody>
-    <tfoot><tr><td>Promedio por vendedor</td>${cols.map(c => `<td>${prom[c.k] == null ? '—' : c.f(prom[c.k])}</td>`).join('')}</tr></tfoot>`;
+    <thead><tr><th data-col="ranking">Lugar</th><th data-col="nombre">Vendedor</th>${cols.map(c => `<th data-col="${c.k}" class="${est.orden.col === c.k ? 'orden' + (est.orden.asc ? ' asc' : '') : ''}">${c.t}</th>`).join('')}</tr></thead>
+    <tbody>${cuerpo || `<tr><td colspan="${cols.length + 2}" class="mt-muted">Sin vendedores.</td></tr>`}</tbody>
+    <tfoot><tr><td></td><td>Promedio (vendedores con visitas)</td>${cols.map(c => `<td>${prom[c.k] == null ? '—' : c.f(prom[c.k])}</td>`).join('')}</tr></tfoot>`;
 }
 
 // ── Barras horizontales (HTML) ───────────────────────────────────────────
@@ -422,6 +458,7 @@ document.querySelector('.mt-periodos').addEventListener('click', e => {
   cargar();
 }));
 document.getElementById('vendedor').addEventListener('change', e => { est.vendedor = parseInt(e.target.value) || 0; cargar(); });
+document.getElementById('btn-ranking').addEventListener('click', () => { est.orden = { col: null, asc: false }; pintarTabla(); });
 document.getElementById('tabs-tabla').addEventListener('click', e => {
   const b = e.target.closest('[data-t]'); if (!b) return;
   est.tab = b.dataset.t;
@@ -432,7 +469,8 @@ document.getElementById('tabla-vend').addEventListener('click', e => {
   const th = e.target.closest('th[data-col]');
   if (th) {
     const col = th.dataset.col;
-    if (col === 'nombre') { est.orden = { col: null, asc: false }; datos.por_vendedor.sort((a, b) => a.nombre.localeCompare(b.nombre)); }
+    // "Lugar" o "Vendedor" regresan al ranking; las demás columnas ordenan por esa columna.
+    if (col === 'ranking' || col === 'nombre') est.orden = { col: null, asc: false };
     else est.orden = { col, asc: est.orden.col === col ? !est.orden.asc : false };
     pintarTabla();
     return;

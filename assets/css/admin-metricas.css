@@ -139,3 +139,20 @@
   .mt-card { padding: 18px; }
   .mt-chart { height: 280px; }
 }
+
+/* Ranking de vendedores (oct-2026) */
+.mt-tabla th:nth-child(2), .mt-tabla td:nth-child(2) { text-align: left; }
+.mt-tabla th:first-child, .mt-tabla td:first-child { width: 52px; }
+.mt-lugar { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; font-weight: 800; font-size: .78rem; background: #F3F4F6; color: #374151; }
+.mt-lugar--1 { background: var(--v26-brand-1); color: #fff; box-shadow: var(--v26-shadow-brand); }
+.mt-lugar--2, .mt-lugar--3 { background: #E5E7EB; color: #1F2328; }
+.mt-tabla tr.mt-primero td { background: #FFF8E1; }
+.mt-tabla tr.mt-sin-lugar td { color: #9CA3AF; }
+.mt-tabla tr.mt-sin-lugar .mt-quien a { color: #6B7280; font-weight: 600; }
+.mt-tabla tr.mt-sin-lugar .v26-al-avatar { filter: grayscale(1); opacity: .6; }
+.mt-motivo { display: block; font-size: .7rem; color: #9CA3AF; font-weight: 500; }
+.mt-tabla tr.mt-grupo-sep td { text-align: left; font-size: .7rem; font-weight: 700; color: #9CA3AF; padding-top: 14px; background: var(--v26-surface-solid); position: static; cursor: default; }
+.mt-btn-ranking { border: 0; border-radius: 999px; padding: 5px 12px; font-size: .76rem; font-weight: 700; background: var(--v26-brand-soft); color: var(--v26-brand-ink); white-space: nowrap; }
+.mt-btn-ranking:hover { background: var(--v26-brand-soft-2); }
+.mt-tabla th:nth-child(2), .mt-tabla td:nth-child(2) { position: sticky; left: 52px; background: var(--v26-surface-solid); z-index: 1; }
+.mt-tabla tr.mt-primero td:nth-child(2) { background: #FFF8E1; }

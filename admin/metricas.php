@@ -71,7 +71,8 @@ $hoy = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y
   <!-- Comparativa por vendedor -->
   <section class="mt-card">
     <div class="mt-card-cab">
-      <div><h6>Comparativa por vendedor</h6><p>Toca un encabezado para ordenar. <span class="mt-sem ok"><i class="bi bi-check-circle-fill"></i></span> arriba del promedio · <span class="mt-sem warn"><i class="bi bi-dash-circle-fill"></i></span> cerca · <span class="mt-sem mal"><i class="bi bi-exclamation-circle-fill"></i></span> abajo del 70 % del promedio</p></div>
+      <div><h6>Ranking de vendedores</h6><p>Ordenado por visitas realizadas; si empatan, por % de citas cumplidas y luego por % verificadas por GPS. Toca un encabezado para ordenar por esa columna. <span class="mt-sem ok"><i class="bi bi-check-circle-fill"></i></span> arriba del promedio · <span class="mt-sem warn"><i class="bi bi-dash-circle-fill"></i></span> cerca · <span class="mt-sem mal"><i class="bi bi-exclamation-circle-fill"></i></span> abajo del 70 % del promedio</p></div>
+      <button type="button" class="mt-btn-ranking" id="btn-ranking" hidden><i class="bi bi-trophy"></i> Volver al ranking</button>
     </div>
     <div class="mt-tabs" role="tablist" id="tabs-tabla">
       <button type="button" class="active" data-t="visitas">Visitas</button>
