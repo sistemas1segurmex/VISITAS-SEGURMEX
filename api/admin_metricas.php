@@ -66,7 +66,7 @@ function metricasPorVendedor(PDO $db, array $L): array {
         if (!isset($out[$id])) $out[$id] = [
             'citas' => 0, 'completadas' => 0, 'no_realizadas' => 0, 'canceladas' => 0, 'pendientes' => 0,
             'verificadas' => 0, 'min_visita_total' => 0.0, 'visitas_con_duracion' => 0,
-            'clientes_nuevos' => 0, 'convertidos' => 0, 'paradas' => 0,
+            'prospectos_nuevos' => 0, 'prospectos_ganados' => 0, 'clientes_capturados' => 0, 'paradas' => 0,
             'dias_activos' => 0, 'min_jornada_total' => 0.0, 'dias_con_jornada' => 0,
             'primera_min_prom' => null, 'ultima_min_prom' => null, 'km' => 0.0,
             'cotizaciones' => 0, 'cot_canceladas' => 0, 'monto' => 0.0, 'aceptadas' => 0, 'monto_aceptado' => 0.0,
@@ -105,19 +105,24 @@ function metricasPorVendedor(PDO $db, array $L): array {
         $out[$id]['min_visita_total'] = (float)$r['min_visita_total'];
     }
 
-    // Clientes nuevos y convertidos.
+    // Altas del periodo separadas por cómo se registraron (clientes.etapa_inicial,
+    // ver migración 20261021120000) y prospectos que de verdad se ganaron:
+    //   prospectos_nuevos   -> dados de alta como "Prospecto nuevo"
+    //   clientes_capturados -> dados de alta como "Cliente ya ganado" (ya eran clientes)
+    //   prospectos_ganados  -> pasaron a "Convertido" en el periodo sin haber entrado así
     $st = $db->prepare(
         "SELECT vendedor_id,
-                COUNT(*) FILTER (WHERE created_at >= ? AND created_at < ?) AS nuevos,
-                COUNT(*) FILTER (WHERE etapa = 'convertido' AND etapa_actualizada_en >= ? AND etapa_actualizada_en < ?) AS convertidos
+                COUNT(*) FILTER (WHERE created_at >= ? AND created_at < ? AND etapa_inicial = 'prospecto_agregado') AS prospectos_nuevos,
+                COUNT(*) FILTER (WHERE created_at >= ? AND created_at < ? AND etapa_inicial = 'convertido') AS clientes_capturados,
+                COUNT(*) FILTER (WHERE etapa = 'convertido' AND etapa_actualizada_en >= ? AND etapa_actualizada_en < ?
+                                   AND etapa_inicial IS DISTINCT FROM 'convertido') AS prospectos_ganados
          FROM clientes GROUP BY vendedor_id"
     );
-    $st->execute($p(['ini_utc', 'fin_utc', 'ini_utc', 'fin_utc']));
+    $st->execute($p(['ini_utc', 'fin_utc', 'ini_utc', 'fin_utc', 'ini_utc', 'fin_utc']));
     foreach ($st->fetchAll() as $r) {
-        if (!$r['nuevos'] && !$r['convertidos']) continue;
+        if (!$r['prospectos_nuevos'] && !$r['clientes_capturados'] && !$r['prospectos_ganados']) continue;
         $id = $fila((int)$r['vendedor_id']);
-        $out[$id]['clientes_nuevos'] = (int)$r['nuevos'];
-        $out[$id]['convertidos'] = (int)$r['convertidos'];
+        foreach (['prospectos_nuevos', 'clientes_capturados', 'prospectos_ganados'] as $k) $out[$id][$k] = (int)$r[$k];
     }
 
     // Paradas de "Salí a buscar clientes".
@@ -207,7 +212,7 @@ function metricasPorVendedor(PDO $db, array $L): array {
 /** Suma de las métricas de varios vendedores (para los números de arriba). */
 function sumar(array $filas): array {
     $t = ['citas' => 0, 'completadas' => 0, 'no_realizadas' => 0, 'canceladas' => 0, 'pendientes' => 0, 'verificadas' => 0,
-          'min_visita_total' => 0, 'visitas_con_duracion' => 0, 'clientes_nuevos' => 0, 'convertidos' => 0, 'paradas' => 0,
+          'min_visita_total' => 0, 'visitas_con_duracion' => 0, 'prospectos_nuevos' => 0, 'prospectos_ganados' => 0, 'clientes_capturados' => 0, 'paradas' => 0,
           'dias_activos' => 0, 'min_jornada_total' => 0, 'km' => 0, 'cotizaciones' => 0, 'cot_canceladas' => 0, 'monto' => 0,
           'aceptadas' => 0, 'monto_aceptado' => 0, 'muy_interesados' => 0, 'muy_interesados_cotizados' => 0];
     foreach ($filas as $f) foreach ($t as $k => $_) $t[$k] += $f[$k] ?? 0;
@@ -332,7 +337,7 @@ try {
 
 function metricasPorVendedor_vacia(): array {
     return ['citas' => 0, 'completadas' => 0, 'no_realizadas' => 0, 'canceladas' => 0, 'pendientes' => 0,
-        'verificadas' => 0, 'min_visita_total' => 0, 'visitas_con_duracion' => 0, 'clientes_nuevos' => 0, 'convertidos' => 0,
+        'verificadas' => 0, 'min_visita_total' => 0, 'visitas_con_duracion' => 0, 'prospectos_nuevos' => 0, 'prospectos_ganados' => 0, 'clientes_capturados' => 0,
         'paradas' => 0, 'dias_activos' => 0, 'min_jornada_total' => 0, 'dias_con_jornada' => 0, 'primera_min_prom' => null,
         'ultima_min_prom' => null, 'km' => 0, 'cotizaciones' => 0, 'cot_canceladas' => 0, 'monto' => 0, 'aceptadas' => 0,
         'monto_aceptado' => 0, 'muy_interesados' => 0, 'muy_interesados_cotizados' => 0, 'alertas' => []];

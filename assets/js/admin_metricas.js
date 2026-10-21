@@ -155,15 +155,20 @@ function pintarKpis() {
     { ico: 'bi-calendar-check', l: 'Citas cumplidas', v: pct(t.cumplimiento), d: delta(t.cumplimiento, ta.cumplimiento, 'pct'), s: `${num(t.no_realizadas)} no realizadas · ${num(t.canceladas)} canceladas${eq('cumplimiento', pct)}`, tip: 'Realizadas ÷ (realizadas + no realizadas + canceladas). Las pendientes no cuentan.' },
     { ico: 'bi-shield-check', l: 'Verificadas por GPS', v: pct(t.pct_verif), d: delta(t.pct_verif, ta.pct_verif, 'pct'), s: `${num(t.verificadas)} de ${num(t.completadas)}${eq('pct_verif', pct)}`, tip: 'Visitas cuya entrada se registró dentro del radio del cliente.' },
     { ico: 'bi-stopwatch', l: 'Duración promedio', v: duracion(t.dur_prom), d: delta(t.dur_prom, ta.dur_prom), s: `por visita${eq('dur_prom', duracion)}`, tip: 'De la foto de entrada a la de salida.' },
-    { ico: 'bi-person-plus', l: 'Clientes nuevos', v: num(t.clientes_nuevos), d: delta(t.clientes_nuevos, ta.clientes_nuevos), s: `${num(t.convertidos)} pasaron a convertido`, tip: 'Prospectos o clientes registrados en el periodo.' },
+    { ico: 'bi-person-plus', l: 'Prospectos nuevos', v: num(t.prospectos_nuevos), d: delta(t.prospectos_nuevos, ta.prospectos_nuevos), s: 'registrados como «Prospecto nuevo»', tip: 'Empresas que el vendedor dio de alta como «Prospecto nuevo» en el periodo. Todavía no compran.' },
     { ico: 'bi-file-earmark-text', l: 'Cotizaciones', v: num(t.cotizaciones), d: delta(t.cotizaciones, ta.cotizaciones), s: `${money(t.monto)} cotizado`, tip: 'Cotizaciones generadas; el monto no incluye canceladas.' },
     { ico: 'bi-trophy', l: 'Cotizaciones aceptadas', v: pct(t.conversion), d: delta(t.conversion, ta.conversion, 'pct'), s: `${num(t.aceptadas)} aceptadas · ${money(t.monto_aceptado)}`, tip: 'Aceptadas ÷ cotizaciones no canceladas del periodo.' },
     { ico: 'bi-fire', l: 'Muy interesados con cotización', v: pct(t.pct_muy_cot), d: delta(t.pct_muy_cot, ta.pct_muy_cot, 'pct'), s: `${num(t.muy_interesados_cotizados)} de ${num(t.muy_interesados)} visitas`, tip: 'De las visitas donde el cliente quedó «Muy interesado», a cuántos ya se les hizo cotización.' },
   ];
   // Agrupados en 3 tarjetas: Visitas / Clientes / Ventas (índices de "kpis")
+  // Clientes: lo que el vendedor dio de alta, separado por cómo lo registró.
+  kpis.push(
+    { ico: 'bi-trophy', l: 'Prospectos ganados', v: num(t.prospectos_ganados), d: delta(t.prospectos_ganados, ta.prospectos_ganados), s: 'prospectos que pasaron a «Convertido»', tip: 'Prospectos que el vendedor movió a la etapa «Convertido» en el periodo. Son clientes nuevos de verdad.' },
+    { ico: 'bi-building-check', l: 'Clientes existentes capturados', v: num(t.clientes_capturados), d: delta(t.clientes_capturados, ta.clientes_capturados), s: 'ya eran clientes; se dieron de alta en la app', tip: 'Registrados como «Cliente ya ganado»: clientes que Segurmex ya tenía y que el vendedor apenas capturó en la app. No son clientes nuevos.' },
+  );
   const grupos = [
     { cls: 'visitas',  ico: 'bi-geo-alt-fill',        t: 'Visitas',  ks: [0, 1, 2, 3] },
-    { cls: 'clientes', ico: 'bi-people-fill',         t: 'Clientes', ks: [4, 7] },
+    { cls: 'clientes', ico: 'bi-people-fill',         t: 'Clientes', ks: [4, 8, 9, 7] },
     { cls: 'ventas',   ico: 'bi-file-earmark-text-fill', t: 'Ventas', ks: [5, 6] },
   ];
   document.getElementById('kpis').innerHTML = grupos.map(g => `
@@ -220,8 +225,9 @@ const COLUMNAS = {
     { k: 'dur_prom', t: 'Duración prom.', f: duracion },
   ],
   ventas: [
-    { k: 'clientes_nuevos', t: 'Clientes nuevos', f: num, sem: 'alto' },
-    { k: 'convertidos', t: 'Convertidos', f: num },
+    { k: 'prospectos_nuevos', t: 'Prospectos nuevos', f: num, sem: 'alto' },
+    { k: 'prospectos_ganados', t: 'Prospectos ganados', f: num, sem: 'alto' },
+    { k: 'clientes_capturados', t: 'Clientes capturados', f: num },
     { k: 'cotizaciones', t: 'Cotizaciones', f: num, sem: 'alto' },
     { k: 'monto', t: 'Monto', f: money },
     { k: 'aceptadas', t: 'Aceptadas', f: num },
