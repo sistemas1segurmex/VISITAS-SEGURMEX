@@ -471,7 +471,10 @@ const GPS_SITIO_MINIMO_REAL_MIN = 10;
 
 function textoGpsEnSitio(gps) {
   if (!gps) return '';
-  if (!gps.minutos) return 'GPS: no lo ubica en el lugar';
+  // desde == null: ninguna lectura cerca del cliente. minutos 0 con desde:
+  // sí lo ubica ahí, pero menos de 1 min (no es lo mismo que "no lo ubica").
+  if (!gps.desde) return 'GPS: no lo ubica en el lugar';
+  if (!gps.minutos) return `GPS en el lugar: menos de 1 min (${horaSoloUTC(gps.desde)})`;
   let t = `GPS en el lugar: ~${gps.minutos} min (${horaSoloUTC(gps.desde)}–${horaSoloUTC(gps.hasta)})`;
   if (gps.hueco_desde) t += ` · sin señal ${horaSoloUTC(gps.hueco_desde)}–${horaSoloUTC(gps.hueco_hasta)}`;
   return t;
@@ -499,22 +502,42 @@ function lineaIntentosCheckin(c) {
   return `<div class="v26-checkin-linea"><span class="dot aviso"></span> ${txt}</div>`;
 }
 
-function lineaDuracion(entradaFechaHora, salidaFechaHora, gps) {
+// Texto de visita muy corta (fotos de entrada y salida con menos de 2 min de
+// diferencia), lo más claro posible para quien lo lea (p. ej. el CEO):
+// siempre dice qué pasó con números y si el GPS confirma que sí llegó.
+// Mismas frases que las alertas (generarAlertaVisitaCorta en includes/alertas.php).
+function textoVisitaCorta(segundos, gps, fotosVerificadas) {
+  const fotos = `${formatoDuracion(segundos)} entre la foto de entrada y la de salida`;
+  const plural = (n) => `${n} minuto${n === 1 ? '' : 's'}`;
+  const punto = (t) => (t.endsWith('.') ? t : t + '.'); // "10:41 a.m." ya trae punto
+  const hueco = gps && gps.hueco_desde ? ` No hubo señal de GPS de ${horaSoloUTC(gps.hueco_desde)} a ${punto(horaSoloUTC(gps.hueco_hasta))}` : '';
+  if (gps && gps.minutos >= GPS_SITIO_MINIMO_REAL_MIN) {
+    return { alerta: false, html: `<b>Tomó las dos fotos con ${formatoDuracion(segundos)} de diferencia, pero el GPS confirma que estuvo ${plural(gps.minutos)} en el cliente</b> (de ${horaSoloUTC(gps.desde)} a ${horaSoloUTC(gps.hasta)}).${hueco}` };
+  }
+  let detalle = '';
+  // Si las fotos salieron "GPS verificado" (radio de 350 m) se aclara, para que no parezca contradicción.
+  if (gps && !gps.desde) detalle = fotosVerificadas
+    ? ' Las fotos se tomaron dentro del radio permitido (350 m), pero el rastreo GPS nunca lo ubica a menos de 150 m del cliente.'
+    : ' El rastreo GPS nunca lo ubica a menos de 150 m del cliente.';
+  else if (gps && !gps.minutos) detalle = ` El GPS confirma que sí llegó al cliente a las ${horaSoloUTC(gps.desde)}, pero estuvo ahí menos de 1 minuto.`;
+  else if (gps) detalle = ` El GPS lo ubica en el cliente solo ${plural(gps.minutos)} (de ${horaSoloUTC(gps.desde)} a ${horaSoloUTC(gps.hasta)}).${hueco}`;
+  return { alerta: true, html: `<b>Visita muy corta: ${fotos}.</b>${detalle}` };
+}
+
+function lineaDuracion(entradaFechaHora, salidaFechaHora, gps, fotosVerificadas) {
   if (!entradaFechaHora || !salidaFechaHora) return '';
   const inicio = new Date(String(entradaFechaHora).replace(' ', 'T') + (String(entradaFechaHora).endsWith('Z') ? '' : 'Z'));
   const fin = new Date(String(salidaFechaHora).replace(' ', 'T') + (String(salidaFechaHora).endsWith('Z') ? '' : 'Z'));
   if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) return '';
   const segundos = (fin.getTime() - inicio.getTime()) / 1000;
   if (segundos < 0) return ''; // dato inconsistente -- mejor no mostrar nada confuso
-  const esCorta = segundos < DURACION_MINIMA_SOSPECHOSA_SEG;
-  if (esCorta && gps && gps.minutos >= GPS_SITIO_MINIMO_REAL_MIN) {
-    // Entrada y salida juntas, pero el GPS sí lo ubica en el lugar.
-    return `<div class="v26-duracion gps"><i class="bi bi-geo-alt-fill"></i> Fotos: ${formatoDuracion(segundos)} · ${textoGpsEnSitio(gps)}</div>`;
+  if (segundos >= DURACION_MINIMA_SOSPECHOSA_SEG) {
+    return `<div class="v26-duracion normal"><i class="bi bi-clock"></i> <span>Visita de ${formatoDuracion(segundos)}</span></div>`;
   }
-  const icono = esCorta ? 'bi-exclamation-triangle-fill' : 'bi-clock';
-  const extraGps = esCorta && gps ? ` · ${textoGpsEnSitio(gps)}` : '';
-  const texto = esCorta ? `Visita de ${formatoDuracion(segundos)} -- revisar${extraGps}` : `Visita de ${formatoDuracion(segundos)}`;
-  return `<div class="v26-duracion ${esCorta ? 'corta' : 'normal'}"><i class="bi ${icono}"></i> ${texto}</div>`;
+  const t = textoVisitaCorta(segundos, gps, fotosVerificadas);
+  return t.alerta
+    ? `<div class="v26-duracion corta"><i class="bi bi-exclamation-triangle-fill"></i> <span>${t.html}</span></div>`
+    : `<div class="v26-duracion gps"><i class="bi bi-geo-alt-fill"></i> <span>${t.html}</span></div>`;
 }
 
 function lineasCheckin(c) {
@@ -522,7 +545,7 @@ function lineasCheckin(c) {
     lineaIntentosCheckin(c),
     lineaCheckin('Entrada', c.checkin_verificado, c.entrada_fecha_hora, c.entrada_distancia_metros, c.checkin_correccion),
     lineaCheckin('Salida', c.checkin_verificado_salida, c.salida_fecha_hora, c.salida_distancia_metros),
-    lineaDuracion(c.entrada_fecha_hora, c.salida_fecha_hora, c.gps_en_sitio),
+    lineaDuracion(c.entrada_fecha_hora, c.salida_fecha_hora, c.gps_en_sitio, !!(Number(c.checkin_verificado) && Number(c.checkin_verificado_salida))),
   ].filter(Boolean);
   return partes.length ? `<div class="v26-checkin-lineas">${partes.join('')}</div>` : '';
 }

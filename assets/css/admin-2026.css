@@ -445,7 +445,9 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 
 /* Duración entre entrada y salida -- ámbar + ícono de alerta si fue
    sospechosamente corta (ver DURACION_MINIMA_SOSPECHOSA_SEG en admin.js). */
-.v26-duracion { display: flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 700; margin-top: 3px; }
+.v26-duracion { display: flex; align-items: flex-start; gap: 5px; font-size: .74rem; font-weight: 500; line-height: 1.35; margin-top: 3px; }
+.v26-duracion i { margin-top: 2px; }
+.v26-duracion b { font-weight: 800; }
 .v26-duracion.normal { color: var(--v26-ink-soft); }
 .v26-duracion.corta { color: #D97706; }
 .v26-duracion.gps { color: var(--v26-ink-soft); } /* fotos juntas, pero el GPS lo ubica en el lugar */

@@ -63,6 +63,13 @@ function horaMxDesdeUtc(string $utc): string {
     return $d->format('g:i') . ($d->format('G') < 12 ? ' a.m.' : ' p.m.');
 }
 
+/** "20 seg", "1 min 30 seg": duración corta legible para los mensajes. */
+function formatoSegundosVisita(int $seg): string {
+    if ($seg < 60) return "{$seg} seg";
+    $m = intdiv($seg, 60); $r = $seg % 60;
+    return "{$m} min" . ($r ? " {$r} seg" : '');
+}
+
 /** "28 sep, 3:00 p.m." a partir de citas.fecha_hora (ya es hora local de CDMX). */
 function fechaCitaCorta(string $local): string {
     $meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -171,11 +178,12 @@ function generarAlertaVisitaSinCerrar(PDO $db): void {
 function generarAlertaVisitaCorta(PDO $db): void {
     $stmt = $db->prepare(
         "SELECT c.id, c.vendedor_id, cl.nombre AS cliente_nombre,
-                EXTRACT(EPOCH FROM (s.fecha_hora - e.fecha_hora)) AS segundos
+                EXTRACT(EPOCH FROM (s.fecha_hora - e.fecha_hora)) AS segundos,
+                CASE WHEN e.verificado = 1 AND s.verificado = 1 THEN 1 ELSE 0 END AS fotos_verificadas
          FROM citas c
          JOIN clientes cl ON cl.id = c.cliente_id
-         JOIN LATERAL (SELECT fecha_hora FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo = 'entrada' ORDER BY ch.id DESC LIMIT 1) e ON true
-         JOIN LATERAL (SELECT fecha_hora FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo = 'salida' ORDER BY ch.id DESC LIMIT 1) s ON true
+         JOIN LATERAL (SELECT fecha_hora, verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo = 'entrada' ORDER BY ch.id DESC LIMIT 1) e ON true
+         JOIN LATERAL (SELECT fecha_hora, verificado FROM checkins ch WHERE ch.cita_id = c.id AND ch.tipo = 'salida' ORDER BY ch.id DESC LIMIT 1) s ON true
          WHERE s.fecha_hora > NOW() - make_interval(days => ?)
            AND s.fecha_hora >= e.fecha_hora
            AND s.fecha_hora - e.fecha_hora < make_interval(secs => ?)
@@ -192,21 +200,35 @@ function generarAlertaVisitaCorta(PDO $db): void {
             error_log('[VISITAS] gpsEnSitioCita ' . $r['id'] . ': ' . $e->getMessage());
         }
 
+        // Mismas frases que la tarjeta de la cita (textoVisitaCorta en assets/js/admin.js):
+        // siempre dice qué pasó con números y si el GPS confirma que sí llegó.
+        $fotos  = formatoSegundosVisita($seg);
+        $plural = fn(int $n) => $n . ' minuto' . ($n === 1 ? '' : 's');
+        $hueco  = ($gps && $gps['hueco_desde'])
+            ? ' No hubo señal de GPS de ' . horaMxDesdeUtc($gps['hueco_desde']) . ' a ' . horaMxDesdeUtc($gps['hueco_hasta']) // ya termina en "a.m."/"p.m."
+            : '';
+
         if ($gps && $gps['minutos'] >= GPS_SITIO_MINIMO_REAL_MIN) {
-            $hueco = $gps['hueco_desde']
-                ? ' Sin señal de ' . horaMxDesdeUtc($gps['hueco_desde']) . ' a ' . horaMxDesdeUtc($gps['hueco_hasta']) . '.'
-                : '';
             insertarAlerta($db, (int)$r['vendedor_id'], (int)$r['id'], 'visita_corta_gps',
-                "En {$r['cliente_nombre']} registró entrada y salida con {$seg} seg de diferencia, pero el GPS lo ubica ~{$gps['minutos']} min en el lugar ("
-                . horaMxDesdeUtc($gps['desde']) . '–' . horaMxDesdeUtc($gps['hasta']) . ").{$hueco}");
+                "En {$r['cliente_nombre']} tomó las dos fotos con {$fotos} de diferencia, pero el GPS confirma que estuvo "
+                . $plural((int)$gps['minutos']) . ' en el cliente (de ' . horaMxDesdeUtc($gps['desde']) . ' a ' . horaMxDesdeUtc($gps['hasta']) . ").{$hueco}");
             continue;
         }
 
-        $extra = $gps === null ? '' : ($gps['minutos'] > 0
-            ? " El GPS tampoco lo ubica más tiempo ahí (~{$gps['minutos']} min)."
-            : ' El GPS tampoco lo ubica en el lugar.');
+        $detalle = '';
+        if ($gps !== null && $gps['desde'] === null) {
+            // Si las fotos salieron "GPS verificado" se aclara el radio, para que no parezca contradicción.
+            $detalle = (int)$r['fotos_verificadas'] === 1
+                ? ' Las fotos se tomaron dentro del radio permitido (' . RADIO_VERIFICACION_METROS . ' m), pero el rastreo GPS nunca lo ubica a menos de ' . GPS_SITIO_RADIO_M . ' m del cliente.'
+                : ' El rastreo GPS nunca lo ubica a menos de ' . GPS_SITIO_RADIO_M . ' m del cliente.';
+        } elseif ($gps !== null && (int)$gps['minutos'] === 0) {
+            $detalle = ' El GPS confirma que sí llegó al cliente a las ' . horaMxDesdeUtc($gps['desde']) . ', pero estuvo ahí menos de 1 minuto.';
+        } elseif ($gps !== null) {
+            $detalle = ' El GPS lo ubica en el cliente solo ' . $plural((int)$gps['minutos'])
+                . ' (de ' . horaMxDesdeUtc($gps['desde']) . ' a ' . horaMxDesdeUtc($gps['hasta']) . ").{$hueco}";
+        }
         insertarAlerta($db, (int)$r['vendedor_id'], (int)$r['id'], 'visita_corta',
-            "En {$r['cliente_nombre']} la salida se registró {$seg} seg después de la entrada. No da tiempo de una visita real.{$extra}");
+            "En {$r['cliente_nombre']} pasaron solo {$fotos} entre la foto de entrada y la de salida.{$detalle}");
     }
 }
 
