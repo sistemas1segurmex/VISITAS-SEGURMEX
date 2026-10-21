@@ -50,9 +50,30 @@ $hoy = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y
       <span>a</span>
       <input type="date" id="hasta" class="form-control form-control-sm" max="<?= $hoy ?>" aria-label="Hasta">
     </div>
-    <select id="vendedor" class="form-select form-select-sm mt-select" aria-label="Vendedor"><option value="0">Todo el equipo</option></select>
   </div>
   <p class="mt-periodo-txt" id="periodo-txt">Cargando...</p>
+
+  <!-- 1) Ranking del equipo: siempre todos los vendedores (no cambia con el vendedor elegido) -->
+  <section class="mt-card">
+    <div class="mt-card-cab">
+      <div><h6 class="mt-titulo-sec"><span class="ico ico--equipo"><i class="bi bi-trophy-fill"></i></span>Ranking del equipo</h6><p><b>Todos los vendedores. Toca un vendedor para ver su resumen abajo.</b> Ordenado por visitas realizadas; si empatan, por % de citas cumplidas y luego por % verificadas por GPS. Toca un encabezado para ordenar por esa columna. <span class="mt-sem ok"><i class="bi bi-check-circle-fill"></i></span> arriba del promedio · <span class="mt-sem warn"><i class="bi bi-dash-circle-fill"></i></span> cerca · <span class="mt-sem mal"><i class="bi bi-exclamation-circle-fill"></i></span> abajo del 70 % del promedio</p></div>
+      <button type="button" class="mt-btn-ranking" id="btn-ranking" hidden><i class="bi bi-trophy"></i> Volver al ranking</button>
+    </div>
+    <div class="mt-tabs" role="tablist" id="tabs-tabla">
+      <button type="button" class="active" data-t="visitas">Visitas</button>
+      <button type="button" data-t="ventas">Ventas</button>
+      <button type="button" data-t="campo">En campo</button>
+      <button type="button" data-t="calidad">Calidad</button>
+    </div>
+    <div class="mt-tabla-wrap"><table class="mt-tabla" id="tabla-vend"></table></div>
+  </section>
+
+  <!-- 2) Resumen: del vendedor tocado en el ranking, o de todo el equipo -->
+  <div class="mt-divisor"><span id="resumen-titulo">Resumen de todo el equipo</span></div>
+  <div class="mt-resumen-cab" id="resumen-cab" hidden>
+    <p id="resumen-nota"></p>
+    <button type="button" class="mt-btn-ranking" id="btn-equipo"><i class="bi bi-people-fill"></i> Ver todo el equipo</button>
+  </div>
 
   <!-- Números clave -->
   <div class="mt-kpis" id="kpis"></div>
@@ -68,20 +89,6 @@ $hoy = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y
     <div class="mt-tabla-alt" id="tabla-serie" hidden></div>
   </section>
 
-  <!-- Comparativa por vendedor -->
-  <section class="mt-card">
-    <div class="mt-card-cab">
-      <div><h6>Ranking de vendedores</h6><p>Ordenado por visitas realizadas; si empatan, por % de citas cumplidas y luego por % verificadas por GPS. Toca un encabezado para ordenar por esa columna. <span class="mt-sem ok"><i class="bi bi-check-circle-fill"></i></span> arriba del promedio · <span class="mt-sem warn"><i class="bi bi-dash-circle-fill"></i></span> cerca · <span class="mt-sem mal"><i class="bi bi-exclamation-circle-fill"></i></span> abajo del 70 % del promedio</p></div>
-      <button type="button" class="mt-btn-ranking" id="btn-ranking" hidden><i class="bi bi-trophy"></i> Volver al ranking</button>
-    </div>
-    <div class="mt-tabs" role="tablist" id="tabs-tabla">
-      <button type="button" class="active" data-t="visitas">Visitas</button>
-      <button type="button" data-t="ventas">Ventas</button>
-      <button type="button" data-t="campo">En campo</button>
-      <button type="button" data-t="calidad">Calidad</button>
-    </div>
-    <div class="mt-tabla-wrap"><table class="mt-tabla" id="tabla-vend"></table></div>
-  </section>
 
   <div class="mt-grid2">
     <section class="mt-card">
@@ -112,8 +119,11 @@ $hoy = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y
     </section>
   </div>
 
+
+  <!-- 3) Todo el equipo -->
+  <div class="mt-divisor"><span>Todo el equipo</span></div>
   <section class="mt-card">
-    <div class="mt-card-cab"><div><h6>Embudo de cada vendedor</h6><p>En qué etapa están hoy sus prospectos y clientes (no depende del periodo)</p></div></div>
+    <div class="mt-card-cab"><div><h6>Embudo de cada vendedor</h6><p>En qué etapa están hoy los prospectos y clientes de cada vendedor. Es la foto de hoy: no depende del periodo ni del vendedor elegido.</p></div></div>
     <div class="mt-leyenda" id="embudo-leyenda"></div>
     <div id="embudo" class="mt-embudo"></div>
   </section>

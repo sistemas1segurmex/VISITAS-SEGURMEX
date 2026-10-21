@@ -102,20 +102,18 @@ async function cargar() {
 }
 
 function pintarTodo() {
-  const sel = document.getElementById('vendedor');
-  const actual = String(est.vendedor);
-  sel.innerHTML = '<option value="0">Todo el equipo</option>' + datos.por_vendedor.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.activo ? '' : ' (inactivo)'}</option>`).join('');
-  sel.value = actual;
-  if (sel.value !== actual) { sel.value = '0'; est.vendedor = 0; }
+  // Ya no hay selector: el vendedor se elige tocándolo en el ranking.
+  const elegido = est.vendedor ? datos.por_vendedor.find(v => v.id === est.vendedor) : null;
+  if (est.vendedor && !elegido) est.vendedor = 0;
 
   const p = datos.periodo, a = datos.anterior;
-  const quien = est.vendedor ? (datos.por_vendedor.find(v => v.id === est.vendedor) || {}).nombre : 'Todo el equipo';
   document.getElementById('periodo-txt').textContent =
-    `${quien} · del ${fechaCorta(p.desde)} al ${fechaCorta(p.hasta)} (${p.dias} día${p.dias === 1 ? '' : 's'}). Se compara contra ${fechaCorta(a.desde)} – ${fechaCorta(a.hasta)}.`;
+    `Del ${fechaCorta(p.desde)} al ${fechaCorta(p.hasta)} (${p.dias} día${p.dias === 1 ? '' : 's'}). Se compara contra ${fechaCorta(a.desde)} – ${fechaCorta(a.hasta)}.`;
 
+  pintarTabla(); // primero: calcula el lugar de cada vendedor
+  pintarCabResumen(elegido);
   pintarKpis();
   pintarSerie();
-  pintarTabla();
   pintarInteres();
   pintarMotivos();
   pintarCalor();
@@ -142,16 +140,18 @@ function delta(actual, anterior, tipo) {
   return `<span class="mt-delta ${dir}"><i class="bi ${ico}"></i>${txt}</span>`;
 }
 
+// Promedio del equipo para comparar ("equipo 14.7"): mismo criterio que el
+// promedio del ranking -- vendedores activos con visitas realizadas.
 function promedioEquipo(campo) {
-  const vals = datos.por_vendedor.filter(v => v.activo).map(deriv).map(v => v[campo]).filter(v => v != null);
+  const vals = datos.por_vendedor.filter(v => v.activo && v.completadas > 0).map(deriv).map(v => v[campo]).filter(v => v != null);
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 }
 
 function pintarKpis() {
   const t = deriv(datos.totales), ta = deriv(datos.totales_ant);
-  const eq = (campo, fmt) => est.vendedor ? ` · equipo ${fmt(promedioEquipo(campo))}` : '';
+  const eq = (campo, fmt) => est.vendedor ? ` · promedio del equipo ${fmt(promedioEquipo(campo))}` : '';
   const kpis = [
-    { ico: 'bi-geo-alt', l: 'Visitas realizadas', v: num(t.completadas), d: delta(t.completadas, ta.completadas), s: `de ${num(t.citas)} citas${eq('completadas', v => v == null ? '—' : Math.round(v))}`, tip: 'Citas del periodo que se completaron.' },
+    { ico: 'bi-geo-alt', l: 'Visitas realizadas', v: num(t.completadas), d: delta(t.completadas, ta.completadas), s: `de ${num(t.citas)} citas${eq('completadas', v => v == null ? '—' : v.toLocaleString('es-MX', { maximumFractionDigits: 1 }))}`, tip: 'Citas del periodo que se completaron.' },
     { ico: 'bi-calendar-check', l: 'Citas cumplidas', v: pct(t.cumplimiento), d: delta(t.cumplimiento, ta.cumplimiento, 'pct'), s: `${num(t.no_realizadas)} no realizadas · ${num(t.canceladas)} canceladas${eq('cumplimiento', pct)}`, tip: 'Realizadas ÷ (realizadas + no realizadas + canceladas). Las pendientes no cuentan.' },
     { ico: 'bi-shield-check', l: 'Verificadas por GPS', v: pct(t.pct_verif), d: delta(t.pct_verif, ta.pct_verif, 'pct'), s: `${num(t.verificadas)} de ${num(t.completadas)}${eq('pct_verif', pct)}`, tip: 'Visitas cuya entrada se registró dentro del radio del cliente.' },
     { ico: 'bi-stopwatch', l: 'Duración promedio', v: duracion(t.dur_prom), d: delta(t.dur_prom, ta.dur_prom), s: `por visita${eq('dur_prom', duracion)}`, tip: 'De la foto de entrada a la de salida.' },
@@ -283,6 +283,24 @@ function motivoSinLugar(f) {
   return `${f.citas} cita${f.citas === 1 ? '' : 's'}, ninguna realizada${partes.length ? ' (' + partes.join(', ') + ')' : ''}`;
 }
 
+// Encabezado del bloque "Resumen": de quién son los números de abajo.
+const lugarDe = {}; // id -> lugar en el ranking (lo llena pintarTabla)
+function pintarCabResumen(elegido) {
+  const titulo = document.getElementById('resumen-titulo');
+  const cab = document.getElementById('resumen-cab');
+  if (!elegido) {
+    titulo.textContent = 'Resumen de todo el equipo';
+    cab.hidden = true;
+    return;
+  }
+  const lugar = lugarDe[elegido.id];
+  titulo.textContent = `Resumen de ${elegido.nombre}${lugar ? ` · ${lugar}° lugar` : ' · sin lugar en el ranking'}`;
+  document.getElementById('resumen-nota').innerHTML = `Todo lo de aquí abajo es <b>solo de ${esc(elegido.nombre)}</b>. Para ver el resumen del equipo completo, toca «Ver todo el equipo».`;
+  cab.hidden = false;
+}
+// Promedios con un decimal ("18.7", no "18.667", que se lee como dieciocho mil).
+const fmtProm = (c, v) => (c.f === num && !Number.isInteger(v)) ? v.toLocaleString('es-MX', { maximumFractionDigits: 1 }) : c.f(v);
+
 function pintarTabla() {
   const cols = COLUMNAS[est.tab];
   const filas = datos.por_vendedor.map(v => {
@@ -295,6 +313,8 @@ function pintarTabla() {
   const sinLugar = filas.filter(f => !(f.completadas > 0)).sort((a, b) => (b.citas - a.citas) || a.nombre.localeCompare(b.nombre));
   // Lugar: empates exactos en los 3 criterios comparten lugar.
   conLugar.forEach((f, i) => { f.lugar = i && compararRanking(conLugar[i - 1], f) === 0 ? conLugar[i - 1].lugar : i + 1; });
+  Object.keys(lugarDe).forEach(k => delete lugarDe[k]);
+  conLugar.forEach(f => { lugarDe[f.id] = f.lugar; });
 
   // Promedio y semáforo: solo vendedores activos con visitas realizadas
   // (igual que los números de arriba, que tampoco cuentan a los inactivos).
@@ -311,7 +331,7 @@ function pintarTabla() {
   const fila = (f, gris) => `
       <tr data-v="${f.id}" class="${f.id === est.vendedor ? 'sel' : ''} ${gris ? 'mt-sin-lugar' : ''} ${f.lugar === 1 && !ordenManual ? 'mt-primero' : ''}">
         <td>${lugarHtml(f)}</td>
-        <td><span class="mt-quien">${avatar(f)}<span><a href="vendedor_detalle.php?id=${f.id}">${esc(f.nombre)}</a>${gris ? `<span class="mt-motivo">${esc(motivoSinLugar(f))}</span>` : ''}</span></span></td>
+        <td><span class="mt-quien">${avatar(f)}<span><b class="mt-nombre">${esc(f.nombre)}</b><a class="mt-ir" href="vendedor_detalle.php?id=${f.id}" title="Abrir el detalle de ${esc(f.nombre)}" aria-label="Abrir detalle"><i class="bi bi-box-arrow-up-right"></i></a>${f.id === est.vendedor ? '<span class="mt-viendo">Viendo</span>' : ''}${gris ? `<span class="mt-motivo">${esc(motivoSinLugar(f))}</span>` : ''}</span></span></td>
         ${cols.map(c => `<td>${c.f(f[c.k])}${c.sem && !gris ? semaforo(f[c.k], prom[c.k], c.sem) : ''}</td>`).join('')}
       </tr>`;
   if (ordenManual) {
@@ -326,7 +346,7 @@ function pintarTabla() {
   document.getElementById('tabla-vend').innerHTML = `
     <thead><tr><th data-col="ranking">Lugar</th><th data-col="nombre">Vendedor</th>${cols.map(c => `<th data-col="${c.k}" class="${est.orden.col === c.k ? 'orden' + (est.orden.asc ? ' asc' : '') : ''}">${c.t}</th>`).join('')}</tr></thead>
     <tbody>${cuerpo || `<tr><td colspan="${cols.length + 2}" class="mt-muted">Sin vendedores.</td></tr>`}</tbody>
-    <tfoot><tr><td></td><td>Promedio (vendedores activos con visitas)</td>${cols.map(c => `<td>${prom[c.k] == null ? '—' : c.f(prom[c.k])}</td>`).join('')}</tr></tfoot>`;
+    <tfoot><tr><td></td><td>Promedio (vendedores activos con visitas)</td>${cols.map(c => `<td>${prom[c.k] == null ? '—' : fmtProm(c, prom[c.k])}</td>`).join('')}</tr></tfoot>`;
 }
 
 // ── Barras horizontales (HTML) ───────────────────────────────────────────
@@ -412,7 +432,7 @@ const ETAPAS = [
 ];
 function pintarEmbudo() {
   document.getElementById('embudo-leyenda').innerHTML = ETAPAS.map(([, et, c]) => `<span><i style="background:${c}"></i>${et}</span>`).join('');
-  const vend = datos.por_vendedor.filter(v => !est.vendedor || v.id === est.vendedor);
+  const vend = datos.por_vendedor; // siempre todo el equipo (sección "Todo el equipo")
   const filas = vend.map(v => {
     const e = datos.embudo[v.id] || {};
     const total = ETAPAS.reduce((a, [k]) => a + (e[k] || 0), 0);
@@ -458,7 +478,7 @@ document.querySelector('.mt-periodos').addEventListener('click', e => {
   est.p = 'rango'; est.desde = d <= h ? d : h; est.hasta = d <= h ? h : d;
   cargar();
 }));
-document.getElementById('vendedor').addEventListener('change', e => { est.vendedor = parseInt(e.target.value) || 0; cargar(); });
+document.getElementById('btn-equipo').addEventListener('click', () => { est.vendedor = 0; cargar(); });
 document.getElementById('btn-ranking').addEventListener('click', () => { est.orden = { col: null, asc: false }; pintarTabla(); });
 document.getElementById('tabs-tabla').addEventListener('click', e => {
   const b = e.target.closest('[data-t]'); if (!b) return;
@@ -479,7 +499,12 @@ document.getElementById('tabla-vend').addEventListener('click', e => {
   if (e.target.closest('a')) return;
   // Tocar la fila filtra todo por ese vendedor (otra vez = quitar filtro).
   const tr = e.target.closest('tr[data-v]');
-  if (tr) { const id = parseInt(tr.dataset.v); est.vendedor = id === est.vendedor ? 0 : id; cargar(); }
+  if (tr) {
+    const id = parseInt(tr.dataset.v);
+    est.vendedor = id === est.vendedor ? 0 : id;
+    // Al elegir a alguien, bajar a su resumen para que se vea qué cambió.
+    cargar().then(() => { if (est.vendedor) document.getElementById('resumen-titulo').closest('.mt-divisor').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  }
 });
 document.querySelector('[data-tabla="serie"]').addEventListener('click', e => {
   const t = document.getElementById('tabla-serie');
