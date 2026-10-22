@@ -36,9 +36,13 @@ try {
 }
 $atributos = [];
 try { $atributos = atributosSeguridadErp(); } catch (Throwable $e) { /* solo informativo */ }
-$usadas = muestrasDelMesVendedor($db, (int)$u['id']);
+// Tope por cliente: cuántos pares de muestra lleva cada uno este mes.
+$paresMes = paresMuestraDelMesPorCliente($db, (int)$u['id']);
+foreach ($clientes as &$c) $c['pares_muestra_mes'] = $paresMes[(int)$c['id']] ?? 0;
+unset($c);
 jsonResponse([
     'ok' => true, 'clientes' => $clientes, 'estilos' => $estilos, 'error_estilos' => $errorEstilos,
     'atributos' => $atributos,
-    'usadas_mes' => $usadas, 'tope_mes' => MUESTRAS_TOPE_MES,
+    'tope_pares_cliente' => MUESTRAS_TOPE_PARES_CLIENTE_MES,
+    'max_estilos' => MUESTRAS_MAX_ESTILOS, 'max_tallas' => MUESTRAS_MAX_TALLAS_POR_ESTILO,
 ]);

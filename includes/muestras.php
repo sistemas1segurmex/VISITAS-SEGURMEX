@@ -15,9 +15,15 @@
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/mailer.php';
 
-// Tope de solicitudes por vendedor por mes calendario (hora de CDMX). Las
-// canceladas no cuentan.
-const MUESTRAS_TOPE_MES = 5;
+// Tope de PARES de muestra por cliente por mes calendario (hora de CDMX),
+// sumando todas sus solicitudes. Las canceladas no cuentan. (22-oct-2026:
+// antes eran 5 solicitudes por vendedor al mes; se quitó.)
+const MUESTRAS_TOPE_PARES_CLIENTE_MES = 6;
+
+// Máximo de estilos y de tallas por estilo en una solicitud (solo para que
+// el formulario no crezca sin fin; el tope real es el de pares).
+const MUESTRAS_MAX_ESTILOS = 6;
+const MUESTRAS_MAX_TALLAS_POR_ESTILO = 6;
 
 const MUESTRA_ESTADOS = [
     'enviada'        => 'Enviada',
@@ -54,6 +60,7 @@ const MUESTRA_CATEGORIAS_CAMBIO = ['casco' => 'Casco', 'suela' => 'Suela', 'piel
 function catalogoParaMuestraErp(?string $item = null): ?array {
     require_once __DIR__ . '/cotizador_helpers.php';
     $lista = [];
+    $tallas = tallasCatalogoMuestraErp();
     foreach (catalogoCotizableErp(configCotizadorErp()) as $it) {
         $nombre = trim($it['clave'] . ' — ' . $it['nombre']);
         if ($it['marca'] && $it['marca'] !== 'SEGURMEX') $nombre .= ' (' . $it['marca'] . ')';
@@ -71,10 +78,61 @@ function catalogoParaMuestraErp(?string $item = null): ?array {
             'foto'             => $it['foto'],
             'atributo'         => $it['atributo'],
             'colores'          => $it['colores'],
+            // Tallas a elegir: las de la numeración del estilo del ERP (o
+            // del estilo al que está ligado el modelo); si no tiene, la
+            // lista fija de 20 a 35.
+            'tallas'           => $tallas[$it['item']] ?? tallasMuestraFijas(),
+            'tallas_del_estilo' => isset($tallas[$it['item']]),
         ];
     }
     if ($item !== null) return $lista[$item] ?? null;
     return array_values($lista);
+}
+
+/** Lista fija de tallas (20 a 35 en medios puntos) para los modelos sin numeración. */
+function tallasMuestraFijas(): array {
+    $t = [];
+    for ($x = 20.0; $x <= 35.0; $x += 0.5) $t[] = textoTallaMuestra($x);
+    return $t;
+}
+
+/** 27.0 -> "27", 27.5 -> "27.5". */
+function textoTallaMuestra($talla): string {
+    $f = (float)$talla;
+    return floor($f) == $f ? (string)(int)$f : rtrim(rtrim(number_format($f, 1, '.', ''), '0'), '.');
+}
+
+/**
+ * Tallas de la numeración de cada item del catálogo ("e:ID" o "m:ID" ligado
+ * a un estilo), leídas del ERP (estilos.id_numeracion -> numeracion_tallas,
+ * igual que pedidos/ajax.php?accion=tallas del ERP). Si falla, [] y se usa
+ * la lista fija.
+ */
+function tallasCatalogoMuestraErp(): array {
+    $res = [];
+    try {
+        $db = getDBErp();
+        $rows = $db->query("
+            SELECT 'e:' || e.id AS item, nt.talla
+            FROM estilos e
+            JOIN numeracion_tallas nt ON nt.id_numeracion = e.id_numeracion AND nt.estatus = 1
+            WHERE e.estatus = 1
+            UNION
+            SELECT 'm:' || m.id AS item, nt.talla
+            FROM legacy_cotizador_fb_modelos m
+            JOIN estilos e ON e.id = m.id_estilo
+            JOIN numeracion_tallas nt ON nt.id_numeracion = e.id_numeracion AND nt.estatus = 1
+            WHERE m.activo
+            ORDER BY 1, 2
+        ")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $r) {
+            $t = textoTallaMuestra($r['talla']);
+            if (!in_array($t, $res[$r['item']] ?? [], true)) $res[$r['item']][] = $t;
+        }
+    } catch (Throwable $e) {
+        error_log('[VISITAS] tallasCatalogoMuestraErp: ' . $e->getMessage());
+    }
+    return $res;
 }
 
 /** "Al cliente" / "Al vendedor (Nombre)" -- a quién se entrega la muestra. */
@@ -136,14 +194,133 @@ function sqlInicioMesMx(): string {
     return "((date_trunc('month', now() AT TIME ZONE 'America/Mexico_City') AT TIME ZONE 'America/Mexico_City') AT TIME ZONE 'UTC')";
 }
 
-/** Solicitudes de este mes que cuentan para el tope (todas menos canceladas). */
-function muestrasDelMesVendedor(PDO $db, int $vendedorId): int {
+/**
+ * Pares de muestra que ya se pidieron este mes para un cliente (todas sus
+ * solicitudes menos las canceladas) -- cuentan para
+ * MUESTRAS_TOPE_PARES_CLIENTE_MES. muestras_solicitudes.cantidad guarda el
+ * total de pares de la solicitud.
+ */
+function paresMuestraDelMesCliente(PDO $db, int $clienteId): int {
     $stmt = $db->prepare(
-        "SELECT COUNT(*) FROM muestras_solicitudes
-         WHERE vendedor_id = ? AND estado <> 'cancelada' AND created_at >= " . sqlInicioMesMx()
+        "SELECT COALESCE(SUM(cantidad), 0) FROM muestras_solicitudes
+         WHERE cliente_id = ? AND estado <> 'cancelada' AND created_at >= " . sqlInicioMesMx()
+    );
+    $stmt->execute([$clienteId]);
+    return (int)$stmt->fetchColumn();
+}
+
+/** [cliente_id => pares usados este mes] de los clientes de un vendedor. */
+function paresMuestraDelMesPorCliente(PDO $db, int $vendedorId): array {
+    $stmt = $db->prepare(
+        "SELECT cliente_id, COALESCE(SUM(cantidad), 0) AS pares FROM muestras_solicitudes
+         WHERE cliente_id IN (SELECT id FROM clientes WHERE vendedor_id = ?)
+           AND estado <> 'cancelada' AND created_at >= " . sqlInicioMesMx() . "
+         GROUP BY cliente_id"
     );
     $stmt->execute([$vendedorId]);
-    return (int)$stmt->fetchColumn();
+    $res = [];
+    foreach ($stmt->fetchAll() as $r) $res[(int)$r['cliente_id']] = (int)$r['pares'];
+    return $res;
+}
+
+/**
+ * Estilos (con sus tallas) de varias solicitudes: [solicitud_id => [estilo, ...]].
+ * Cada estilo: estilo_nombre, color, tipo, cambios[], tallas[{talla, pares,
+ * nota}], pares (total del estilo).
+ */
+function estilosDeSolicitudesMuestra(PDO $db, array $ids): array {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (!$ids) return [];
+    $marcas = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $db->prepare(
+        "SELECT e.id, e.solicitud_id, e.id_estilo_erp, e.id_modelo_legacy, e.estilo_nombre, e.color, e.tipo, e.cambios,
+                t.talla, t.pares, t.nota
+         FROM muestras_solicitudes_estilos e
+         LEFT JOIN muestras_solicitudes_tallas t ON t.estilo_id = e.id
+         WHERE e.solicitud_id IN ($marcas)
+         ORDER BY e.solicitud_id, e.orden, e.id, t.orden, t.id"
+    );
+    $stmt->execute($ids);
+    $res = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $sid = (int)$r['solicitud_id'];
+        $eid = (int)$r['id'];
+        if (!isset($res[$sid][$eid])) {
+            $res[$sid][$eid] = [
+                'id_estilo_erp'    => $r['id_estilo_erp'] !== null ? (int)$r['id_estilo_erp'] : null,
+                'id_modelo_legacy' => $r['id_modelo_legacy'] !== null ? (int)$r['id_modelo_legacy'] : null,
+                'estilo_nombre'    => $r['estilo_nombre'],
+                'color'            => $r['color'],
+                'tipo'             => $r['tipo'],
+                'cambios'          => json_decode($r['cambios'] ?? '[]', true) ?: [],
+                'tallas'           => [],
+                'pares'            => 0,
+            ];
+        }
+        if ($r['pares'] !== null) {
+            $res[$sid][$eid]['tallas'][] = ['talla' => $r['talla'], 'pares' => (int)$r['pares'], 'nota' => $r['nota']];
+            $res[$sid][$eid]['pares'] += (int)$r['pares'];
+        }
+    }
+    return array_map('array_values', $res);
+}
+
+/**
+ * Los estilos de una solicitud ya cargada; si no tiene renglones (no
+ * debería: la migración 20261022120000 los creó para las de antes), se arma
+ * uno con las columnas de la solicitud.
+ */
+function estilosSolicitudMuestraConRespaldo(array $s, ?array $estilos): array {
+    if ($estilos) return $estilos;
+    $cambios = is_array($s['cambios'] ?? null) ? $s['cambios'] : (json_decode($s['cambios'] ?? '[]', true) ?: []);
+    $pares = max(1, (int)($s['cantidad'] ?? 1));
+    return [[
+        'id_estilo_erp' => isset($s['id_estilo_erp']) ? (int)$s['id_estilo_erp'] : null,
+        'id_modelo_legacy' => isset($s['id_modelo_legacy']) ? (int)$s['id_modelo_legacy'] : null,
+        'estilo_nombre' => $s['estilo_nombre'], 'color' => $s['color'] ?? null, 'tipo' => $s['tipo'] ?? 'identico',
+        'cambios' => $cambios, 'tallas' => [['talla' => $s['talla'] ?? null, 'pares' => $pares, 'nota' => null]], 'pares' => $pares,
+    ]];
+}
+
+/** Agrega 'estilos' a cada fila de muestras_solicitudes (listas y bandeja). */
+function adjuntarEstilosSolicitudesMuestra(PDO $db, array $filas): array {
+    $est = estilosDeSolicitudesMuestra($db, array_column($filas, 'id'));
+    foreach ($filas as &$f) $f['estilos'] = estilosSolicitudMuestraConRespaldo($f, $est[(int)$f['id']] ?? null);
+    unset($f);
+    return $filas;
+}
+
+/** "27 · 1 par, 24 · 2 pares" -- las tallas de un estilo en una línea. */
+function textoTallasEstiloMuestra(array $estilo): string {
+    $partes = [];
+    foreach ($estilo['tallas'] as $t) {
+        $partes[] = ($t['talla'] !== null && $t['talla'] !== '' ? 'Talla ' . $t['talla'] . ': ' : '') . textoParesMuestra($t['pares'])
+                  . (!empty($t['nota']) ? ' (' . $t['nota'] . ')' : '');
+    }
+    return implode(', ', $partes);
+}
+
+/**
+ * Todos los estilos de una solicitud en texto (correos), uno por línea:
+ * "5019 — ... · Negro · Variante: Talla 27: 1 par, Talla 24: 1 par".
+ */
+function textoEstilosMuestra(array $s): string {
+    $lineas = [];
+    foreach ($s['estilos'] ?? [] as $e) {
+        $cab = $e['estilo_nombre'] . (!empty($e['color']) ? ' · ' . $e['color'] : '')
+             . ($e['tipo'] === 'variante' ? ' · Variante' : '');
+        $lineas[] = $cab . ': ' . textoTallasEstiloMuestra($e);
+        $cambios = textoCambiosMuestra($e['cambios'] ?? []);
+        if ($cambios) $lineas[] = '   Cambios: ' . str_replace("\n", '; ', $cambios);
+    }
+    return implode("\n", $lineas);
+}
+
+/** Total de pares de una solicitud cargada. */
+function totalParesSolicitudMuestra(array $s): int {
+    $n = 0;
+    foreach ($s['estilos'] ?? [] as $e) $n += (int)$e['pares'];
+    return $n ?: max(1, (int)($s['cantidad'] ?? 1));
 }
 
 /** Usuarios activos con rol 'muestras' (normalmente una sola persona). */
@@ -191,6 +368,7 @@ function cargarSolicitudMuestra(PDO $db, int $id): ?array {
     $s = $stmt->fetch();
     if (!$s) return null;
     $s['cambios'] = json_decode($s['cambios'] ?? '[]', true) ?: [];
+    $s['estilos'] = estilosSolicitudMuestraConRespaldo($s, estilosDeSolicitudesMuestra($db, [$id])[$id] ?? null);
     return $s;
 }
 
@@ -249,7 +427,10 @@ function notificarNuevaSolicitudMuestra(PDO $db, array $s): void {
         return;
     }
     $titulo  = 'Nueva solicitud de muestra ' . $s['folio'];
-    $mensaje = $s['vendedor_nombre'] . ' pide ' . $s['estilo_nombre'] . ' para ' . $s['cliente_nombre'] . '.';
+    $nEst    = count($s['estilos']);
+    $mensaje = $s['vendedor_nombre'] . ' pide ' . textoParesMuestra(totalParesSolicitudMuestra($s))
+             . ($nEst > 1 ? ' de ' . $nEst . ' estilos' : ' de ' . $s['estilos'][0]['estilo_nombre'])
+             . ' para ' . $s['cliente_nombre'] . '.';
     $enlaceRel = 'muestras/ver.php?id=' . (int)$s['id'];
     $cuerpo = correoMuestraHtml(
         $titulo,
@@ -258,12 +439,8 @@ function notificarNuevaSolicitudMuestra(PDO $db, array $s): void {
             'Vendedor'        => $s['vendedor_nombre'] . ($s['vendedor_telefono'] ? ' · ' . $s['vendedor_telefono'] : ''),
             'Cliente'         => $s['cliente_nombre'],
             'Contacto'        => trim(($s['cliente_contacto'] ?? '') . (!empty($s['cliente_telefono']) ? ' · ' . $s['cliente_telefono'] : '')),
-            'Estilo'          => $s['estilo_nombre'],
-            'Color'           => $s['color'] ?? null,
-            'Talla'           => $s['talla'],
-            'Cantidad'        => textoParesMuestra($s['cantidad'] ?? 1),
-            'Tipo'            => $s['tipo'] === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo',
-            'Cambios'         => textoCambiosMuestra($s['cambios']),
+            'Muestras'        => textoEstilosMuestra($s),
+            'Total'           => textoParesMuestra(totalParesSolicitudMuestra($s)),
             'Motivo'          => $s['motivo'] ?? null,
             'Notas para planta' => $s['notas_planta'] ?? null,
             'Fecha promesa'   => $s['fecha_promesa'] ? date('d/m/Y', strtotime($s['fecha_promesa'])) : null,
@@ -321,7 +498,7 @@ function notificarCambioEstadoMuestra(PDO $db, array $s, bool $yaEnPt = false): 
     crearAviso($db, (int)$s['vendedor_id'], 'muestra_' . $s['estado'], $titulo, $mensaje, $enlaceRel, (int)$s['id']);
 
     if (!empty($s['vendedor_email'])) {
-        $renglones = ['Cliente' => $s['cliente_nombre'], 'Estilo' => $s['estilo_nombre'], 'Color' => $s['color'] ?? null, 'Talla' => $s['talla'], 'Cantidad' => textoParesMuestra($s['cantidad'] ?? 1)];
+        $renglones = ['Cliente' => $s['cliente_nombre'], 'Muestras' => textoEstilosMuestra($s), 'Total' => textoParesMuestra(totalParesSolicitudMuestra($s))];
         if ($s['estado'] === 'en_preparacion') $renglones['Preparación'] = textoPreparacionMuestra($s);
         if ($s['estado'] === 'embarcada') {
             $renglones['Envío'] = textoEnvioMuestra($s);
@@ -465,6 +642,9 @@ function solicitudMuestraParaJson(array $s): array {
         'fecha_promesa'      => $s['fecha_promesa'],
         'tipo'               => $s['tipo'],
         'cambios'            => is_array($s['cambios']) ? $s['cambios'] : (json_decode($s['cambios'] ?? '[]', true) ?: []),
+        // Varios estilos con sus tallas (22-oct-2026). Las pantallas usan
+        // esto; estilo_nombre/color/talla/cantidad/tipo de arriba son resumen.
+        'estilos'            => $s['estilos'] ?? [],
         'entregar_a'         => $s['entregar_a'] ?? 'cliente',
         'destino_direccion'  => $s['destino_direccion'],
         'estado'             => $s['estado'],

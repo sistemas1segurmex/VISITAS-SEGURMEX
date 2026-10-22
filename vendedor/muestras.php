@@ -54,8 +54,7 @@ $u = requireRole('vendedor');
         <p class="mu-hero-sub">La recibe el equipo de Segurmex. Te avisamos aquí y por correo cuando esté en preparación y cuando se embarque.</p>
       </div>
       <div class="mu-cupo" data-tour="cupo">
-        <div class="mu-cupo-txt"><span id="cupo-n">–</span> de <span id="cupo-tope">5</span><small>disponibles este mes</small></div>
-        <div class="mu-cupo-barra"><span id="cupo-barra" style="width:0%"></span></div>
+        <div class="mu-cupo-txt"><span id="cupo-n">6</span> pares<small>máximo por cliente al mes</small></div>
       </div>
     </section>
 
@@ -107,7 +106,7 @@ function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&am
 
 const PASOS_TOUR_MUESTRAS = [
   { selector: '[data-tour="cta-muestra"]', texto: 'Pide una muestra para un cliente o prospecto. La recibe el equipo de Segurmex.' },
-  { selector: '[data-tour="cupo"]', texto: 'Cuántas muestras te quedan este mes. Las canceladas no cuentan.' },
+  { selector: '[data-tour="cupo"]', texto: 'Cada cliente puede recibir hasta 6 pares de muestra al mes, sumando todas sus solicitudes. Las canceladas no cuentan.' },
   { selector: '[data-tour="filtros"]', texto: 'Toca para ver tus muestras en curso, las embarcadas o las canceladas.' },
   { selector: '#lista-muestras .v26-muestra-card', texto: 'Toca una muestra para ver el detalle. Ya embarcada, aquí ves la paquetería y la guía.' },
   { selector: '.v26-avisos-btn', texto: 'Aquí te llegan los avisos de tus muestras. El número rojo son los que no has visto.' },
@@ -179,13 +178,19 @@ function textoEstadoMuestra(m) {
   return '';
 }
 
+function estilosDe(m) { return (m.estilos && m.estilos.length) ? m.estilos : [{ estilo_nombre: m.estilo_nombre, color: m.color, tipo: m.tipo, cambios: m.cambios || [], tallas: [{ talla: m.talla, pares: m.cantidad || 1 }], pares: m.cantidad || 1 }]; }
 function metaMuestraHTML(m) {
   const chips = [];
-  if (m.color) chips.push(`<span><i class="bi bi-palette"></i> ${escHtml(m.color)}</span>`);
-  if (m.talla) chips.push(`<span><i class="bi bi-rulers"></i> Talla ${escHtml(m.talla)}</span>`);
-  const pares = m.cantidad || 1;
+  const ests = estilosDe(m);
+  const pares = ests.reduce((a, e) => a + (e.pares || 0), 0) || m.cantidad || 1;
+  if (ests.length > 1) chips.push(`<span><i class="bi bi-collection"></i> ${ests.length} estilos</span>`);
+  else {
+    if (ests[0].color) chips.push(`<span><i class="bi bi-palette"></i> ${escHtml(ests[0].color)}</span>`);
+    const tallas = ests[0].tallas.filter(t => t.talla).map(t => t.talla);
+    if (tallas.length) chips.push(`<span><i class="bi bi-rulers"></i> Talla${tallas.length > 1 ? 's' : ''} ${escHtml(tallas.join(', '))}</span>`);
+    chips.push(`<span><i class="bi bi-shuffle"></i> ${escHtml(ETIQUETAS_TIPO_MUESTRA[ests[0].tipo] || ests[0].tipo)}</span>`);
+  }
   chips.push(`<span><i class="bi bi-boxes"></i> ${pares} ${pares === 1 ? 'par' : 'pares'}</span>`);
-  chips.push(`<span><i class="bi bi-shuffle"></i> ${escHtml(ETIQUETAS_TIPO_MUESTRA[m.tipo] || m.tipo)}</span>`);
   if (m.fecha_promesa) chips.push(`<span><i class="bi bi-calendar-event"></i> Promesa: ${fechaCorta(m.fecha_promesa)}</span>`);
   return `<div class="v26-muestra-meta">${chips.join('')}</div>`;
 }
@@ -199,10 +204,15 @@ function detalleMuestraHTML(m) {
   if (m.notas_planta) filas.push(`<div>Notas para planta: <strong>${escHtml(m.notas_planta)}</strong></div>`);
   filas.push(`<div>Entregar: <strong>${m.entregar_a === 'vendedor' ? 'A ti' : 'Al cliente'}</strong></div>`);
   if (m.destino_direccion) filas.push(`<div>Dirección: <strong>${escHtml(m.destino_direccion)}</strong></div>`);
-  (m.cambios || []).forEach(c => {
-    const cat = c.categoria === 'otro' ? (c.categoria_otro || 'Otro') : (CATEGORIAS_CAMBIO_MUESTRA[c.categoria] || c.categoria);
-    filas.push(`<div>${escHtml(cat)}: <strong>${escHtml(c.descripcion)}</strong></div>`);
-  });
+  // Qué se pidió: cada estilo con sus tallas, pares y cambios.
+  filas.push('<div class="v26-muestra-estilos">' + estilosDe(m).map(e => {
+    const tallas = e.tallas.map(t => `<li>${t.talla ? 'Talla <strong>' + escHtml(t.talla) + '</strong>' : 'Sin talla'} · ${t.pares} ${t.pares === 1 ? 'par' : 'pares'}${t.nota ? ` <em>(${escHtml(t.nota)})</em>` : ''}</li>`).join('');
+    const cambios = (e.cambios || []).map(c => {
+      const cat = c.categoria === 'otro' ? (c.categoria_otro || 'Otro') : (CATEGORIAS_CAMBIO_MUESTRA[c.categoria] || c.categoria);
+      return `<div class="cambio">${escHtml(cat)}: <strong>${escHtml(c.descripcion)}</strong></div>`;
+    }).join('');
+    return `<div class="est"><div class="nom">${escHtml(e.estilo_nombre)}${e.color ? ' · ' + escHtml(e.color) : ''}${e.tipo === 'variante' ? ' · Variante' : ''}</div><ul>${tallas}</ul>${cambios}</div>`;
+  }).join('') + '</div>');
   if (m.estado === 'embarcada') filas.push(`<div>Embarcada el <strong>${fechaCorta(m.actualizada_en)}</strong> · ${escHtml(textoEnvioMuestra(m))}</div>`);
   filas.push(`<div class="mt-2"><a href="../muestra_pdf.php?id=${encodeURIComponent(m.id)}" class="v26-btn v26-btn-ghost" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a></div>`);
   return `<div class="v26-muestra-detalle-inner">${filas.join('')}</div>`;
@@ -254,17 +264,10 @@ function renderLista() {
     : `<div class="mu-vacio"><div class="mu-vacio-ico"><i class="bi bi-box-seam"></i></div><p>${VACIOS[filtro]}</p></div>`;
 }
 
-function pintarCupo(usadas, tope) {
-  const quedan = Math.max(0, tope - usadas);
-  document.getElementById('cupo-n').textContent = quedan;
-  document.getElementById('cupo-tope').textContent = tope;
-  document.getElementById('cupo-barra').style.width = Math.round((quedan / tope) * 100) + '%';
-  document.querySelector('.mu-cupo').classList.toggle('agotado', quedan === 0);
-  const cta = document.getElementById('cta-muestra');
-  cta.classList.toggle('v26-cta--disabled', quedan === 0);
-  document.getElementById('cta-muestra-sub').textContent = quedan === 0
-    ? `Ya usaste tus ${tope} muestras de este mes`
-    : `Te ${quedan === 1 ? 'queda 1' : 'quedan ' + quedan} de ${tope} este mes`;
+// Tope por cliente (no por vendedor): hasta N pares por cliente al mes.
+function pintarCupo(tope) {
+  document.getElementById('cupo-n').textContent = tope;
+  document.getElementById('cta-muestra-sub').textContent = `Varios estilos y tallas · hasta ${tope} pares por cliente al mes`;
 }
 
 document.querySelectorAll('.mu-stat').forEach(b => b.addEventListener('click', () => { filtro = b.dataset.estado; renderLista(); }));
@@ -281,7 +284,7 @@ async function cargarMuestras() {
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || '');
     muestrasData = data.muestras;
-    pintarCupo(data.usadas_mes || 0, data.tope_mes || 5);
+    pintarCupo(data.tope_pares_cliente || 6);
     // Sin nada en curso pero con historial: abre en "Todas".
     if (filtro === 'en_curso' && !muestrasData.some(m => grupoEstadoMuestra(m) === 'en_curso') && muestrasData.length) filtro = 'todas';
     renderLista();

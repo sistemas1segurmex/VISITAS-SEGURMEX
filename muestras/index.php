@@ -162,8 +162,11 @@ function tarjeta(m, i) {
         </div>
         ${pillEstadoMuestra(m.estado)}
       </div>
-      <div class="mu-card-titulo">${escHtml(m.estilo_nombre)}</div>
-      ${(m.color || m.talla) ? `<div class="mu-card-talla">${[m.color ? `Color <strong>${escHtml(m.color)}</strong>` : '', m.talla ? `Talla <strong>${escHtml(m.talla)}</strong>` : ''].filter(Boolean).join(' · ')}</div>` : ''}
+      ${(m.estilos && m.estilos.length ? m.estilos : [{ estilo_nombre: m.estilo_nombre, color: m.color, tallas: [{ talla: m.talla, pares: m.cantidad || 1 }] }]).map(e => `
+        <div class="mu-card-titulo">${escHtml(e.estilo_nombre)}</div>
+        <div class="mu-card-talla">${[e.color ? `Color <strong>${escHtml(e.color)}</strong>` : '',
+          e.tallas.map(t => (t.talla ? `Talla <strong>${escHtml(t.talla)}</strong>` : 'Sin talla') + ` × ${t.pares}`).join(', ')].filter(Boolean).join(' · ')}</div>`).join('')}
+      <div class="mu-card-talla"><strong>Total: ${m.cantidad || 1} ${(m.cantidad || 1) === 1 ? 'par' : 'pares'}</strong></div>
       <div class="mu-card-quien">
         <span class="mu-avatar">${escHtml(iniciales(m.vendedor_nombre))}</span>
         <div class="mu-card-quien-txt">

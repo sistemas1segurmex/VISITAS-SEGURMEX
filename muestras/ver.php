@@ -28,28 +28,34 @@ if ($puedeCambiar) {
 
 function e($v): string { return htmlspecialchars((string)$v); }
 
-// Foto, línea y atributo (PP+D...) del estilo: del mismo catálogo del ERP que
-// usa el PDF (datosCatalogoMuestraPdf). Si el ERP no responde, sale sin foto.
-$cat = ['foto' => '', 'atributo' => '', 'grupo' => ''];
-$itemCat = !empty($s['id_estilo_erp']) ? 'e:' . (int)$s['id_estilo_erp']
-         : (!empty($s['id_modelo_legacy']) ? 'm:' . (int)$s['id_modelo_legacy'] : null);
-if ($itemCat) {
-    try {
-        require_once __DIR__ . '/../includes/db_erp.php';
-        $ec = catalogoParaMuestraErp($itemCat);
-        if ($ec) {
-            $cat['foto']     = basename((string)($ec['foto'] ?? ''));
-            $cat['atributo'] = (string)($ec['atributo'] ?? '');
-            $cat['grupo']    = ($ec['grupo'] ?? '') === 'Estilos del ERP' ? '' : (string)($ec['grupo'] ?? '');
-        }
-    } catch (Throwable $ex) {
-        error_log('[VISITAS] Detalle muestra (catálogo): ' . $ex->getMessage());
-    }
+// Foto, línea y atributo (PP+D...) de cada estilo: del mismo catálogo del
+// ERP que usa el PDF. Si el ERP no responde, salen sin foto.
+// Desde el 22-oct-2026 una solicitud puede traer varios estilos, cada uno
+// con sus tallas (ver includes/muestras.php).
+$catalogoErp = null;
+try {
+    require_once __DIR__ . '/../includes/db_erp.php';
+    $catalogoErp = [];
+    foreach (catalogoParaMuestraErp() as $it) $catalogoErp[$it['id']] = $it;
+} catch (Throwable $ex) {
+    error_log('[VISITAS] Detalle muestra (catálogo): ' . $ex->getMessage());
 }
-// "5006 — Elite Safety — Piel..." -> clave grande y el resto como descripción.
-$partesEstilo = explode(' — ', (string)$s['estilo_nombre'], 2);
-$clave = $partesEstilo[0];
-$descEstilo = $partesEstilo[1] ?? '';
+$estilosVer = [];
+foreach ($s['estilos'] as $est) {
+    $itemCat = !empty($est['id_estilo_erp']) && empty($est['id_modelo_legacy']) ? 'e:' . (int)$est['id_estilo_erp']
+             : (!empty($est['id_modelo_legacy']) ? 'm:' . (int)$est['id_modelo_legacy'] : null);
+    $ec = $itemCat && $catalogoErp ? ($catalogoErp[$itemCat] ?? null) : null;
+    // "5006 — Elite Safety — Piel..." -> clave grande y el resto como descripción.
+    $partes = explode(' — ', (string)$est['estilo_nombre'], 2);
+    $estilosVer[] = $est + [
+        'foto'     => $ec ? basename((string)($ec['foto'] ?? '')) : '',
+        'atributo' => $ec ? (string)($ec['atributo'] ?? '') : '',
+        'grupo'    => $ec && ($ec['grupo'] ?? '') !== 'Estilos del ERP' ? (string)($ec['grupo'] ?? '') : '',
+        'clave'    => $partes[0],
+        'desc'     => $partes[1] ?? '',
+    ];
+}
+$totalPares = totalParesSolicitudMuestra($s);
 
 // Fechas en hora de México (la base guarda los timestamps en UTC).
 $tzMx = new DateTimeZone('America/Mexico_City');
@@ -85,7 +91,8 @@ if ($promesa) {
 }
 if ($s['estado'] === 'embarcada' && $cerrada) $chips[] = ['verde', 'bi-check2-circle', 'Embarcada el ' . mdFechaCorta($cerrada)];
 if ($s['estado'] === 'cancelada' && $cerrada) $chips[] = ['', 'bi-x-circle', 'Cancelada el ' . mdFechaCorta($cerrada)];
-$chips[] = ['', $s['tipo'] === 'variante' ? 'bi-shuffle' : 'bi-check2-square', $s['tipo'] === 'variante' ? 'Variante' : 'Idéntico al estilo'];
+$chips[] = ['', 'bi-boxes', textoParesMuestra($totalPares) . (count($estilosVer) > 1 ? ' · ' . count($estilosVer) . ' estilos' : '')];
+if ($s['tipo'] === 'variante') $chips[] = ['', 'bi-shuffle', count($estilosVer) > 1 ? 'Con variantes' : 'Variante'];
 
 $PILL = [
     'enviada'        => ['nueva', 'bi-inbox-fill', 'Nueva · sin atender'],
@@ -111,10 +118,11 @@ elseif (in_array($s['estado'], ['embarcada', 'cancelada'], true)) $pasoPrep = $p
 $COLOR_MUESTRA = ['NEGRO' => '#1F1F1F', 'CAFE' => '#6B4423', 'CHOCOLATE' => '#4A2C1A', 'MIEL' => '#C68E3F', 'CAMEL' => '#B5813F',
                   'GRIS' => '#8A8F98', 'AZUL' => '#1E3A8A', 'MARINO' => '#1E2A4A', 'ROJO' => '#B91C1C', 'BLANCO' => '#FFFFFF',
                   'AMARILLO' => '#E8A400', 'VERDE' => '#166534', 'BEIGE' => '#D8C3A5', 'ARENA' => '#D8C3A5', 'TAN' => '#C19A6B'];
-$swatch = null;
-if (!empty($s['color'])) {
-    $colorPlano = strtr(mb_strtoupper((string)$s['color']), ['Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U']);
-    foreach ($COLOR_MUESTRA as $nombre => $hex) if (strpos($colorPlano, $nombre) !== false) { $swatch = $hex; break; }
+function mdSwatch(?string $color, array $mapa): ?string {
+    if (!$color) return null;
+    $plano = strtr(mb_strtoupper($color), ['Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U']);
+    foreach ($mapa as $nombre => $hex) if (strpos($plano, $nombre) !== false) return $hex;
+    return null;
 }
 $ICONO_CAMBIO = ['casco' => 'bi-shield-shaded', 'suela' => 'bi-layers', 'piel' => 'bi-palette', 'forro' => 'bi-columns-gap'];
 
@@ -130,7 +138,7 @@ $telLimpio = preg_replace('/\D/', '', (string)$s['vendedor_telefono']);
 $telCliente = preg_replace('/\D/', '', (string)($s['cliente_telefono'] ?? ''));
 $correoAsunto = 'Muestra ' . $s['folio'];
 $correoTexto  = 'Hola ' . $s['vendedor_nombre'] . ', te escribo sobre tu solicitud de muestra ' . $s['folio']
-              . ' (' . $s['estilo_nombre'] . (!empty($s['color']) ? ', ' . $s['color'] : '') . ') para ' . $s['cliente_nombre'] . ".\n\n";
+              . ' (' . $s['estilo_nombre'] . ', ' . textoParesMuestra($totalPares) . ') para ' . $s['cliente_nombre'] . ".\n\n";
 
 // Historial
 $TXT_HISTORIAL = [
@@ -218,38 +226,53 @@ $ICONO_HISTORIAL = [
       <!-- IZQUIERDA -->
       <div class="md-main">
         <div class="md-card">
-          <div class="md-sec"><i class="bi bi-box-seam"></i> Qué hay que surtir</div>
+          <div class="md-sec"><i class="bi bi-box-seam"></i> Qué hay que surtir · <?= e(textoParesMuestra($totalPares)) ?></div>
+          <?php foreach ($estilosVer as $iEst => $est):
+            $swatch = mdSwatch($est['color'] ?? null, $COLOR_MUESTRA); ?>
+          <div class="md-estilo<?= $iEst > 0 ? ' md-estilo--sig' : '' ?>">
           <div class="md-prod">
             <div class="md-foto">
-              <?php if ($cat['foto'] !== ''): ?>
-                <img src="/erp/assets/img/cotizador/<?= e(rawurlencode($cat['foto'])) ?>" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'bi bi-box-seam'}))">
+              <?php if ($est['foto'] !== ''): ?>
+                <img src="/erp/assets/img/cotizador/<?= e(rawurlencode($est['foto'])) ?>" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'bi bi-box-seam'}))">
               <?php else: ?>
                 <i class="bi bi-box-seam"></i>
               <?php endif; ?>
             </div>
             <div class="md-prod-txt">
-              <?php if ($cat['grupo'] !== ''): ?><div class="md-linea"><?= e($cat['grupo']) ?></div><?php endif; ?>
-              <div class="md-clave"><?= e($clave) ?><?php if ($cat['atributo'] !== ''): ?> <span class="md-attr"><?= e($cat['atributo']) ?></span><?php endif; ?></div>
-              <?php if ($descEstilo !== ''): ?><div class="md-desc"><?= e($descEstilo) ?></div><?php endif; ?>
+              <?php if ($est['grupo'] !== ''): ?><div class="md-linea"><?= e($est['grupo']) ?></div><?php endif; ?>
+              <div class="md-clave"><?= e($est['clave']) ?><?php if ($est['atributo'] !== ''): ?> <span class="md-attr"><?= e($est['atributo']) ?></span><?php endif; ?></div>
+              <?php if ($est['desc'] !== ''): ?><div class="md-desc"><?= e($est['desc']) ?></div><?php endif; ?>
               <div class="md-tipo-wrap">
-                <?php if ($s['tipo'] === 'variante'): ?>
+                <?php if ($est['tipo'] === 'variante'): ?>
                   <span class="md-tipo"><i class="bi bi-shuffle"></i> Variante · con cambios</span>
                 <?php else: ?>
                   <span class="md-tipo md-tipo--igual"><i class="bi bi-check2-square"></i> Idéntico al estilo</span>
                 <?php endif; ?>
+                <?php if (!empty($est['color'])): ?>
+                  <span class="md-tipo md-tipo--igual"><?php if ($swatch): ?><span class="md-sw" style="background:<?= $swatch ?>"></span><?php endif; ?><?= e(mb_convert_case((string)$est['color'], MB_CASE_TITLE)) ?></span>
+                <?php endif; ?>
               </div>
             </div>
           </div>
-          <div class="md-fichas">
-            <?php if (!empty($s['color'])): ?>
-              <div class="md-ficha"><div class="l">Color</div><div class="v"><?php if ($swatch): ?><span class="md-sw" style="background:<?= $swatch ?>"></span><?php endif; ?><?= e(mb_convert_case((string)$s['color'], MB_CASE_TITLE)) ?></div></div>
+          <table class="md-tallas">
+            <thead><tr><th>Talla</th><th class="n">Pares</th><th>Nota</th></tr></thead>
+            <tbody>
+              <?php foreach ($est['tallas'] as $t): ?>
+                <tr>
+                  <td class="t"><?= ($t['talla'] ?? '') !== '' ? e($t['talla']) : '<span class="md-vacio">No la indicó</span>' ?></td>
+                  <td class="n"><?= (int)$t['pares'] ?></td>
+                  <td><?= !empty($t['nota']) ? e($t['nota']) : '<span class="md-vacio">—</span>' ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+            <?php if (count($est['tallas']) > 1): ?>
+              <tfoot><tr><td>Total</td><td class="n"><?= (int)$est['pares'] ?></td><td></td></tr></tfoot>
             <?php endif; ?>
-            <div class="md-ficha"><div class="l">Talla</div><div class="v"><?= $s['talla'] ? e($s['talla']) : '<span class="md-vacio">No la indicó</span>' ?></div></div>
-            <div class="md-ficha"><div class="l">Pares</div><div class="v"><?= max(1, (int)($s['cantidad'] ?? 1)) ?></div></div>          </div>
-          <?php if ($s['cambios']): ?>
+          </table>
+          <?php if ($est['cambios']): ?>
             <div class="md-sec md-sec--sub"><i class="bi bi-tools"></i> Cambios que pide el cliente</div>
             <div class="md-cambios">
-              <?php foreach ($s['cambios'] as $c):
+              <?php foreach ($est['cambios'] as $c):
                 $clv = $c['categoria'] ?? '';
                 $catTxt = $clv === 'otro' ? ($c['categoria_otro'] ?? 'Otro') : (MUESTRA_CATEGORIAS_CAMBIO[$clv] ?? $clv); ?>
                 <div class="md-cambio">
@@ -259,6 +282,8 @@ $ICONO_HISTORIAL = [
               <?php endforeach; ?>
             </div>
           <?php endif; ?>
+          </div>
+          <?php endforeach; ?>
         </div>
 
         <div class="md-motivo">

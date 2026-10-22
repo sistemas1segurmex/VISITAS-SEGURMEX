@@ -55,10 +55,10 @@ $u = requireRole('vendedor');
         <div class="mu-hero-txt">
           <div class="mu-hero-eyebrow"><i class="bi bi-box-seam"></i> Nueva solicitud</div>
           <h1 class="mu-hero-titulo">¿Qué muestra necesita tu cliente?</h1>
-          <p class="mu-hero-sub">Llena los 3 pasos. La recibe el equipo de Segurmex y te avisamos cuando esté en preparación y cuando se embarque.</p>
+          <p class="mu-hero-sub">Llena los 3 pasos. Puedes pedir varios estilos y tallas en la misma solicitud. La recibe el equipo de Segurmex y te avisamos cuando esté en preparación y cuando se embarque.</p>
         </div>
         <div class="mu-cupo">
-          <div class="mu-cupo-txt"><span id="cupo-n">–</span> de <span id="cupo-tope">5</span><small>disponibles este mes</small></div>
+          <div class="mu-cupo-txt"><span id="cupo-n">6</span> de <span id="cupo-tope">6</span><small id="cupo-sub">pares por cliente al mes</small></div>
           <div class="mu-cupo-barra"><span id="cupo-barra" style="width:0%"></span></div>
         </div>
       </section>
@@ -94,50 +94,10 @@ $u = requireRole('vendedor');
           </section>
 
           <section class="v26-card mu-paso">
-            <div class="mu-paso-head"><span class="mu-paso-n">2</span><div><strong>¿Qué muestra?</strong><small>El estilo y, si aplica, los cambios</small></div></div>
-            <div class="v26-field">
-              <label>Estilo</label>
-              <input type="hidden" id="id_estilo_base" value="">
-              <!-- Elegido: se muestra en lugar del catálogo -->
-              <div id="mu-est-elegido" class="mu-est-elegido d-none"></div>
-              <!-- Catálogo visual: mismo diseño que la Nueva cotización, sin precios -->
-              <div id="mu-est-picker" class="mu-est-picker">
-                <div class="v26-search mb-2">
-                  <i class="bi bi-search"></i>
-                  <input type="search" id="buscar-estilo" class="v26-input" placeholder="Buscar modelo, línea o marca…" autocomplete="off" enterkeyhint="search">
-                </div>
-                <div id="mu-lista-estilos" class="mu-est-lista" role="listbox" aria-label="Catálogo de estilos">
-                  <div class="mu-est-sin">Cargando estilos…</div>
-                </div>
-              </div>
-            </div>
-            <div class="row g-2">
-              <div class="col-7 v26-field">
-                <label>Talla <span class="mu-opc">(opcional)</span></label>
-                <input type="text" id="talla" class="v26-input" maxlength="30" placeholder="Ej. 27">
-              </div>
-              <div class="col-5 v26-field">
-                <label>Pares</label>
-                <input type="number" id="cantidad" class="v26-input" min="1" max="99" step="1" value="1" inputmode="numeric" required>
-              </div>
-            </div>
-            <div class="v26-field">
-              <label>Tipo de muestra</label>
-              <div class="mu-tipos" id="seg-tipo">
-                <button type="button" class="v26-seg-btn mu-tipo active" data-tipo="identico">
-                  <i class="bi bi-check2-square"></i><strong>Idéntico al estilo</strong><small>Tal cual el catálogo</small>
-                </button>
-                <button type="button" class="v26-seg-btn mu-tipo" data-tipo="variante">
-                  <i class="bi bi-shuffle"></i><strong>Variante</strong><small>Con cambios que pide el cliente</small>
-                </button>
-              </div>
-            </div>
-            <div id="bloque-adendum" class="d-none v26-field mb-0">
-              <label>Cambios que pide el cliente <span class="mu-opc">— marca y describe cada uno</span></label>
-              <div id="adendum-categorias" class="mu-cambios-grid"></div>
-              <div id="adendum-otros"></div>
-              <button type="button" class="v26-btn v26-btn-ghost" id="btn-agregar-otro"><i class="bi bi-plus-lg"></i> Agregar otro cambio</button>
-            </div>
+            <div class="mu-paso-head"><span class="mu-paso-n">2</span><div><strong>¿Qué muestras?</strong><small>Uno o varios estilos, cada uno con sus tallas y pares</small></div></div>
+            <div id="mu-estilos"></div>
+            <button type="button" class="v26-btn v26-btn-ghost v26-btn-block" id="btn-agregar-estilo"><i class="bi bi-plus-lg"></i> Agregar otro estilo</button>
+            <div class="mu-total-pares" id="mu-total-pares"></div>
             <div class="v26-field mt-3">
               <label>Motivo de la muestra</label>
               <textarea id="motivo" class="v26-textarea" rows="2" maxlength="500" required placeholder="Ej. Prueba de uso en planta, licitación, presentación al área de compras…"></textarea>
@@ -188,11 +148,8 @@ $u = requireRole('vendedor');
           <dl class="mu-resumen-dl">
             <dt>Cliente</dt><dd id="r-cliente">—</dd>
             <dt>Contacto</dt><dd id="r-contacto">—</dd>
-            <dt>Estilo</dt><dd id="r-estilo">—</dd>
-            <dt>Color</dt><dd id="r-color">—</dd>
-            <dt>Talla</dt><dd id="r-talla">—</dd>
-            <dt>Pares</dt><dd id="r-cantidad">1</dd>
-            <dt>Tipo</dt><dd id="r-tipo">Idéntico al estilo</dd>
+            <dt>Muestras</dt><dd id="r-estilos">—</dd>
+            <dt>Total</dt><dd id="r-total">—</dd>
             <dt>Motivo</dt><dd id="r-motivo">—</dd>
             <dt>Promesa</dt><dd id="r-fecha">—</dd>
             <dt>Prueba</dt><dd id="r-prueba">—</dd>
@@ -210,55 +167,99 @@ $u = requireRole('vendedor');
 <script>
 const CATEGORIAS_ADENDUM = { casco: 'Casco', suela: 'Suela', piel: 'Piel', forro: 'Forro' };
 function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function paresTxt(n) { return n + (n === 1 ? ' par' : ' pares'); }
 
-// Tope de muestras por mes (ver MUESTRAS_TOPE_MES en includes/muestras.php):
-// se avisa cuántas le quedan y, si ya no le queda ninguna, no se deja enviar.
-function pintarTope(data) {
-  const caja = document.getElementById('aviso-tope');
-  if (data.tope_mes == null) return;
-  const quedan = Math.max(0, data.tope_mes - (data.usadas_mes || 0));
-  document.getElementById('cupo-n').textContent = quedan;
-  document.getElementById('cupo-tope').textContent = data.tope_mes;
-  document.getElementById('cupo-barra').style.width = Math.round((quedan / data.tope_mes) * 100) + '%';
-  document.querySelector('.mu-cupo').classList.toggle('agotado', quedan === 0);
-  caja.classList.toggle('d-none', quedan !== 0);
-  if (quedan === 0) {
-    caja.innerHTML = `<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> Ya pediste ${data.tope_mes} muestras este mes, que es el máximo. Podrás pedir otra a partir del día 1 del próximo mes.</div>`;
-    document.getElementById('btn-enviar-muestra').disabled = true;
-  }
-}
-
-// ---- Resumen en vivo, dirección del cliente y buscador de estilos ----
+// ---- Estado ----
+// Una solicitud puede llevar varios estilos y cada estilo varias tallas
+// (22-oct-2026, igual que el cotizador anterior). Tope: TOPE_PARES pares por
+// cliente al mes, sumando todas sus solicitudes (las canceladas no cuentan).
+// Ver api/muestra_solicitar.php e includes/muestras.php.
 let clientesCat = [];
 let estilosCat = [];
+let ATRIBUTOS = {};
+let TOPE_PARES = 6, MAX_ESTILOS = 6, MAX_TALLAS = 6;
 let direccionAutollenada = null; // la que pusimos sola, para no pisar lo que escriba el vendedor
+let uidSig = 1;
+// [{uid, item, color, tipo, cambios:{casco:{on,txt}...}, otros:[{nombre,txt}], tallas:[{talla,pares,nota}]}]
+let lineas = [];
+let eligiendo = null; // uid de la tarjeta con el catálogo abierto
 
+function nuevaLinea() {
+  const cambios = {};
+  Object.keys(CATEGORIAS_ADENDUM).forEach(k => { cambios[k] = { on: false, txt: '' }; });
+  return { uid: uidSig++, item: '', color: '', tipo: 'identico', cambios, otros: [], tallas: [{ talla: '', pares: 1, nota: '' }] };
+}
+function lineaPorUid(uid) { return lineas.find(l => l.uid === Number(uid)) || null; }
+function estiloDe(l) { return l && l.item ? estilosCat.find(e => String(e.id) === l.item) || null : null; }
+function totalPares() { return lineas.reduce((s, l) => s + l.tallas.reduce((a, t) => a + (parseInt(t.pares, 10) || 0), 0), 0); }
+function clienteElegido() {
+  return clientesCat.find(x => String(x.id) === document.getElementById('id_cliente').value) || null;
+}
+function paresDisponiblesCliente() {
+  const c = clienteElegido();
+  return c ? Math.max(0, TOPE_PARES - (c.pares_muestra_mes || 0)) : TOPE_PARES;
+}
+
+// ---- Cupo del cliente (arriba) y total de pares ----
+function pintarCupo() {
+  const c = clienteElegido();
+  const disp = paresDisponiblesCliente();
+  const total = totalPares();
+  document.getElementById('cupo-tope').textContent = TOPE_PARES;
+  document.getElementById('cupo-n').textContent = c ? disp : TOPE_PARES;
+  document.getElementById('cupo-sub').textContent = c ? 'pares disponibles este mes para este cliente' : 'pares por cliente al mes';
+  document.getElementById('cupo-barra').style.width = Math.round(((c ? disp : TOPE_PARES) / TOPE_PARES) * 100) + '%';
+  document.querySelector('.mu-cupo').classList.toggle('agotado', !!c && disp === 0);
+
+  const caja = document.getElementById('aviso-tope');
+  const tot = document.getElementById('mu-total-pares');
+  let aviso = '';
+  if (c && disp === 0) {
+    aviso = `<i class="bi bi-exclamation-triangle"></i> <strong>${escHtml(c.nombre)}</strong> ya tiene ${c.pares_muestra_mes} de ${TOPE_PARES} pares de muestra este mes. Podrás pedirle más a partir del día 1 del próximo mes.`;
+  } else if (total > disp) {
+    const sobran = total - disp;
+    aviso = c
+      ? `<i class="bi bi-exclamation-triangle"></i> A <strong>${escHtml(c.nombre)}</strong> le ${disp === 1 ? 'queda 1 par' : 'quedan ' + disp + ' pares'} de muestra este mes y llevas ${paresTxt(total)}. Quita ${paresTxt(sobran)}.`
+      : `<i class="bi bi-exclamation-triangle"></i> El máximo es de ${TOPE_PARES} pares por cliente al mes y llevas ${paresTxt(total)}. Quita ${paresTxt(sobran)}.`;
+  }
+  caja.innerHTML = aviso ? `<div class="alert alert-warning py-2 small">${aviso}</div>` : '';
+  caja.classList.toggle('d-none', !aviso);
+  tot.innerHTML = `<span>Total de la solicitud</span><strong>${paresTxt(total)}</strong>`
+    + (!c ? `<small>Máximo ${TOPE_PARES} pares por cliente al mes</small>`
+       : total <= disp ? `<small>Este cliente tiene ${paresTxt(disp)} disponibles este mes. Con esta solicitud le ${disp - total === 1 ? 'queda 1 par' : 'quedan ' + (disp - total) + ' pares'}.</small>`
+       : `<small>Este cliente solo tiene ${paresTxt(disp)} disponibles este mes.</small>`);
+  tot.classList.toggle('excede', total > disp);
+  document.getElementById('btn-enviar-muestra').disabled = (c && disp === 0) || total > disp;
+}
+
+// ---- Resumen en vivo ----
 function textoSel(sel) { return sel.value ? sel.options[sel.selectedIndex].text : '—'; }
+function entregaElegida() { return document.querySelector('#seg-entrega .v26-seg-btn.active').dataset.entrega; }
 function pintarResumen() {
   const val = (id) => document.getElementById(id).value.trim();
-  const tipo = document.querySelector('#seg-tipo .v26-seg-btn.active').dataset.tipo;
   document.getElementById('r-cliente').textContent = textoSel(document.getElementById('id_cliente'));
   const cr = clienteElegido();
   const nomC = cr ? ((cr.nombre_contacto || '').trim() || val('contacto_nombre')) : '';
   const telC = cr ? ((cr.telefono || '').trim() || val('contacto_telefono')) : '';
   document.getElementById('r-contacto').textContent = [nomC, telC].filter(Boolean).join(' · ') || '—';
-  const est = estiloElegido();
-  document.getElementById('r-estilo').textContent = est ? est.clave + (est.atributo ? ' · ' + est.atributo : '') : '—';
-  document.getElementById('r-color').textContent = colorElegido || '—';
-  document.getElementById('r-talla').textContent = val('talla') || '—';
-  document.getElementById('r-cantidad').textContent = val('cantidad') || '—';
+  const conEstilo = lineas.filter(l => l.item);
+  document.getElementById('r-estilos').innerHTML = conEstilo.length ? conEstilo.map(l => {
+    const e = estiloDe(l);
+    const tallas = l.tallas.filter(t => t.talla).map(t => `${escHtml(t.talla)} × ${parseInt(t.pares, 10) || 0}`).join(', ');
+    return `<div class="mu-r-est"><b>${escHtml(e ? e.clave : '')}</b>${l.color ? ' · ' + escHtml(l.color) : ''}${l.tipo === 'variante' ? ' · Variante' : ''}`
+      + `<small>${tallas ? 'Tallas: ' + tallas : 'Sin talla elegida'}</small></div>`;
+  }).join('') : '—';
+  document.getElementById('r-total').textContent = paresTxt(totalPares());
   document.getElementById('r-motivo').textContent = val('motivo') || '—';
   const tp = parseInt(val('tiempo_prueba_dias'), 10);
   document.getElementById('r-prueba').textContent = tp > 0 ? tp + (tp === 1 ? ' día' : ' días') : '—';
-  document.getElementById('r-tipo').textContent = tipo === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo';
   const f = val('fecha_promesa');
   document.getElementById('r-fecha').textContent = f ? new Date(f + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
   document.getElementById('r-entrega').textContent = entregaElegida() === 'vendedor' ? 'A mí (vendedor)' : 'Al cliente';
   document.getElementById('r-dir').textContent = val('destino_direccion') || '—';
+  pintarCupo();
 }
-function clienteElegido() {
-  return clientesCat.find(x => String(x.id) === document.getElementById('id_cliente').value) || null;
-}
+
 // Contacto del cliente: si la ficha tiene los dos datos, solo se muestran;
 // si le falta alguno, se pide ese (obligatorio) y el servidor lo guarda
 // también en la ficha.
@@ -283,18 +284,18 @@ function pintarContacto() {
   document.getElementById('contacto_telefono').required = !tel;
 }
 ['contacto_nombre', 'contacto_telefono'].forEach(id => document.getElementById(id).addEventListener('input', () => pintarResumen()));
-function entregaElegida() { return document.querySelector('#seg-entrega .v26-seg-btn.active').dataset.entrega; }
-['talla', 'cantidad', 'motivo', 'fecha_promesa', 'tiempo_prueba_dias', 'destino_direccion'].forEach(id => document.getElementById(id).addEventListener('input', pintarResumen));
+['motivo', 'fecha_promesa', 'tiempo_prueba_dias', 'destino_direccion'].forEach(id => document.getElementById(id).addEventListener('input', pintarResumen));
 document.getElementById('id_cliente').addEventListener('change', (e) => {
   pintarContacto();
   const c = clientesCat.find(x => String(x.id) === e.target.value);
   const dir = document.getElementById('destino_direccion');
   const nota = document.getElementById('nota-direccion');
-  if (entregaElegida() !== 'cliente') { pintarResumen(); return; } // la de "a mí" la escribe el vendedor
-  if (c && c.direccion && (dir.value.trim() === '' || dir.value === direccionAutollenada)) {
-    dir.value = c.direccion; direccionAutollenada = c.direccion; nota.classList.remove('d-none');
-  } else if (!c && dir.value === direccionAutollenada) {
-    dir.value = ''; direccionAutollenada = null; nota.classList.add('d-none');
+  if (entregaElegida() === 'cliente') { // la de "a mí" la escribe el vendedor
+    if (c && c.direccion && (dir.value.trim() === '' || dir.value === direccionAutollenada)) {
+      dir.value = c.direccion; direccionAutollenada = c.direccion; nota.classList.remove('d-none');
+    } else if (!c && dir.value === direccionAutollenada) {
+      dir.value = ''; direccionAutollenada = null; nota.classList.add('d-none');
+    }
   }
   pintarResumen();
 });
@@ -322,7 +323,7 @@ document.querySelectorAll('#seg-entrega .v26-seg-btn').forEach(btn => {
       dir.focus();
     } else {
       dir.placeholder = PH_DIR_CLIENTE;
-      const c = clientesCat.find(x => String(x.id) === document.getElementById('id_cliente').value);
+      const c = clienteElegido();
       if (c && c.direccion && dir.value.trim() === '') {
         dir.value = c.direccion; direccionAutollenada = c.direccion; nota.classList.remove('d-none');
       }
@@ -330,25 +331,11 @@ document.querySelectorAll('#seg-entrega .v26-seg-btn').forEach(btn => {
     pintarResumen();
   });
 });
-// ---- Catálogo visual de estilos (mismo diseño que la Nueva cotización, sin precios) ----
+document.getElementById('fecha_promesa').min = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+
+// ---- Tarjetas de estilo ----
 const FOTOS_URL = '/erp/assets/img/cotizador/';
-let ATRIBUTOS = {};
-// Color, igual que en la Nueva cotización: si el modelo tiene varios hay que
-// elegir uno («Elige color…» en rojo hasta elegirlo); si tiene uno, va solo.
-let colorElegido = '';
-function colorHTML(e) {
-  const cs = e.colores || [];
-  if (cs.length > 1) {
-    return `<select class="mu-color ${colorElegido ? '' : 'falta'}" id="sel-color" aria-label="Color"><option value="">Elige color…</option>`
-      + cs.map(c => `<option value="${escHtml(c)}" ${c === colorElegido ? 'selected' : ''}>${escHtml(c)}</option>`).join('') + '</select>';
-  }
-  return cs.length === 1 ? `<span class="mu-color-tag">${escHtml(cs[0])}</span>` : '';
-}
 function norm(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
-function estiloElegido() {
-  const v = document.getElementById('id_estilo_base').value;
-  return v ? estilosCat.find(e => String(e.id) === v) || null : null;
-}
 function fotoEstilo(e) {
   return e.foto
     ? `<img src="${FOTOS_URL}${encodeURIComponent(e.foto)}" alt="" loading="lazy" class="mu-est-foto" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mu-est-foto vacia',innerHTML:'<i class=\'bi bi-image\'></i>'}))">`
@@ -357,22 +344,28 @@ function fotoEstilo(e) {
 function attrEstilo(e) {
   return e.atributo ? `<span class="mu-est-attr" title="${escHtml(ATRIBUTOS[e.atributo] || '')}">${escHtml(e.atributo)}</span>` : '';
 }
-function pintarEstilos(filtro) {
-  const cont = document.getElementById('mu-lista-estilos');
+// Color, igual que en la Nueva cotización: si el modelo tiene varios hay que
+// elegir uno («Elige color…» en rojo hasta elegirlo); si tiene uno, va solo.
+function colorHTML(l, e) {
+  const cs = e.colores || [];
+  if (cs.length > 1) {
+    return `<select class="mu-color ${l.color ? '' : 'falta'}" data-accion="color" aria-label="Color"><option value="">Elige color…</option>`
+      + cs.map(c => `<option value="${escHtml(c)}" ${c === l.color ? 'selected' : ''}>${escHtml(c)}</option>`).join('') + '</select>';
+  }
+  return cs.length === 1 ? `<span class="mu-color-tag">${escHtml(cs[0])}</span>` : '';
+}
+
+function listaEstilosHTML(l, filtro) {
   const q = norm((filtro || '').trim());
   const lista = q ? estilosCat.filter(e => norm(e.clave + ' ' + e.descripcion + ' ' + e.grupo).includes(q)) : estilosCat;
-  if (!lista.length) {
-    cont.innerHTML = `<div class="mu-est-sin">${estilosCat.length ? 'Ningún estilo coincide.' : 'No hay estilos en el catálogo.'}</div>`;
-    return;
-  }
-  const actual = document.getElementById('id_estilo_base').value;
+  if (!lista.length) return `<div class="mu-est-sin">${estilosCat.length ? 'Ningún estilo coincide.' : 'No hay estilos en el catálogo.'}</div>`;
   let grupo = null;
-  cont.innerHTML = lista.map(e => {
+  return lista.map(e => {
     let html = '';
     if (e.grupo !== grupo) { grupo = e.grupo; html += `<div class="mu-est-grupo">${escHtml(grupo)}</div>`; }
-    const sel = String(e.id) === actual;
+    const sel = String(e.id) === l.item;
     return html + `
-    <div class="mu-est-item${sel ? ' sel' : ''}" data-id="${escHtml(e.id)}" role="option" aria-selected="${sel}" tabindex="0">
+    <div class="mu-est-item${sel ? ' sel' : ''}" data-accion="elegir" data-id="${escHtml(e.id)}" role="option" aria-selected="${sel}" tabindex="0">
       ${fotoEstilo(e)}
       <div class="mu-est-info">
         <div class="mu-est-clave">${escHtml(e.clave)}${attrEstilo(e)}</div>
@@ -382,169 +375,295 @@ function pintarEstilos(filtro) {
     </div>`;
   }).join('');
 }
-function elegirEstilo(id) {
-  const antes = document.getElementById('id_estilo_base').value;
-  document.getElementById('id_estilo_base').value = id || '';
-  const e = estiloElegido();
-  if (String(id || '') !== antes || !e) {
-    const cs = (e && e.colores) || [];
-    colorElegido = cs.length === 1 ? cs[0] : '';
-  }
-  const box = document.getElementById('mu-est-elegido');
-  const picker = document.getElementById('mu-est-picker');
-  if (e) {
-    box.innerHTML = `
-      ${fotoEstilo(e)}
-      <div class="mu-est-info">
-        <div class="mu-est-eyebrow"><i class="bi bi-check-circle-fill"></i> Estilo elegido · ${escHtml(e.grupo)}</div>
-        <div class="mu-est-clave">${escHtml(e.clave)}${attrEstilo(e)}</div>
-        <div class="mu-est-desc">${escHtml(e.descripcion)}</div>
-        ${colorHTML(e) ? `<div class="mu-est-color">${colorHTML(e)}</div>` : ''}
+
+function tallasHTML(l, e) {
+  const opciones = (e && e.tallas) || [];
+  const usadas = l.tallas.map(t => t.talla);
+  const filas = l.tallas.map((t, i) => `
+    <div class="mu-talla" data-i="${i}">
+      <select class="v26-select mu-talla-sel${t.talla ? '' : ' falta'}" data-accion="talla" aria-label="Talla">
+        <option value="">Talla…</option>
+        ${opciones.map(o => `<option value="${escHtml(o)}" ${o === t.talla ? 'selected' : ''} ${o !== t.talla && usadas.includes(o) ? 'disabled' : ''}>${escHtml(o)}</option>`).join('')}
+      </select>
+      <div class="mu-pares" role="group" aria-label="Pares">
+        <button type="button" data-accion="menos" aria-label="Un par menos"><i class="bi bi-dash-lg"></i></button>
+        <input type="number" class="mu-pares-inp" data-accion="pares" min="1" max="${TOPE_PARES}" step="1" inputmode="numeric" value="${escHtml(t.pares)}" aria-label="Pares">
+        <button type="button" data-accion="mas" aria-label="Un par más"><i class="bi bi-plus-lg"></i></button>
       </div>
-      <button type="button" class="v26-btn v26-btn-ghost mu-est-cambiar" id="btn-cambiar-estilo"><i class="bi bi-arrow-repeat"></i> Cambiar</button>`;
-    box.classList.remove('d-none');
-    picker.classList.add('d-none');
-    document.getElementById('msg-muestra').innerHTML = '';
-    const selColor = document.getElementById('sel-color');
-    if (selColor) selColor.addEventListener('change', () => {
-      colorElegido = selColor.value;
-      selColor.classList.toggle('falta', !colorElegido);
-      if (colorElegido) document.getElementById('msg-muestra').innerHTML = '';
-      pintarResumen();
-    });
-    document.getElementById('btn-cambiar-estilo').addEventListener('click', () => {
-      box.classList.add('d-none');
-      picker.classList.remove('d-none');
-      pintarEstilos(document.getElementById('buscar-estilo').value);
-      const s = document.querySelector('#mu-lista-estilos .mu-est-item.sel');
-      if (s) s.scrollIntoView({ block: 'nearest' });
-    });
+      <button type="button" class="v26-icon-btn mu-talla-quitar" data-accion="quitar-talla" aria-label="Quitar talla" ${l.tallas.length === 1 ? 'disabled' : ''}><i class="bi bi-trash"></i></button>
+      <input type="text" class="v26-input mu-talla-nota" data-accion="nota" maxlength="500" placeholder="Nota de esta talla (opcional)" value="${escHtml(t.nota)}">
+    </div>`).join('');
+  const puedeMas = l.tallas.length < MAX_TALLAS && l.tallas.length < opciones.length;
+  return `<div class="mu-tallas-head"><span>Tallas y pares</span>${e && !e.tallas_del_estilo ? '<small>Este modelo no tiene numeración: elige de 20 a 35</small>' : ''}</div>
+    ${filas}
+    <button type="button" class="mu-link-btn" data-accion="agregar-talla" ${puedeMas ? '' : 'disabled'}><i class="bi bi-plus-circle"></i> Agregar talla</button>`;
+}
+
+function cambiosHTML(l) {
+  if (l.tipo !== 'variante') return '';
+  return `<div class="v26-field mb-0 mt-2">
+    <label>Cambios que pide el cliente <span class="mu-opc">— marca y describe cada uno</span></label>
+    <div class="mu-cambios-grid">
+      ${Object.entries(CATEGORIAS_ADENDUM).map(([k, et]) => `
+        <div class="v26-adendum-cat">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" data-accion="cambio-on" data-cat="${k}" id="chk-${l.uid}-${k}" ${l.cambios[k].on ? 'checked' : ''}>
+            <label class="form-check-label" for="chk-${l.uid}-${k}">${et}</label>
+          </div>
+          <textarea class="v26-textarea ${l.cambios[k].on ? '' : 'd-none'}" data-accion="cambio-txt" data-cat="${k}" rows="2" placeholder="Describe el cambio de ${et.toLowerCase()}...">${escHtml(l.cambios[k].txt)}</textarea>
+        </div>`).join('')}
+    </div>
+    ${l.otros.map((o, i) => `
+      <div class="v26-adendum-otro" data-o="${i}">
+        <input type="text" class="v26-input" data-accion="otro-nombre" placeholder="Nombre del cambio" value="${escHtml(o.nombre)}">
+        <textarea class="v26-textarea" data-accion="otro-txt" rows="2" placeholder="Descripción">${escHtml(o.txt)}</textarea>
+        <button type="button" class="v26-icon-btn" data-accion="quitar-otro" aria-label="Quitar cambio"><i class="bi bi-trash"></i></button>
+      </div>`).join('')}
+    <button type="button" class="v26-btn v26-btn-ghost" data-accion="agregar-otro"><i class="bi bi-plus-lg"></i> Agregar otro cambio</button>
+  </div>`;
+}
+
+function tarjetaHTML(l, n) {
+  const e = estiloDe(l);
+  const abierto = eligiendo === l.uid || !e;
+  const subtotal = l.tallas.reduce((a, t) => a + (parseInt(t.pares, 10) || 0), 0);
+  const quitar = lineas.length > 1 ? `<button type="button" class="v26-icon-btn mu-lin-quitar" data-accion="quitar-estilo" aria-label="Quitar estilo ${n}"><i class="bi bi-x-lg"></i></button>` : '';
+  let cuerpo;
+  if (abierto) {
+    cuerpo = `
+      <div class="v26-search mb-2">
+        <i class="bi bi-search"></i>
+        <input type="search" class="v26-input" data-accion="buscar" placeholder="Buscar modelo, línea o marca…" autocomplete="off" enterkeyhint="search">
+      </div>
+      <div class="mu-est-lista" role="listbox" aria-label="Catálogo de estilos">${estilosCat.length ? listaEstilosHTML(l, '') : '<div class="mu-est-sin">Cargando estilos…</div>'}</div>
+      ${e ? '<button type="button" class="v26-btn v26-btn-ghost v26-btn-block mt-2" data-accion="cancelar-cambio">Dejar el que estaba</button>' : ''}`;
   } else {
-    box.classList.add('d-none');
-    picker.classList.remove('d-none');
+    cuerpo = `
+      <div class="mu-est-elegido">
+        ${fotoEstilo(e)}
+        <div class="mu-est-info">
+          <div class="mu-est-eyebrow">${escHtml(e.grupo)}</div>
+          <div class="mu-est-clave">${escHtml(e.clave)}${attrEstilo(e)}</div>
+          <div class="mu-est-desc">${escHtml(e.descripcion)}</div>
+          ${colorHTML(l, e) ? `<div class="mu-est-color">${colorHTML(l, e)}</div>` : ''}
+        </div>
+        <button type="button" class="v26-btn v26-btn-ghost mu-est-cambiar" data-accion="cambiar"><i class="bi bi-arrow-repeat"></i> Cambiar</button>
+      </div>
+      <div class="mu-tallas">${tallasHTML(l, e)}</div>
+      <div class="v26-field mb-0 mt-3">
+        <label>Tipo de muestra</label>
+        <div class="mu-tipos">
+          <button type="button" class="v26-seg-btn mu-tipo ${l.tipo === 'identico' ? 'active' : ''}" data-accion="tipo" data-tipo="identico">
+            <i class="bi bi-check2-square"></i><strong>Idéntico al estilo</strong><small>Tal cual el catálogo</small>
+          </button>
+          <button type="button" class="v26-seg-btn mu-tipo ${l.tipo === 'variante' ? 'active' : ''}" data-accion="tipo" data-tipo="variante">
+            <i class="bi bi-shuffle"></i><strong>Variante</strong><small>Con cambios que pide el cliente</small>
+          </button>
+        </div>
+      </div>
+      <div class="mu-cambios-box">${cambiosHTML(l)}</div>`;
   }
+  return `<div class="mu-lin" data-uid="${l.uid}">
+    <div class="mu-lin-head">
+      <span class="mu-lin-n">${n}</span>
+      <strong>Estilo ${n}</strong>
+      ${e && !abierto ? `<span class="mu-lin-sub">${paresTxt(subtotal)}</span>` : ''}
+      ${quitar}
+    </div>
+    ${cuerpo}
+  </div>`;
+}
+
+function pintarLineas() {
+  document.getElementById('mu-estilos').innerHTML = lineas.map((l, i) => tarjetaHTML(l, i + 1)).join('');
+  document.getElementById('btn-agregar-estilo').disabled = lineas.length >= MAX_ESTILOS || lineas.some(l => !l.item);
   pintarResumen();
 }
-document.getElementById('mu-lista-estilos').addEventListener('click', (ev) => {
-  const it = ev.target.closest('.mu-est-item');
-  if (it) elegirEstilo(it.dataset.id);
-});
-document.getElementById('mu-lista-estilos').addEventListener('keydown', (ev) => {
-  const it = ev.target.closest('.mu-est-item');
-  if (it && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); elegirEstilo(it.dataset.id); }
-});
-document.getElementById('buscar-estilo').addEventListener('input', (e) => pintarEstilos(e.target.value));
-document.getElementById('buscar-estilo').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
-document.getElementById('fecha_promesa').min = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
-let otrosContador = 0;
-
-function pintarCategorias() {
-  document.getElementById('adendum-categorias').innerHTML = Object.entries(CATEGORIAS_ADENDUM).map(([clave, etiqueta]) => `
-    <div class="v26-adendum-cat">
-      <div class="form-check">
-        <input class="form-check-input adendum-check" type="checkbox" value="${clave}" id="chk-${clave}">
-        <label class="form-check-label" for="chk-${clave}">${etiqueta}</label>
-      </div>
-      <textarea class="v26-textarea d-none" id="txt-${clave}" rows="2" placeholder="Describe el cambio de ${etiqueta.toLowerCase()}..."></textarea>
-    </div>`).join('');
-
-  document.querySelectorAll('.adendum-check').forEach(chk => {
-    chk.addEventListener('change', () => {
-      document.getElementById('txt-' + chk.value).classList.toggle('d-none', !chk.checked);
-    });
-  });
+function repintarLinea(l) {
+  const div = document.querySelector(`.mu-lin[data-uid="${l.uid}"]`);
+  if (!div) return pintarLineas();
+  div.outerHTML = tarjetaHTML(l, lineas.indexOf(l) + 1);
+  document.getElementById('btn-agregar-estilo').disabled = lineas.length >= MAX_ESTILOS || lineas.some(x => !x.item);
+  pintarResumen();
 }
-pintarCategorias();
 
-document.getElementById('btn-agregar-otro').addEventListener('click', () => {
-  const id = otrosContador++;
-  const div = document.createElement('div');
-  div.className = 'v26-adendum-otro';
-  div.dataset.otroId = id;
-  div.innerHTML = `
-    <input type="text" class="v26-input otro-nombre" placeholder="Nombre del cambio">
-    <textarea class="v26-textarea otro-texto" rows="2" placeholder="Descripción"></textarea>
-    <button type="button" class="v26-icon-btn" onclick="this.closest('.v26-adendum-otro').remove()"><i class="bi bi-trash"></i></button>`;
-  document.getElementById('adendum-otros').appendChild(div);
+function elegirEstilo(l, id) {
+  const cambio = l.item !== id;
+  l.item = id;
+  const e = estiloDe(l);
+  if (cambio) {
+    const cs = (e && e.colores) || [];
+    l.color = cs.length === 1 ? cs[0] : '';
+    // Las tallas que no existan en el nuevo estilo se vacían.
+    l.tallas.forEach(t => { if (t.talla && !(e.tallas || []).includes(t.talla)) t.talla = ''; });
+  }
+  eligiendo = null;
+  document.getElementById('msg-muestra').innerHTML = '';
+  repintarLinea(l);
+}
+
+const cont = document.getElementById('mu-estilos');
+cont.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-accion]');
+  const linDiv = ev.target.closest('.mu-lin');
+  if (!el || !linDiv) return;
+  const l = lineaPorUid(linDiv.dataset.uid);
+  if (!l) return;
+  const filaT = el.closest('.mu-talla');
+  const t = filaT ? l.tallas[Number(filaT.dataset.i)] : null;
+  switch (el.dataset.accion) {
+    case 'elegir': elegirEstilo(l, el.dataset.id); break;
+    case 'cambiar': eligiendo = l.uid; repintarLinea(l); break;
+    case 'cancelar-cambio': eligiendo = null; repintarLinea(l); break;
+    case 'quitar-estilo':
+      lineas = lineas.filter(x => x !== l);
+      if (eligiendo === l.uid) eligiendo = null;
+      pintarLineas();
+      break;
+    case 'agregar-talla': l.tallas.push({ talla: '', pares: 1, nota: '' }); repintarLinea(l); break;
+    case 'quitar-talla': if (l.tallas.length > 1) { l.tallas.splice(Number(filaT.dataset.i), 1); repintarLinea(l); } break;
+    case 'menos': if (t) { t.pares = Math.max(1, (parseInt(t.pares, 10) || 1) - 1); filaT.querySelector('.mu-pares-inp').value = t.pares; actualizarSubtotal(l); } break;
+    case 'mas': if (t) { t.pares = Math.min(TOPE_PARES, (parseInt(t.pares, 10) || 0) + 1); filaT.querySelector('.mu-pares-inp').value = t.pares; actualizarSubtotal(l); } break;
+    case 'tipo':
+      if (l.tipo !== el.dataset.tipo) {
+        l.tipo = el.dataset.tipo;
+        linDiv.querySelectorAll('[data-accion="tipo"]').forEach(b => b.classList.toggle('active', b === el));
+        linDiv.querySelector('.mu-cambios-box').innerHTML = cambiosHTML(l);
+        pintarResumen();
+      }
+      break;
+    case 'agregar-otro': l.otros.push({ nombre: '', txt: '' }); linDiv.querySelector('.mu-cambios-box').innerHTML = cambiosHTML(l); break;
+    case 'quitar-otro': l.otros.splice(Number(el.closest('.v26-adendum-otro').dataset.o), 1); linDiv.querySelector('.mu-cambios-box').innerHTML = cambiosHTML(l); break;
+  }
 });
+cont.addEventListener('keydown', (ev) => {
+  const it = ev.target.closest('[data-accion="elegir"]');
+  if (it && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); it.click(); }
+  if (ev.target.dataset.accion === 'buscar' && ev.key === 'Enter') ev.preventDefault();
+});
+function actualizarSubtotal(l) {
+  const sub = document.querySelector(`.mu-lin[data-uid="${l.uid}"] .mu-lin-sub`);
+  if (sub) sub.textContent = paresTxt(l.tallas.reduce((a, t) => a + (parseInt(t.pares, 10) || 0), 0));
+  pintarResumen();
+}
+function onCampo(ev) {
+  const el = ev.target;
+  const linDiv = el.closest('.mu-lin');
+  if (!linDiv || !el.dataset.accion) return;
+  const l = lineaPorUid(linDiv.dataset.uid);
+  if (!l) return;
+  const filaT = el.closest('.mu-talla');
+  const t = filaT ? l.tallas[Number(filaT.dataset.i)] : null;
+  const esChange = ev.type === 'change';
+  switch (el.dataset.accion) {
+    case 'buscar': if (!esChange) linDiv.querySelector('.mu-est-lista').innerHTML = listaEstilosHTML(l, el.value); break;
+    case 'color': if (esChange) { l.color = el.value; el.classList.toggle('falta', !l.color); pintarResumen(); } break;
+    case 'talla': if (esChange) { t.talla = el.value; repintarLinea(l); } break;
+    case 'pares': t.pares = el.value === '' ? '' : Math.max(0, parseInt(el.value, 10) || 0); actualizarSubtotal(l); break;
+    case 'nota': t.nota = el.value; break;
+    case 'cambio-on':
+      if (esChange) {
+        l.cambios[el.dataset.cat].on = el.checked;
+        linDiv.querySelector(`textarea[data-accion="cambio-txt"][data-cat="${el.dataset.cat}"]`).classList.toggle('d-none', !el.checked);
+      }
+      break;
+    case 'cambio-txt': l.cambios[el.dataset.cat].txt = el.value; break;
+    case 'otro-nombre': l.otros[Number(el.closest('.v26-adendum-otro').dataset.o)].nombre = el.value; break;
+    case 'otro-txt': l.otros[Number(el.closest('.v26-adendum-otro').dataset.o)].txt = el.value; break;
+  }
+}
+cont.addEventListener('input', onCampo);
+cont.addEventListener('change', onCampo);
 
-document.querySelectorAll('#seg-tipo .v26-seg-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#seg-tipo .v26-seg-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const esVariante = btn.dataset.tipo === 'variante';
-    document.getElementById('bloque-adendum').classList.toggle('d-none', !esVariante);
-    pintarResumen();
-  });
+document.getElementById('btn-agregar-estilo').addEventListener('click', () => {
+  if (lineas.length >= MAX_ESTILOS) return;
+  const l = nuevaLinea();
+  lineas.push(l);
+  pintarLineas();
+  const div = document.querySelector(`.mu-lin[data-uid="${l.uid}"]`);
+  if (div) div.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 async function cargarCatalogos() {
   const selCliente = document.getElementById('id_cliente');
-  const listaEst = document.getElementById('mu-lista-estilos');
   try {
     const res = await fetch('../api/muestra_catalogos.php');
     const data = await res.json();
     if (!data.ok) {
       selCliente.innerHTML = `<option value="">${escHtml(data.error)}</option>`;
-      listaEst.innerHTML = `<div class="mu-est-sin">${escHtml(data.error)}</div>`;
+      document.getElementById('mu-estilos').innerHTML = `<div class="mu-est-sin">${escHtml(data.error)}</div>`;
       return;
     }
+    TOPE_PARES = data.tope_pares_cliente || 6;
+    MAX_ESTILOS = data.max_estilos || 6;
+    MAX_TALLAS = data.max_tallas || 6;
     clientesCat = data.clientes;
     selCliente.innerHTML = '<option value="">Elige un cliente o prospecto...</option>' +
       data.clientes.map(c => {
         const etiqueta = c.etapa === 'convertido' ? 'Cliente' : 'Prospecto';
         return `<option value="${c.id}">${escHtml(c.nombre)} (${etiqueta})</option>`;
       }).join('');
-    pintarTope(data);
     ATRIBUTOS = data.atributos || {};
     if (data.error_estilos) {
-      listaEst.innerHTML = `<div class="mu-est-sin">${escHtml(data.error_estilos)}</div>`;
-    } else {
-      estilosCat = data.estilos;
-      pintarEstilos('');
+      document.getElementById('mu-estilos').innerHTML = `<div class="mu-est-sin">${escHtml(data.error_estilos)}</div>`;
+      document.getElementById('btn-agregar-estilo').disabled = true;
+      return;
     }
+    estilosCat = data.estilos;
+    pintarLineas();
   } catch (e) {
     selCliente.innerHTML = '<option value="">Error al cargar</option>';
-    listaEst.innerHTML = '<div class="mu-est-sin">Error al cargar</div>';
+    document.getElementById('mu-estilos').innerHTML = '<div class="mu-est-sin">Error al cargar</div>';
   }
 }
+lineas = [nuevaLinea()];
+pintarLineas();
 cargarCatalogos();
+
+// ---- Enviar ----
+function errorEn(msgTxt, el) {
+  document.getElementById('msg-muestra').innerHTML = `<div class="alert alert-danger py-2">${escHtml(msgTxt)}</div>`;
+  if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (el.focus) el.focus({ preventScroll: true }); }
+  else window.scrollTo({ top: 0, behavior: 'smooth' });
+  return false;
+}
+function adendumDe(l) {
+  const a = [];
+  Object.keys(CATEGORIAS_ADENDUM).forEach(k => {
+    const c = l.cambios[k];
+    if (c.on && c.txt.trim()) a.push({ categoria: k, descripcion_cliente: c.txt.trim() });
+  });
+  l.otros.forEach(o => { if (o.nombre.trim() && o.txt.trim()) a.push({ categoria: 'otro', categoria_otro: o.nombre.trim(), descripcion_cliente: o.txt.trim() }); });
+  return a;
+}
+function validarLineas() {
+  for (let i = 0; i < lineas.length; i++) {
+    const l = lineas[i], n = i + 1;
+    let div = document.querySelector(`.mu-lin[data-uid="${l.uid}"]`);
+    const e = estiloDe(l);
+    if (!e) return errorEn(`Elige el estilo ${n}.`, div);
+    if (eligiendo === l.uid) { eligiendo = null; repintarLinea(l); div = document.querySelector(`.mu-lin[data-uid="${l.uid}"]`); }
+    if ((e.colores || []).length > 1 && !l.color) return errorEn(`Elige el color del estilo ${e.clave}.`, div.querySelector('[data-accion="color"]'));
+    for (const t of l.tallas) {
+      if (!t.talla) return errorEn(`Elige la talla en el estilo ${e.clave}.`, div.querySelector('.mu-talla-sel.falta') || div);
+      if (!(parseInt(t.pares, 10) >= 1)) return errorEn(`Pon cuántos pares de la talla ${t.talla} del estilo ${e.clave} (al menos 1).`, div);
+    }
+    if (l.tipo === 'variante' && !adendumDe(l).length) return errorEn(`Describe al menos un cambio de la variante del estilo ${e.clave}.`, div.querySelector('.mu-cambios-box'));
+    if (lineas.some((x, j) => j < i && x.item === l.item && x.color === l.color)) {
+      return errorEn(`El estilo ${e.clave}${l.color ? ' en ' + l.color : ''} está repetido. Pon todas sus tallas en una sola tarjeta.`, div);
+    }
+  }
+  return true;
+}
 
 document.getElementById('form-muestra').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const msg = document.getElementById('msg-muestra');
   const btn = document.getElementById('btn-enviar-muestra');
-  msg.innerHTML = '';
-
-  if (!document.getElementById('id_estilo_base').value) {
-    msg.innerHTML = '<div class="alert alert-danger py-2">Elige el estilo de la muestra.</div>';
-    document.getElementById('mu-est-picker').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('msg-muestra').innerHTML = '';
+  if (!validarLineas()) return;
+  if (totalPares() > paresDisponiblesCliente()) {
+    errorEn('Esta solicitud pasa del máximo de pares de muestra de este cliente este mes. Quita pares.', document.getElementById('mu-total-pares'));
     return;
-  }
-  const estSel = estiloElegido();
-  if (estSel && (estSel.colores || []).length > 1 && !colorElegido) {
-    msg.innerHTML = '<div class="alert alert-danger py-2">Elige el color del estilo.</div>';
-    const sc = document.getElementById('sel-color');
-    if (sc) { sc.classList.add('falta'); sc.scrollIntoView({ behavior: 'smooth', block: 'center' }); sc.focus({ preventScroll: true }); }
-    return;
-  }
-  const tipo = document.querySelector('#seg-tipo .v26-seg-btn.active').dataset.tipo;
-  const adendum = [];
-  if (tipo === 'variante') {
-    Object.keys(CATEGORIAS_ADENDUM).forEach(clave => {
-      const chk = document.getElementById('chk-' + clave);
-      const texto = document.getElementById('txt-' + clave).value.trim();
-      if (chk.checked && texto) adendum.push({ categoria: clave, descripcion_cliente: texto });
-    });
-    document.querySelectorAll('.v26-adendum-otro').forEach(div => {
-      const nombre = div.querySelector('.otro-nombre').value.trim();
-      const texto = div.querySelector('.otro-texto').value.trim();
-      if (nombre && texto) adendum.push({ categoria: 'otro', categoria_otro: nombre, descripcion_cliente: texto });
-    });
-    if (adendum.length === 0) {
-      msg.innerHTML = '<div class="alert alert-danger py-2">Describe al menos un cambio de la variante.</div>';
-      return;
-    }
   }
 
   btn.disabled = true;
@@ -554,18 +673,16 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     fd.append('cliente_id', document.getElementById('id_cliente').value);
     fd.append('contacto_nombre', document.getElementById('contacto_nombre').value);
     fd.append('contacto_telefono', document.getElementById('contacto_telefono').value);
-    fd.append('id_estilo_base', document.getElementById('id_estilo_base').value);
-    fd.append('color', colorElegido);
-    fd.append('talla', document.getElementById('talla').value);
-    fd.append('cantidad', document.getElementById('cantidad').value);
+    fd.append('estilos', JSON.stringify(lineas.map(l => ({
+      item: l.item, color: l.color, tipo: l.tipo, adendum: l.tipo === 'variante' ? adendumDe(l) : [],
+      tallas: l.tallas.map(t => ({ talla: t.talla, pares: parseInt(t.pares, 10) || 0, nota: (t.nota || '').trim() })),
+    }))));
     fd.append('motivo', document.getElementById('motivo').value);
     fd.append('notas_planta', document.getElementById('notas_planta').value);
     fd.append('tiempo_prueba_dias', document.getElementById('tiempo_prueba_dias').value);
     fd.append('fecha_promesa', document.getElementById('fecha_promesa').value);
-    fd.append('tipo', tipo);
     fd.append('entregar_a', entregaElegida());
     fd.append('destino_direccion', document.getElementById('destino_direccion').value);
-    fd.append('adendum', JSON.stringify(adendum));
 
     const res = await fetch('../api/muestra_solicitar.php', { method: 'POST', body: fd });
     const data = await res.json();
@@ -573,19 +690,20 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
       document.getElementById('pantalla-form').classList.add('d-none');
       window.scrollTo({ top: 0 });
       document.getElementById('folio-exito').textContent = data.folio || '';
+      document.getElementById('texto-exito').textContent = `Tu solicitud de ${paresTxt(data.pares || totalPares())} ya está con el equipo de Segurmex.`
+        + (data.pares_restantes != null ? ` A este cliente le ${data.pares_restantes === 1 ? 'queda 1 par' : 'quedan ' + data.pares_restantes + ' pares'} de muestra este mes.` : '');
       const pdf = document.getElementById('btn-pdf-exito');
       pdf.href = '../muestra_pdf.php?id=' + encodeURIComponent(data.id);
       pdf.classList.remove('d-none');
-      if (data.restantes === 0) document.getElementById('btn-pedir-otra').classList.add('d-none');
       document.getElementById('aviso-tope').classList.add('d-none');
       document.getElementById('pantalla-exito').classList.remove('d-none');
     } else {
-      msg.innerHTML = `<div class="alert alert-danger py-2">${escHtml(data.error)}</div>`;
+      errorEn(data.error || 'No se pudo enviar. Intenta de nuevo.');
       btn.disabled = false;
       btn.textContent = 'Enviar solicitud';
     }
   } catch (err) {
-    msg.innerHTML = '<div class="alert alert-danger py-2">No se pudo enviar. Intenta de nuevo.</div>';
+    errorEn('No se pudo enviar. Intenta de nuevo.');
     btn.disabled = false;
     btn.textContent = 'Enviar solicitud';
   }
