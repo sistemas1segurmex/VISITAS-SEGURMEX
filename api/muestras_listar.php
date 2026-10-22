@@ -22,11 +22,10 @@ $muestras = array_map(function ($s) {
     $j = solicitudMuestraParaJson($s);
     unset($j['vendedor_email'], $j['vendedor_telefono']);
     return $j;
-}, $stmt->fetchAll());
+}, adjuntarEstilosSolicitudesMuestra($db, $stmt->fetchAll()));
 
 jsonResponse([
-    'ok'          => true,
-    'muestras'    => $muestras,
-    'usadas_mes'  => muestrasDelMesVendedor($db, (int)$u['id']),
-    'tope_mes'    => MUESTRAS_TOPE_MES,
+    'ok'                => true,
+    'muestras'          => $muestras,
+    'tope_pares_cliente' => MUESTRAS_TOPE_PARES_CLIENTE_MES,
 ]);

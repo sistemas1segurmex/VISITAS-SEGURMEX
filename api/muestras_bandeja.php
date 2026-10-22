@@ -29,9 +29,10 @@ $q = trim($_GET['q'] ?? '');
 $where  = [GRUPOS_BANDEJA_MUESTRAS[$grupo]];
 $params = [];
 if ($q !== '') {
-    $where[] = '(s.folio ILIKE ? OR s.cliente_nombre ILIKE ? OR s.estilo_nombre ILIKE ? OR u.nombre ILIKE ?)';
+    $where[] = '(s.folio ILIKE ? OR s.cliente_nombre ILIKE ? OR s.estilo_nombre ILIKE ? OR u.nombre ILIKE ?
+                 OR EXISTS (SELECT 1 FROM muestras_solicitudes_estilos x WHERE x.solicitud_id = s.id AND x.estilo_nombre ILIKE ?))';
     $like = '%' . $q . '%';
-    array_push($params, $like, $like, $like, $like);
+    array_push($params, $like, $like, $like, $like, $like);
 }
 
 // Nuevas y en preparación: lo más viejo primero (lo que lleva más tiempo
@@ -48,7 +49,7 @@ $stmt = $db->prepare(
      LIMIT 200'
 );
 $stmt->execute($params);
-$solicitudes = array_map('solicitudMuestraParaJson', $stmt->fetchAll());
+$solicitudes = array_map('solicitudMuestraParaJson', adjuntarEstilosSolicitudesMuestra($db, $stmt->fetchAll()));
 
 $conteos = $db->query(
     "SELECT COUNT(*) FILTER (WHERE estado = 'enviada') AS nuevas,

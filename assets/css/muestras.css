@@ -497,3 +497,61 @@ body.v26 { overflow-x: clip; }
 }
 /* Gmail / Otro correo en computadora (regla global en vendedor-2026.css): centrados como los demás botones redondos */
 @media (hover: hover) and (pointer: fine) { .md-ibtns .md-ib.correo-pc { display: grid !important; } }
+
+/* ── Solicitar muestra: varios estilos con sus tallas (22-oct-2026) ── */
+.mu-lin { border: 1px solid var(--v26-border); border-radius: var(--v26-r-md); padding: 14px; margin-bottom: 12px; background: #FCFBF8; }
+.mu-lin-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.mu-lin-head strong { font-size: .92rem; font-weight: 800; }
+.mu-lin-n { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .78rem; font-weight: 800; background: rgba(232,164,0,.16); color: #8A5A00; flex: none; }
+.mu-lin-sub { font-size: .74rem; font-weight: 800; color: #8A5A00; background: rgba(232,164,0,.14); padding: 2px 9px; border-radius: 999px; }
+.mu-lin-quitar { margin-left: auto; width: 36px; height: 36px; }
+.mu-tallas { margin-top: 14px; }
+.mu-tallas-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 8px; }
+.mu-tallas-head span { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--v26-ink-soft); }
+.mu-tallas-head small { font-size: .72rem; color: #9CA3AF; font-weight: 600; }
+.mu-talla { display: grid; grid-template-columns: minmax(90px, 1fr) auto auto; grid-template-areas: "talla pares quitar" "nota nota nota"; gap: 6px 8px; align-items: center; padding: 10px 0; border-top: 1px dashed var(--v26-border); }
+.mu-talla:first-of-type { border-top: none; padding-top: 0; }
+.mu-talla-sel { grid-area: talla; height: 44px; }
+.mu-talla-sel.falta { border-color: var(--v26-red); background-color: #FFF1F3; }
+.mu-pares { grid-area: pares; display: inline-flex; align-items: center; border: 1px solid var(--v26-border); border-radius: 12px; background: var(--v26-surface-solid); overflow: hidden; height: 44px; }
+.mu-pares button { width: 40px; height: 100%; border: 0; background: transparent; color: var(--v26-ink); font-size: 1rem; }
+.mu-pares button:active { background: rgba(20,23,31,.06); }
+.mu-pares-inp { width: 44px; height: 100%; border: 0; border-left: 1px solid var(--v26-border); border-right: 1px solid var(--v26-border); text-align: center; font-weight: 800; font-size: 1rem; background: transparent; -moz-appearance: textfield; appearance: textfield; }
+.mu-pares-inp::-webkit-outer-spin-button, .mu-pares-inp::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.mu-talla-quitar { grid-area: quitar; width: 40px; height: 40px; }
+.mu-talla-quitar:disabled { opacity: .35; }
+.mu-talla-nota { grid-area: nota; height: 38px; font-size: .82rem; }
+.mu-link-btn { border: 0; background: transparent; color: var(--v26-brand-2); font-weight: 800; font-size: .84rem; padding: 8px 0 0; display: inline-flex; align-items: center; gap: 6px; }
+.mu-link-btn:disabled { color: #C9CDD3; }
+.mu-total-pares { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 10px; margin-top: 12px; padding: 12px 14px; border-radius: var(--v26-r-md); background: rgba(22,163,74,.08); border: 1px solid rgba(22,163,74,.25); }
+.mu-total-pares span { font-size: .78rem; font-weight: 700; color: var(--v26-ink-soft); }
+.mu-total-pares strong { font-size: 1.1rem; font-weight: 800; }
+.mu-total-pares small { flex-basis: 100%; font-size: .74rem; color: var(--v26-ink-soft); font-weight: 600; }
+.mu-total-pares.excede { background: #FFF1F3; border-color: #FECDD3; }
+.mu-total-pares.excede strong { color: var(--v26-red); }
+.mu-r-est { margin-bottom: 6px; }
+.mu-r-est small { display: block; font-weight: 600; color: var(--v26-ink-soft); }
+@media (max-width: 380px) {
+  .mu-lin { padding: 12px 10px; }
+  .mu-pares button { width: 34px; }
+  .mu-pares-inp { width: 38px; }
+}
+/* Mis muestras (vendedor): estilos y tallas en el detalle de la tarjeta */
+.v26-muestra-estilos { display: grid; gap: 8px; margin: 6px 0; }
+.v26-muestra-estilos .est { border: 1px solid var(--v26-border); border-radius: 12px; padding: 8px 10px; background: #FCFBF8; }
+.v26-muestra-estilos .nom { font-weight: 800; font-size: .84rem; }
+.v26-muestra-estilos ul { margin: 4px 0 0; padding-left: 18px; font-size: .82rem; }
+.v26-muestra-estilos .cambio { font-size: .8rem; margin-top: 4px; }
+/* Detalle (responsable): cada estilo con su tabla de tallas */
+.md-estilo--sig { margin-top: 18px; padding-top: 18px; border-top: 1px dashed var(--v26-border); }
+.md-tipo-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+.md-tallas { width: 100%; margin-top: 14px; border-collapse: collapse; font-size: .88rem; }
+.md-tallas th { font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--v26-ink-soft); text-align: left; padding: 6px 8px; border-bottom: 1.5px solid rgba(232,164,0,.5); }
+.md-tallas td { padding: 8px; border-bottom: 1px solid var(--v26-border); vertical-align: top; }
+.md-tallas td.t { font-weight: 800; font-size: 1rem; white-space: nowrap; }
+.md-tallas .n { text-align: right; width: 64px; font-weight: 800; }
+.md-tallas tfoot td { font-weight: 800; border-bottom: none; color: #8A5A00; }
+@media (min-width: 700px) {
+  .mu-talla { grid-template-columns: 130px auto minmax(0, 1fr) auto; grid-template-areas: "talla pares nota quitar"; }
+  .mu-talla-nota { height: 44px; }
+}

@@ -18,19 +18,25 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 
 /**
- * Foto y atributo (PP+D...) del estilo, del mismo catálogo del que se pidió.
- * Si el ERP no responde o el estilo ya no está, el PDF sale sin foto.
+ * Foto y atributo (PP+D...) de un estilo de la solicitud, del mismo catálogo
+ * del que se pidió. Si el ERP no responde o el estilo ya no está, sale sin foto.
  */
-function datosCatalogoMuestraPdf(array $s): array {
-    $item = !empty($s['id_estilo_erp']) ? 'e:' . (int)$s['id_estilo_erp']
-          : (!empty($s['id_modelo_legacy']) ? 'm:' . (int)$s['id_modelo_legacy'] : null);
+function datosCatalogoMuestraPdf(array $est): array {
+    static $catalogo = null;
+    $item = !empty($est['id_modelo_legacy']) ? 'm:' . (int)$est['id_modelo_legacy']
+          : (!empty($est['id_estilo_erp']) ? 'e:' . (int)$est['id_estilo_erp'] : null);
     if (!$item) return ['foto' => '', 'atributo' => ''];
     try {
-        require_once __DIR__ . '/db_erp.php';
-        $e = catalogoParaMuestraErp($item);
+        if ($catalogo === null) {
+            require_once __DIR__ . '/db_erp.php';
+            $catalogo = [];
+            foreach (catalogoParaMuestraErp() as $it) $catalogo[$it['id']] = $it;
+        }
+        $e = $catalogo[$item] ?? null;
         return ['foto' => pdfFotoModelo($e['foto'] ?? null), 'atributo' => (string)($e['atributo'] ?? '')];
     } catch (Throwable $e) {
         error_log('[VISITAS] PDF muestra (catálogo): ' . $e->getMessage());
+        $catalogo = [];
         return ['foto' => '', 'atributo' => ''];
     }
 }
@@ -45,7 +51,6 @@ function htmlPdfMuestra(array $s, array $historial, bool $conNombres): string {
     $emp     = COTIZACION_EMPRESA_ERP;
     $fecha   = date('d/m/Y H:i', strtotime($s['created_at'] ?? 'now') ?: time());
     $estado  = (string)$s['estado'];
-    $cat     = datosCatalogoMuestraPdf($s);
 
     // Aviso de estado arriba (mismos colores que la cotización).
     $clases = ['enviada' => 'ojo', 'en_preparacion' => 'ojo', 'embarcada' => 'ok', 'cancelada' => 'no'];
@@ -58,29 +63,40 @@ function htmlPdfMuestra(array $s, array $historial, bool $conNombres): string {
     $estadoHtml = '<table class="estado ' . ($clases[$estado] ?? 'ojo') . '"><tr><td><b>'
         . pdfH(mb_strtoupper(etiquetaEstadoMuestra($estado))) . '</b> · ' . pdfH($detalleEstado[$estado] ?? '') . '</td></tr></table>';
 
-    // Renglón de la muestra.
-    $foto = $cat['foto'] !== '' ? '<img src="' . $cat['foto'] . '" alt="">' : '<div class="sinfoto">SIN<br>FOTO</div>';
-    $tipo = $s['tipo'] === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo';
-    $fila = '<tr>'
-        . '<td class="fcel">' . $foto . '</td>'
-        . '<td><div class="modelo">' . pdfH($s['estilo_nombre']) . ($cat['atributo'] !== '' ? ' <span class="attr">' . pdfH($cat['atributo']) . '</span>' : '') . '</div>'
-        . '<div class="meta">' . pdfH($tipo) . '</div></td>'
-        . '<td>' . pdfDato($s['color'] ?? '') . '</td>'
-        . '<td>' . pdfDato($s['talla'] ?? '') . '</td>'
-        . '<td class="num fuerte">' . max(1, (int)($s['cantidad'] ?? 1)) . '</td>'
-        . '</tr>';
-
+    // Renglones: un bloque por estilo (foto, modelo y color una vez) y un
+    // renglón por talla. Desde el 22-oct-2026 puede haber varios estilos.
+    $filas   = '';
     $cambios = '';
-    if (!empty($s['cambios'])) {
-        $li = '';
-        foreach ($s['cambios'] as $c) {
-            $nom = ($c['categoria'] ?? '') === 'otro'
-                ? ($c['categoria_otro'] ?? 'Otro')
-                : (MUESTRA_CATEGORIAS_CAMBIO[$c['categoria'] ?? ''] ?? ($c['categoria'] ?? ''));
-            $li .= '<tr><td class="k">' . pdfH($nom) . ':</td><td class="v">' . nl2br(pdfH($c['descripcion'] ?? '')) . '</td></tr>';
+    foreach ($s['estilos'] as $est) {
+        $cat  = datosCatalogoMuestraPdf($est);
+        $foto = $cat['foto'] !== '' ? '<img src="' . $cat['foto'] . '" alt="">' : '<div class="sinfoto">SIN<br>FOTO</div>';
+        $tipo = $est['tipo'] === 'variante' ? 'Variante (con cambios)' : 'Idéntico al estilo';
+        $rs   = max(1, count($est['tallas']));
+        foreach (array_values($est['tallas']) as $i => $t) {
+            $filas .= '<tr>';
+            if ($i === 0) {
+                $filas .= '<td class="fcel" rowspan="' . $rs . '">' . $foto . '</td>'
+                    . '<td rowspan="' . $rs . '"><div class="modelo">' . pdfH($est['estilo_nombre']) . ($cat['atributo'] !== '' ? ' <span class="attr">' . pdfH($cat['atributo']) . '</span>' : '') . '</div>'
+                    . '<div class="meta">' . pdfH($tipo) . '</div></td>'
+                    . '<td rowspan="' . $rs . '">' . pdfDato($est['color'] ?? '') . '</td>';
+            }
+            $filas .= '<td>' . pdfDato($t['talla'] ?? '') . (!empty($t['nota']) ? '<div class="meta">' . pdfH($t['nota']) . '</div>' : '') . '</td>'
+                . '<td class="num fuerte">' . (int)$t['pares'] . '</td>'
+                . '</tr>';
         }
-        $cambios = '<div class="seccion">Cambios que pide el cliente</div><table class="datos">' . $li . '</table>';
+        if (!empty($est['cambios'])) {
+            $li = '';
+            foreach ($est['cambios'] as $c) {
+                $nom = ($c['categoria'] ?? '') === 'otro'
+                    ? ($c['categoria_otro'] ?? 'Otro')
+                    : (MUESTRA_CATEGORIAS_CAMBIO[$c['categoria'] ?? ''] ?? ($c['categoria'] ?? ''));
+                $li .= '<tr><td class="k">' . pdfH($nom) . ':</td><td class="v">' . nl2br(pdfH($c['descripcion'] ?? '')) . '</td></tr>';
+            }
+            $cambios .= '<div class="seccion">Cambios que pide el cliente' . (count($s['estilos']) > 1 ? ' · ' . pdfH($est['estilo_nombre']) : '') . '</div>'
+                      . '<table class="datos">' . $li . '</table>';
+        }
     }
+    $filas .= '<tr><td colspan="4" class="num fuerte">Total</td><td class="num fuerte">' . totalParesSolicitudMuestra($s) . '</td></tr>';
 
     $notas = trim((string)($s['notas_planta'] ?? '')) !== ''
         ? '<table class="notas"><tr><td><b>Notas para planta:</b> ' . nl2br(pdfH($s['notas_planta'])) . '</td></tr></table>' : '';
@@ -199,10 +215,10 @@ function htmlPdfMuestra(array $s, array $historial, bool $conNombres): string {
   </td>
 </tr></table>
 
-<div class="seccion">Muestra solicitada</div>
+<div class="seccion">Muestras solicitadas</div>
 <table class="det">
   <thead><tr><th colspan="2">Modelo</th><th style="width:80px">Color</th><th style="width:55px">Talla</th><th class="num" style="width:45px">Pares</th></tr></thead>
-  <tbody>' . $fila . '</tbody>
+  <tbody>' . $filas . '</tbody>
 </table>
 ' . $cambios . '
 
