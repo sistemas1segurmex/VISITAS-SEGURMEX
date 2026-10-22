@@ -679,6 +679,9 @@ window.matchMedia('(min-width: 992px)').addEventListener('change', e => {
 
 // ================= Cliente =================
 let clientes = [];
+// 'cargando' | 'listo' | 'error': con poca señal la lista puede abrirse antes
+// de que lleguen los clientes; así no dice «No tienes clientes» en falso.
+let estadoClientes = 'cargando';
 let contactoAuto = '';
 
 function pintarCliente() {
@@ -688,7 +691,9 @@ function pintarCliente() {
   const badge = $('badge-etapa-cliente');
   btn.classList.toggle('vacio', !c);
   if (c) btn.classList.remove('falta');
-  $('cliente-nombre').textContent = c ? c.nombre : (clientes.length ? 'Selecciona un cliente' : 'No tienes clientes registrados aún');
+  $('cliente-nombre').textContent = c ? c.nombre
+    : estadoClientes === 'error' ? 'No se pudieron cargar tus clientes'
+    : (clientes.length || estadoClientes === 'cargando') ? 'Selecciona un cliente' : 'No tienes clientes registrados aún';
   if (!c || !c.etapa) { badge.style.display = 'none'; return; }
   const esCliente = c.etapa === 'convertido';
   badge.className = 'v26-pill ' + (esCliente ? 'v26-pill--etapa-convertido' : 'v26-pill--etapa-prospecto_agregado');
@@ -713,6 +718,14 @@ function renderClientes(q) {
   const nq = norm(q);
   const sel = parseInt($('input-cliente').value) || 0;
   const lista = !nq ? clientes : clientes.filter(c => norm(c.nombre + ' ' + (c.nombre_contacto || '')).includes(nq));
+  if (estadoClientes === 'cargando') {
+    cont.innerHTML = '<div class="nc-sin">Cargando tus clientes…</div>';
+    return;
+  }
+  if (estadoClientes === 'error') {
+    cont.innerHTML = '<div class="nc-sin">No se pudieron cargar tus clientes. Revisa tu conexión y vuelve a abrir la página.</div>';
+    return;
+  }
   if (!lista.length) {
     cont.innerHTML = `<div class="nc-sin">${clientes.length ? 'Sin resultados.' : 'No tienes clientes registrados aún.'}<br><a href="nuevo_cliente.php">Registrar cliente</a></div>`;
     return;
@@ -744,7 +757,10 @@ async function cargarClientes() {
     const res = await fetch('../api/clientes.php');
     const data = await res.json();
     clientes = data.ok ? data.clientes.map(c => ({ ...c, id: +c.id })) : [];
-  } catch (e) { clientes = []; }
+    estadoClientes = data.ok ? 'listo' : 'error';
+  } catch (e) { clientes = []; estadoClientes = 'error'; }
+  // Si la lista ya estaba abierta, se repinta con lo que llegó.
+  renderClientes($('input-buscar-cliente').value.trim());
   if (CLIENTE_PRELLENADO && clientes.some(c => c.id === CLIENTE_PRELLENADO)) elegirCliente(CLIENTE_PRELLENADO);
   else pintarCliente();
 }
