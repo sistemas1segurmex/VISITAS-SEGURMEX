@@ -233,7 +233,7 @@ $ICONO_HISTORIAL = [
           <div class="md-prod">
             <div class="md-foto">
               <?php if ($est['foto'] !== ''): ?>
-                <img src="/erp/assets/img/cotizador/<?= e(rawurlencode($est['foto'])) ?>" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'bi bi-box-seam'}))">
+                <img src="/erp/assets/img/cotizador/<?= e(rawurlencode($est['foto'])) ?>" alt="Foto <?= e($est['clave']) ?>" loading="lazy" data-foto-zoom data-titulo="<?= e($est['clave'] . ($est['desc'] !== '' ? ' · ' . $est['desc'] : '')) ?>" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'bi bi-box-seam'}))">
               <?php else: ?>
                 <i class="bi bi-box-seam"></i>
               <?php endif; ?>
@@ -444,6 +444,7 @@ $ICONO_HISTORIAL = [
 <?php if ($puedeCambiar): ?>
 <script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <?php endif; ?>
+<?php include __DIR__ . '/../includes/foto_zoom.php'; ?>
 <script>
 aplicarFechasUTC();
 <?php if ($conAcciones): ?>

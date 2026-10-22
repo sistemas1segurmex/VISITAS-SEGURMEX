@@ -554,6 +554,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
 <script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
+<?php include __DIR__ . '/../includes/foto_zoom.php'; ?>
 <script>
 iniciarTrackingPeriodico();
 
@@ -618,10 +619,14 @@ function redondearCentavos(n) {
   return (n < 0 ? -c : c) / 100;
 }
 function leerPrecio(v) { const n = parseFloat(String(v || '').replace(/[,$\s]/g, '')); return n > 0 ? Math.round(n * 100) / 100 : 0; }
-function fotoHTML(it) {
-  return it.foto
-    ? `<img src="${FOTOS_URL}${encodeURIComponent(it.foto)}" alt="" loading="lazy" class="nc-foto">`
-    : '<span class="nc-foto nc-foto--vacia"><i class="bi bi-image"></i></span>';
+// Foto en grande (includes/foto_zoom.php): en los renglones se toca la foto;
+// en el catálogo, la lupa (tocar la fila agrega el modelo).
+function fotoHTML(it, enCatalogo) {
+  if (!it.foto) return '<span class="nc-foto nc-foto--vacia"><i class="bi bi-image"></i></span>';
+  const src = FOTOS_URL + encodeURIComponent(it.foto);
+  const tit = it.clave + ' · ' + it.nombre;
+  if (enCatalogo) return `<span class="fz-wrap"><img src="${src}" alt="" loading="lazy" class="nc-foto" data-foto-pop>${fotoLupaHTML(src, tit)}</span>`;
+  return `<img src="${src}" alt="Foto ${escHtml(it.clave)}" loading="lazy" class="nc-foto" data-foto-zoom data-titulo="${escHtml(tit)}">`;
 }
 
 async function cargarConfig() {
@@ -1088,7 +1093,7 @@ function renderListaEstilos(lista) {
     return html + `
     <div class="nc-estilo-item ${n ? 'en-carrito' : ''}" data-item="${escHtml(it.item)}" role="button" tabindex="0">
       <div class="info">
-        ${fotoHTML(it)}
+        ${fotoHTML(it, true)}
         <div style="min-width:0;">
           <div class="clave">${escHtml(it.clave)}${it.atributo ? `<span class="nc-attr">${escHtml(it.atributo)}</span>` : ''}</div>
           <div class="nombre">${escHtml(it.nombre)}</div>
