@@ -443,8 +443,8 @@ $ICONO_HISTORIAL = [
 <script src="../assets/js/fecha_utils.js<?= assetVer(__DIR__ . '/../assets/js/fecha_utils.js') ?>"></script>
 <?php if ($puedeCambiar): ?>
 <script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
-<?php include __DIR__ . '/../includes/foto_zoom.php'; ?>
 <?php endif; ?>
+<?php include __DIR__ . '/../includes/foto_zoom.php'; ?>
 <script>
 aplicarFechasUTC();
 <?php if ($conAcciones): ?>
