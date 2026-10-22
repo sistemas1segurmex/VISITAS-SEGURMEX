@@ -115,16 +115,22 @@ function folioCotizacionErp(int $id): string {
 // vendedor/nueva_cotizacion.php (cálculo en pantalla).
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Interruptor TEMPORAL (22-oct-2026), el mismo del ERP: con
+// config_cotizador.mostrar_estilos_erp = 0 no se ofrecen los "Estilos del
+// ERP" (ni en Nueva cotización ni en Solicitar muestra) y los modelos del
+// cotizador anterior salen todos, aunque ya estén ligados a su estilo. Sin la
+// fila, o con 1, todo queda como antes. Ver catalogoCotizable() del ERP.
 function catalogoCotizableErp(array $cfg): array {
     $db = getDBErp();
+    $mostrarEstilos = ($cfg['mostrar_estilos_erp'] ?? 1) >= 1;
     $items = [];
     foreach ($db->query("
         SELECT m.id, m.modelo, m.marca, m.linea_nombre, m.suela, m.corte, m.color, m.colores,
                m.precio_industria, m.precio_distribuidor, m.foto, m.entrega_dias, m.atributo
         FROM legacy_cotizador_fb_modelos m
-        WHERE m.activo
+        WHERE m.activo" . ($mostrarEstilos ? "
           AND NOT EXISTS (SELECT 1 FROM estilos e
-                          WHERE e.id = m.id_estilo AND e.estatus = 1 AND e.precio_industrial IS NOT NULL)
+                          WHERE e.id = m.id_estilo AND e.estatus = 1 AND e.precio_industrial IS NOT NULL)" : '') . "
         ORDER BY m.orden, m.modelo
     ")->fetchAll(PDO::FETCH_ASSOC) as $m) {
         $colores = json_decode((string)$m['colores'], true) ?: [];
@@ -139,6 +145,7 @@ function catalogoCotizableErp(array $cfg): array {
             'atributo' => ($m['atributo'] ?? '') !== '' ? $m['atributo'] : null,
         ];
     }
+    if (!$mostrarEstilos) return $items;
     foreach ($db->query("
         SELECT id, cinterno, estilo, precio_industrial
         FROM estilos
