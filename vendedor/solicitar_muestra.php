@@ -164,6 +164,7 @@ $u = requireRole('vendedor');
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
+<?php include __DIR__ . '/../includes/foto_zoom.php'; ?>
 <script>
 const CATEGORIAS_ADENDUM = { casco: 'Casco', suela: 'Suela', piel: 'Piel', forro: 'Forro' };
 function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -336,10 +337,15 @@ document.getElementById('fecha_promesa').min = new Date().toLocaleDateString('en
 // ---- Tarjetas de estilo ----
 const FOTOS_URL = '/erp/assets/img/cotizador/';
 function norm(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
-function fotoEstilo(e) {
-  return e.foto
-    ? `<img src="${FOTOS_URL}${encodeURIComponent(e.foto)}" alt="" loading="lazy" class="mu-est-foto" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mu-est-foto vacia',innerHTML:'<i class=\'bi bi-image\'></i>'}))">`
-    : '<span class="mu-est-foto vacia"><i class="bi bi-image"></i></span>';
+// Foto en grande (includes/foto_zoom.php): en la tarjeta del estilo elegido
+// se toca la foto; en el catálogo, la lupa (tocar la fila elige el estilo).
+function fotoEstilo(e, enCatalogo) {
+  if (!e.foto) return '<span class="mu-est-foto vacia"><i class="bi bi-image"></i></span>';
+  const src = FOTOS_URL + encodeURIComponent(e.foto);
+  const tit = e.clave + ' · ' + e.descripcion;
+  const err = `onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mu-est-foto vacia',innerHTML:'<i class=\'bi bi-image\'></i>'}))"`;
+  if (enCatalogo) return `<span class="fz-wrap"><img src="${src}" alt="" loading="lazy" class="mu-est-foto" data-foto-pop ${err}>${fotoLupaHTML(src, tit)}</span>`;
+  return `<img src="${src}" alt="Foto ${escHtml(e.clave)}" loading="lazy" class="mu-est-foto" data-foto-zoom data-titulo="${escHtml(tit)}" ${err}>`;
 }
 function attrEstilo(e) {
   return e.atributo ? `<span class="mu-est-attr" title="${escHtml(ATRIBUTOS[e.atributo] || '')}">${escHtml(e.atributo)}</span>` : '';
@@ -366,7 +372,7 @@ function listaEstilosHTML(l, filtro) {
     const sel = String(e.id) === l.item;
     return html + `
     <div class="mu-est-item${sel ? ' sel' : ''}" data-accion="elegir" data-id="${escHtml(e.id)}" role="option" aria-selected="${sel}" tabindex="0">
-      ${fotoEstilo(e)}
+      ${fotoEstilo(e, true)}
       <div class="mu-est-info">
         <div class="mu-est-clave">${escHtml(e.clave)}${attrEstilo(e)}</div>
         <div class="mu-est-desc">${escHtml(e.descripcion)}</div>
