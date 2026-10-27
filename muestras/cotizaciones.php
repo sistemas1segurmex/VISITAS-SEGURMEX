@@ -49,7 +49,7 @@ $u = requireRole('muestras');
       <div class="mu-hero-txt">
         <div class="mu-hero-eyebrow"><i class="bi bi-file-earmark-text"></i> Cotizaciones de vendedores</div>
         <h1 class="mu-hero-titulo" id="hero-titulo">Cargando...</h1>
-        <p class="mu-hero-sub">Captura cotizaciones a nombre de cualquier vendedor. Quedan en la cartera de ese vendedor.</p>
+        <p class="mu-hero-sub">Aquí ves las cotizaciones que tú capturaste. Las haces a nombre de cualquier vendedor y quedan en su cartera.</p>
       </div>
       <a class="mu-hero-acc" href="../vendedor/nueva_cotizacion.php"><i class="bi bi-plus-lg"></i> Nueva cotización</a>
     </section>
@@ -80,9 +80,14 @@ $u = requireRole('muestras');
         <div class="v26-funnel-chip" data-grupo="cerradas">Cerradas <span class="n" id="n-cerradas">0</span></div>
         <div class="v26-funnel-chip" data-grupo="todas">Todas <span class="n" id="n-todas">0</span></div>
       </div>
-      <div class="v26-search mb-0">
-        <i class="bi bi-search"></i>
-        <input type="text" id="buscar" class="v26-input" placeholder="Buscar folio, vendedor o cliente...">
+      <div class="mu-cot-buscar">
+        <select id="filtro-vendedor" class="v26-select" aria-label="Filtrar por vendedor">
+          <option value="">Todos los vendedores</option>
+        </select>
+        <div class="v26-search mb-0">
+          <i class="bi bi-search"></i>
+          <input type="text" id="buscar" class="v26-input" placeholder="Buscar folio o cliente...">
+        </div>
       </div>
     </div>
 
@@ -114,12 +119,25 @@ const VACIO = {
 let cotizaciones = [];
 let grupo = 'abiertas';
 let busqueda = '';
+let vendedorFiltro = '';
 
 const money = n => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function iniciales(n) { return String(n || '?').trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase(); }
 function norm(s) { return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+// created_at del ERP es timestamptz («2026-10-27 18:51:27.02+00»): fechaDeMuestra()
+// le pegaría otra «Z» y daría fecha inválida.
+function fechaCot(valor) {
+  if (!valor) return null;
+  const iso = String(valor).replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00');
+  const d = new Date(/[zZ]|[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + 'Z');
+  return isNaN(d) ? null : d;
+}
+function fechaCotMx(valor) {
+  const d = fechaCot(valor);
+  return d ? d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Mexico_City' }) : '';
+}
 function esteMes(valor) {
-  const d = fechaDeMuestra(valor);
+  const d = fechaCot(valor);
   const mes = x => x.toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' }).slice(0, 7);
   return !!d && mes(d) === mes(new Date());
 }
@@ -133,7 +151,7 @@ function tarjeta(c, i) {
         <span class="v26-pill v26-pill--${escHtml(c.estado)}">${escHtml(ETIQUETAS[c.estado] || c.estado)}</span>
       </div>
       <div class="mu-cot-total">${money(c.total)}</div>
-      <div class="mu-card-talla">${c.total_pares} ${Number(c.total_pares) === 1 ? 'par' : 'pares'} · ${fechaMx(c.created_at)}</div>
+      <div class="mu-card-talla">${c.total_pares} ${Number(c.total_pares) === 1 ? 'par' : 'pares'} · ${fechaCotMx(c.created_at)}</div>
       <div class="mu-card-quien">
         <span class="mu-avatar">${escHtml(iniciales(c.vendedor_nombre))}</span>
         <div class="mu-card-quien-txt">
@@ -148,12 +166,24 @@ function tarjeta(c, i) {
     </a>`;
 }
 
+// El select lista los vendedores que aparecen en sus cotizaciones.
+function pintarVendedores() {
+  const sel = document.getElementById('filtro-vendedor');
+  const vistos = new Map();
+  cotizaciones.forEach(c => vistos.set(String(c.vendedor_id), c.vendedor_nombre));
+  if (vendedorFiltro && !vistos.has(vendedorFiltro)) vendedorFiltro = '';
+  sel.innerHTML = '<option value="">Todos los vendedores</option>'
+    + [...vistos].sort((a, b) => a[1].localeCompare(b[1], 'es'))
+      .map(([id, nombre]) => `<option value="${escHtml(id)}" ${id === vendedorFiltro ? 'selected' : ''}>${escHtml(nombre)}</option>`).join('');
+}
+
 function pintar() {
-  const cuenta = estados => cotizaciones.filter(c => estados.includes(c.estado)).length;
+  const base = cotizaciones.filter(c => !vendedorFiltro || String(c.vendedor_id) === vendedorFiltro);
+  const cuenta = estados => base.filter(c => estados.includes(c.estado)).length;
   const conteos = {
-    abiertas: cuenta(GRUPOS.abiertas), aceptadas: cuenta(GRUPOS.aceptadas), cerradas: cuenta(GRUPOS.cerradas), todas: cotizaciones.length,
+    abiertas: cuenta(GRUPOS.abiertas), aceptadas: cuenta(GRUPOS.aceptadas), cerradas: cuenta(GRUPOS.cerradas), todas: base.length,
     pendiente: cuenta(['pendiente']), enviada: cuenta(['enviada']), en_negociacion: cuenta(['en_negociacion']),
-    aceptadas_mes: cotizaciones.filter(c => GRUPOS.aceptadas.includes(c.estado) && esteMes(c.created_at)).length,
+    aceptadas_mes: base.filter(c => GRUPOS.aceptadas.includes(c.estado) && esteMes(c.created_at)).length,
   };
   Object.entries(conteos).forEach(([k, v]) => {
     const n = document.getElementById('n-' + k); if (n) n.textContent = v;
@@ -166,8 +196,8 @@ function pintar() {
 
   const estados = GRUPOS[grupo] || (grupo === 'todas' ? null : [grupo]);
   const q = norm(busqueda);
-  const lista = cotizaciones.filter(c => (!estados || estados.includes(c.estado))
-    && (!q || norm(`${c.folio} ${c.vendedor_nombre} ${c.cliente_nombre}`).includes(q)));
+  const lista = base.filter(c => (!estados || estados.includes(c.estado))
+    && (!q || norm(`${c.folio} ${c.cliente_nombre}`).includes(q)));
   const cont = document.getElementById('lista');
   if (lista.length) {
     cont.innerHTML = lista.map(tarjeta).join('');
@@ -190,6 +220,7 @@ async function cargar() {
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || 'Error');
     cotizaciones = data.cotizaciones;
+    pintarVendedores();
     pintar();
   } catch (e) {
     document.getElementById('lista').innerHTML = '<div class="alert alert-danger">No se pudieron cargar las cotizaciones. Revisa tu conexión e intenta de nuevo.</div>';
@@ -202,6 +233,7 @@ document.getElementById('filtro-grupo').addEventListener('click', (e) => {
 });
 document.querySelectorAll('.mu-stat').forEach(b => b.addEventListener('click', () => activarGrupo(b.dataset.grupo)));
 document.getElementById('buscar').addEventListener('input', (e) => { busqueda = e.target.value.trim(); pintar(); });
+document.getElementById('filtro-vendedor').addEventListener('change', (e) => { vendedorFiltro = e.target.value; pintar(); });
 setInterval(() => { if (!document.hidden) cargar(); }, 60000);
 cargar();
 </script>
