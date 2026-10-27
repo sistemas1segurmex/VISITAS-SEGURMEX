@@ -59,7 +59,8 @@ $email = $vend['email'];
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $idVendedorErp = obtenerOCrearVendedorErp($email, $vend['nombre']);
     $stmt = getDBErp()->prepare(
-        "SELECT id, folio, cliente_nombre, estado, total, total_pares, vigencia_dias, created_at, visitas_cita_id
+        "SELECT id, folio, cliente_nombre, estado, total, total_pares, vigencia_dias, created_at, visitas_cita_id,
+                id_cliente, id_prospecto
          FROM cotizaciones WHERE id_vendedor = ? ORDER BY created_at DESC LIMIT 200"
     );
     $stmt->execute([$idVendedorErp]);
