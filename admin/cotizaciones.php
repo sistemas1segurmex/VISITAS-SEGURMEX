@@ -37,7 +37,7 @@ $hoy = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y
 .ac-item:hover { border-color: rgba(201,136,0,.4); }
 .ac-item.cancelada { border-left-color: #9CA3AF; opacity: .75; }
 .ac-item .folio { font-weight: 800; font-size: .95rem; }
-.ac-item .cliente { font-size: .86rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-item .cliente { font-size: .98rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ac-item .meta { font-size: .74rem; color: var(--v26-ink-soft); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
 .ac-item .total { font-weight: 800; font-size: 1rem; text-align: right; white-space: nowrap; }
 .ac-item .lado { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; grid-row: 1 / span 3; grid-column: 2; }

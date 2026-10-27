@@ -38,7 +38,7 @@ if (!$id) { header('Location: cotizaciones.php'); exit; }
   border: 1px solid rgba(201, 136, 0, .22); box-shadow: 0 18px 40px -26px rgba(201, 136, 0, .55); }
 .vc-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .vc-folio { font-size: 1.35rem; font-weight: 800; letter-spacing: .01em; line-height: 1.1; }
-.vc-cliente { font-size: .9rem; font-weight: 700; margin-top: 4px; }
+.vc-cliente { font-size: 1.15rem; font-weight: 800; line-height: 1.2; margin-top: 4px; color: var(--v26-ink); }
 .vc-creada { font-size: .76rem; color: var(--v26-ink-soft); margin-top: 1px; }
 .vc-pills { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .vc-total { margin-top: 16px; }

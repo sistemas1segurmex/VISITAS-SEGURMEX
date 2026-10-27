@@ -44,7 +44,7 @@ $u = requireRole('vendedor');
 .ct-ico { flex: none; width: 40px; height: 40px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-size: 1.05rem; color: #fff; background: var(--ct-color, var(--v26-brand-1)); }
 .ct-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .ct-folio { font-size: .74rem; font-weight: 800; color: var(--v26-ink-soft); letter-spacing: .02em; }
-.ct-cliente { font-size: .98rem; font-weight: 800; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-cliente { font-size: 1.08rem; font-weight: 800; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ct-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .74rem; color: var(--v26-ink-soft); font-weight: 600; }
 .ct-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .ct-badges .v26-pill { font-size: .68rem; }
