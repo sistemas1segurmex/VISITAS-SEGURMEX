@@ -67,7 +67,7 @@ $siguienteTipo = (!$estadoResuelto && !$esFuturo) ? (!$tieneEntrada ? 'entrada' 
 
   <div class="v26-wrap">
     <div class="v26-card mb-3">
-      <div class="cliente" style="font-weight:700;font-size:.95rem;"><?= htmlspecialchars($cita['cliente_nombre']) ?></div>
+      <div class="cliente" style="font-weight:800;font-size:1.15rem;line-height:1.2;"><?= htmlspecialchars($cita['cliente_nombre']) ?></div>
       <div class="direccion" style="font-size:.8rem;color:var(--v26-ink-soft);"><i class="bi bi-geo-alt"></i> <?= htmlspecialchars($cita['direccion']) ?></div>
       <div class="hora" style="font-size:.8rem;color:var(--v26-ink-soft);margin-top:4px;"><i class="bi bi-clock"></i> <span class="fecha-cita" data-utc="<?= htmlspecialchars($cita['fecha_hora']) ?>"><?= htmlspecialchars($cita['fecha_hora']) ?></span></div>
       <?php if ($cita['motivo']): ?>

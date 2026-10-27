@@ -176,9 +176,9 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
   a { color: #8A6D14; text-decoration: none; }
   .hdr td { vertical-align: middle; }
   .hdr .logo img { height: 46px; }
-  .titulo { font-size: 17pt; font-weight: bold; color: #B8901E; letter-spacing: 1px; }
-  .cliente { font-size: 10pt; margin-top: 2px; }
-  .rfc { font-size: 7.5pt; color: #6B6249; }
+  .titulo { font-size: 10pt; font-weight: bold; color: #B8901E; letter-spacing: 2px; }
+  .cliente { font-size: 16pt; color: #17140C; line-height: 1.15; margin-top: 2px; }
+  .rfc { font-size: 8pt; color: #6B6249; margin-top: 2px; }
   .folio { border: 1px solid #E3D6B2; border-top: 3px solid #C9A227; padding: 7px 12px; text-align: right; width: 180px; }
   .folio .lbl { font-size: 6.5pt; color: #8A7A46; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
   .folio .num { font-size: 14pt; font-weight: bold; }

@@ -426,7 +426,7 @@ body.v26 * { -webkit-tap-highlight-color: transparent; }
 .v26-cita-fecha .hora { font-size: .66rem; font-weight: 600; color: var(--v26-ink); margin-top: 2px; }
 
 .v26-cita-info { min-width: 0; }
-.v26-cita-info .cliente { font-weight: 700; font-size: .92rem; color: var(--v26-ink); }
+.v26-cita-info .cliente { font-weight: 800; font-size: 1.02rem; color: var(--v26-ink); }
 .v26-cita-info .direccion,
 .v26-cita-info .notas { font-size: .78rem; color: var(--v26-ink-soft); margin-top: 3px; display: flex; align-items: flex-start; gap: 5px; }
 .v26-cita-info .notas { color: var(--v26-blue); }
@@ -781,7 +781,7 @@ table.v26-tabla-accesos tr.fallido { background: rgba(225,29,72,.06); }
 .v26-al-txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .v26-al-tipo { font-size: .64rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 .v26-al-item.crit .v26-al-tipo { color: var(--al-crit); } .v26-al-item.warn .v26-al-tipo { color: var(--al-warn); } .v26-al-item.info .v26-al-tipo { color: var(--al-info); }
-.v26-al-tit { font-weight: 700; font-size: .82rem; }
+.v26-al-tit { font-weight: 800; font-size: .92rem; }
 .v26-al-vend { font-size: .72rem; font-weight: 600; color: var(--v26-ink-soft); }
 .v26-al-det { font-size: .76rem; color: var(--v26-ink-soft); overflow-wrap: anywhere; }
 .v26-al-acciones { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
