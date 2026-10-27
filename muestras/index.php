@@ -46,6 +46,14 @@ $esAdmin = $u['rol'] === 'admin';
   </div>
 
   <div class="v26-wrap mu-wrap mu-wrap--bandeja">
+    <?php if (!$esAdmin): ?>
+    <nav class="mu-tabs" aria-label="Secciones">
+      <div class="mu-tabs-in">
+        <a class="mu-tab activa" href="index.php" aria-current="page"><i class="bi bi-box-seam"></i> Muestras</a>
+        <a class="mu-tab" href="cotizaciones.php"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a>
+      </div>
+    </nav>
+    <?php endif; ?>
     <section class="mu-hero">
       <div class="mu-hero-txt">
         <div class="mu-hero-eyebrow"><i class="bi bi-box-seam"></i> <?= $esAdmin ? 'Consulta de muestras' : 'Muestras de vendedores externos' ?></div>

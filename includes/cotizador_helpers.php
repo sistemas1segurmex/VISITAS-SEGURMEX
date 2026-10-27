@@ -332,6 +332,21 @@ function agregarFotoYEntregaDetalleErp(PDO $dbErp, array $detalle): array {
  * mismo patrón que ya usa visitas/includes/auth.php::bridgeDesdeERP() en la
  * dirección contraria (Dirección entrando a VISITAS).
  */
+/**
+ * Vendedor de VISITAS a cuyo nombre se cotiza: el vendedor logueado o, si
+ * quien cotiza es la responsable de muestras (rol 'muestras'), el vendedor
+ * que eligió en Nueva cotización. Regresa id, nombre y email, o null si el
+ * elegido no es un vendedor activo.
+ */
+function vendedorQueCotiza(PDO $db, array $u, int $vendedorElegido): ?array {
+    $id = $u['rol'] === 'vendedor' ? (int)$u['id'] : $vendedorElegido;
+    if (!$id) return null;
+    $stmt = $db->prepare("SELECT id, nombre, email FROM usuarios WHERE id = ? AND rol = 'vendedor' AND activo = 1");
+    $stmt->execute([$id]);
+    $v = $stmt->fetch();
+    return $v && $v['email'] ? $v : null;
+}
+
 function obtenerOCrearVendedorErp(string $email, string $nombreCompleto): int {
     $db = getDBErp();
     $stmt = $db->prepare('SELECT id FROM usuarios WHERE email = ?');

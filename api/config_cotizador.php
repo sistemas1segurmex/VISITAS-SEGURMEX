@@ -4,6 +4,6 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/cotizador_helpers.php';
 
-requireRole('vendedor');
+requireAnyRole(['vendedor', 'muestras']);
 
 jsonResponse(['ok' => true, 'config' => configCotizadorErp()]);

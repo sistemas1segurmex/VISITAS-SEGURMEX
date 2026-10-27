@@ -555,3 +555,23 @@ body.v26 { overflow-x: clip; }
   .mu-talla { grid-template-columns: 130px auto minmax(0, 1fr) auto; grid-template-areas: "talla pares nota quitar"; }
   .mu-talla-nota { height: 44px; }
 }
+
+/* Pestañas Muestras / Cotizaciones (responsable de muestras) */
+.mu-tabs { display: flex; justify-content: center; margin-bottom: 16px; }
+.mu-tabs-in { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--v26-r-pill); background: var(--v26-surface-solid); border: 1px solid var(--v26-border); box-shadow: var(--v26-shadow-sm); }
+.mu-tab { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 20px; border-radius: var(--v26-r-pill); font-size: .88rem; font-weight: 700; color: var(--v26-ink-soft); text-decoration: none; }
+.mu-tab:hover { color: var(--v26-ink); }
+.mu-tab.activa { background: #14171F; color: #fff; }
+
+/* Cotizaciones (responsable de muestras) */
+.mu-stat--cpend .mu-stat-ico { background: var(--v26-brand-grad); box-shadow: var(--v26-shadow-brand); }
+.mu-stat--cenv  .mu-stat-ico { background: linear-gradient(135deg, #3B82F6, #1D4ED8); box-shadow: 0 12px 24px -12px rgba(37,99,235,.6); }
+.mu-stat--cneg  .mu-stat-ico { background: linear-gradient(135deg, #8B5CF6, #6D28D9); box-shadow: 0 12px 24px -12px rgba(124,58,237,.6); }
+.mu-stat--cacep .mu-stat-ico { background: linear-gradient(135deg, #22C55E, #15803D); box-shadow: 0 12px 24px -12px rgba(22,163,74,.6); }
+.mu-grid .mu-card--cot-pendiente::before      { background: var(--v26-brand-grad); }
+.mu-grid .mu-card--cot-enviada::before    { background: linear-gradient(180deg, #3B82F6, #1D4ED8); }
+.mu-grid .mu-card--cot-en_negociacion::before { background: linear-gradient(180deg, #8B5CF6, #6D28D9); }
+.mu-grid .mu-card--cot-aceptada::before, .mu-grid .mu-card--cot-facturada::before, .mu-grid .mu-card--cot-entregada::before { background: linear-gradient(180deg, #22C55E, #15803D); }
+.mu-cot-total { font-size: 1.15rem; font-weight: 800; margin-top: 6px; }
+.mu-hero-acc { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: var(--v26-r-md); background: linear-gradient(135deg, #FFD23F, #E8A400); color: #14171F; font-weight: 800; text-decoration: none; }
+.mu-hero-acc:hover { color: #14171F; filter: brightness(1.04); }

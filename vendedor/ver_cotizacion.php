@@ -2,10 +2,14 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
-$u = requireRole('vendedor');
+// La responsable de muestras también abre aquí las cotizaciones (las suyas
+// y las de los vendedores); regresa a su lista, no a la del vendedor.
+$u = requireAnyRole(['vendedor', 'muestras']);
+$esMuestras = $u['rol'] === 'muestras';
+$urlVolver  = $esMuestras ? '../muestras/cotizaciones.php' : 'cotizaciones.php';
 
 $id = (int)($_GET['id'] ?? 0);
-if (!$id) { header('Location: cotizaciones.php'); exit; }
+if (!$id) { header('Location: ' . $urlVolver); exit; }
 ?>
 <!doctype html>
 <html lang="es">
@@ -187,9 +191,9 @@ if (!$id) { header('Location: cotizaciones.php'); exit; }
   <div class="v26-header">
     <div class="v26-topbar">
       <div class="v26-topbar-left">
-        <a href="cotizaciones.php" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis cotizaciones" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
+        <a href="<?= $urlVolver ?>" class="v26-back v26-tip v26-tip--bottom" data-tip="<?= $esMuestras ? 'Volver a cotizaciones' : 'Volver a mis cotizaciones' ?>" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
-          <div class="hi">Ventas</div>
+          <div class="hi"><?= $esMuestras ? 'Cotizaciones' : 'Ventas' ?></div>
           <div class="name" id="titulo-folio">Cotización</div>
         </div>
       </div>
@@ -211,7 +215,7 @@ if (!$id) { header('Location: cotizaciones.php'); exit; }
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
 <script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <script>
-iniciarTrackingPeriodico();
+<?php if (!$esMuestras): ?>iniciarTrackingPeriodico();<?php endif; ?>
 const ID = <?= (int)$id ?>;
 const NOMBRE_VENDEDOR = <?= json_encode((string)($u['nombre'] ?? ''), JSON_UNESCAPED_UNICODE) ?>;
 // Viene de "Guardar cotización" (nueva_cotizacion.php): se avisa una vez y
