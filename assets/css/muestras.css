@@ -575,3 +575,7 @@ body.v26 { overflow-x: clip; }
 .mu-cot-total { font-size: 1.15rem; font-weight: 800; margin-top: 6px; }
 .mu-hero-acc { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: var(--v26-r-md); background: linear-gradient(135deg, #FFD23F, #E8A400); color: #14171F; font-weight: 800; text-decoration: none; }
 .mu-hero-acc:hover { color: #14171F; filter: brightness(1.04); }
+.mu-cot-buscar { display: flex; gap: 10px; flex: 0 1 580px; min-width: 0; }
+.mu-cot-buscar .v26-select { flex: 0 0 230px; min-width: 0; }
+.mu-cot-buscar .v26-search { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 760px) { .mu-cot-buscar { flex: 1 1 100%; flex-wrap: wrap; } .mu-cot-buscar .v26-select { flex: 1 1 100%; } }

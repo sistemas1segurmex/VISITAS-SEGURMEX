@@ -31,15 +31,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $esMuestras) {
         );
         jsonResponse(['ok' => true, 'vendedores' => $stmt->fetchAll()]);
     }
-    // Cotizaciones de todos los vendedores de VISITAS (mismo cruce por correo que admin_cotizaciones.php).
-    $stmt = $db->query(
+    // Solo las que capturó ella, a nombre de cualquier vendedor. La tabla del
+    // ERP no guarda quién capturó; se toma de la bitácora de VISITAS (el
+    // 'alta' que anota el POST de abajo con su id).
+    $stmt = $db->prepare(
         "SELECT co.id, co.folio, co.cliente_nombre, co.estado, co.total, co.total_pares, co.vigencia_dias, co.created_at,
                 u.id AS vendedor_id, u.nombre AS vendedor_nombre
          FROM public.cotizaciones co
          JOIN public.usuarios eu ON eu.id = co.id_vendedor
          JOIN usuarios u ON LOWER(u.email) = LOWER(eu.email) AND u.rol = 'vendedor'
+         WHERE co.id IN (SELECT entidad_id FROM bitacora_cambios
+                         WHERE vendedor_id = ? AND entidad = 'cotizacion' AND accion = 'alta')
          ORDER BY co.created_at DESC LIMIT 500"
     );
+    $stmt->execute([$u['id']]);
     jsonResponse(['ok' => true, 'cotizaciones' => $stmt->fetchAll()]);
 }
 
