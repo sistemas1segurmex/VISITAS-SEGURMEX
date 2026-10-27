@@ -48,6 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $notas         = trim($_POST['notas'] ?? '');
     $clienteContacto = trim($_POST['cliente_contacto'] ?? '');
     $clienteEmail    = trim($_POST['cliente_email'] ?? '');
+    $aplicaEnvio = ($_POST['aplicar_gasto_envio'] ?? '0') === '1';
+    $gastoEnvio  = $aplicaEnvio ? max(0.0, round((float)str_replace([',', '$', ' '], '', (string)($_POST['gasto_envio'] ?? '')), 2)) : 0.0;
 
     $renglones = json_decode($_POST['renglones'] ?? '[]', true);
     if (!is_array($renglones)) $renglones = [];
@@ -78,6 +80,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$renglones) {
         jsonResponse(['ok' => false, 'error' => 'Agrega al menos un modelo con cantidad.'], 400);
     }
+    if ($aplicaEnvio && $gastoEnvio <= 0) {
+        jsonResponse(['ok' => false, 'error' => 'Captura el costo del gasto de envío o marca «No».'], 400);
+    }
 
     $dbErp = getDBErp();
     $cfg   = configCotizadorErp();
@@ -93,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mayoreoAplica = $res['aplica_mayoreo'];
 
     $tasaIva = (float)($cfg['tasa_iva'] ?? 0.16);
-    ['iva' => $iva, 'total' => $total] = totalesCotizacionErp($res['subtotal_exacto'], $tasaIva);
+    ['iva' => $iva, 'total' => $total] = totalesCotizacionErp($res['subtotal_exacto'], $tasaIva, $gastoEnvio);
 
     try {
         $dbErp->beginTransaction();
@@ -107,16 +112,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             (id_prospecto, cliente_nombre, cliente_contacto, cliente_telefono, cliente_email, cliente_direccion,
              id_vendedor, tipo_lista, pronto_pago, aplica_mayoreo, total_pares,
              desc_mayoreo_aplicado, desc_pronto_pago_aplicado, tasa_iva,
-             subtotal, iva, total, vigencia_dias, tiempo_entrega, forma_pago, notas, estado,
+             subtotal, gasto_envio, iva, total, vigencia_dias, tiempo_entrega, forma_pago, notas, estado,
              visitas_cita_id, visitas_prospeccion_id)
-            VALUES (?,?,?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, 'pendiente', ?,?)")
+            VALUES (?,?,?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?, 'pendiente', ?,?)")
            ->execute([
                 $idProspecto, $clienteVisitas['nombre'], $clienteContacto ?: null,
                 $clienteVisitas['telefono'] ?: null, $clienteEmail ?: null, $clienteVisitas['direccion'] ?: null,
                 $idVendedorErp, $tipoLista, $prontoPago ? 1 : 0, $mayoreoAplica ? 1 : 0, $totalPares,
                 $mayoreoAplica ? (float)($cfg['descuento_mayoreo'] ?? 0) : 0,
                 $prontoPago ? (float)($cfg['descuento_pronto_pago'] ?? 0) : 0,
-                $tasaIva, $subtotal, $iva, $total, $vigenciaDias,
+                $tasaIva, $subtotal, $gastoEnvio, $iva, $total, $vigenciaDias,
                 $tiempoEntrega ?: null, $formaPago ?: null, $notas ?: null,
                 $citaId, $prospeccionId,
            ]);

@@ -447,9 +447,20 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
             <div class="nc-aviso" id="aviso-mayoreo"></div>
             <div class="nc-aviso dickies" id="aviso-dickies"></div>
           </div>
+          <div class="v26-field nc-envio" id="campo-gasto-envio">
+            <label>Aplicar gasto de envío</label>
+            <div class="v26-seg nc-seg" id="seg-gasto-envio">
+              <button type="button" class="v26-seg-btn active" data-valor="0">No<small>Sin envío</small></button>
+              <button type="button" class="v26-seg-btn" data-valor="1">Sí aplica<small>Se suma al total</small></button>
+            </div>
+            <div class="nc-otro-wrap oculto" id="gasto-envio-wrap">
+              <input type="text" inputmode="decimal" name="gasto_envio" id="input-gasto-envio" class="v26-input" placeholder="Costo de envío ($)" autocomplete="off">
+            </div>
+          </div>
           <div class="nc-totales">
             <div class="fila"><span>Pares</span><span id="tot-pares">0</span></div>
             <div class="fila"><span>Subtotal</span><span id="tot-subtotal">$0.00</span></div>
+            <div class="fila" id="fila-gasto-envio" style="display:none;"><span>Gasto de envío</span><span id="tot-gasto-envio">$0.00</span></div>
             <div class="fila"><span>IVA</span><span id="tot-iva">$0.00</span></div>
             <div class="fila total"><span>Total</span><span id="tot-total">$0.00</span></div>
           </div>
@@ -574,6 +585,7 @@ const FOTOS_URL = '/erp/assets/img/cotizador/';
 let renglones = [];
 let tipoLista = 'industria';
 let prontoPago = false;
+let aplicaEnvio = false;
 let guardando = false;
 let guardada = false;
 
@@ -1023,8 +1035,12 @@ function recalcularSoloTotales() {
     const celda = contR.querySelector(`.importe[data-i="${i}"]`);
     if (celda) celda.textContent = money(ex);
   });
-  const iva = subtotal * CFG.tasa_iva;
-  const total = subtotal + iva;
+  // Gasto de envío: se suma al subtotal y también lleva IVA (igual que el ERP).
+  const envio = gastoEnvio();
+  $('fila-gasto-envio').style.display = aplicaEnvio ? '' : 'none';
+  $('tot-gasto-envio').textContent = money(envio);
+  const iva = (subtotal + envio) * CFG.tasa_iva;
+  const total = subtotal + envio + iva;
   const p = paresPorMarca();
   $('tot-pares').textContent = p.total;
   $('tot-subtotal').textContent = money(subtotal);
@@ -1169,6 +1185,22 @@ function wireSeg(id, alCambiar) {
 }
 wireSeg('seg-tipo-lista', v => { tipoLista = v; recalcularTodo(); filtrarCatalogo(); });
 wireSeg('seg-pronto-pago', v => { prontoPago = v === '1'; recalcularTodo(); });
+wireSeg('seg-gasto-envio', v => {
+  aplicaEnvio = v === '1';
+  $('gasto-envio-wrap').classList.toggle('oculto', !aplicaEnvio);
+  recalcularSoloTotales();
+  if (aplicaEnvio) $('input-gasto-envio').focus();
+});
+$('input-gasto-envio').addEventListener('input', e => {
+  const limpio = e.target.value.replace(',', '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+  if (limpio !== e.target.value) e.target.value = limpio;
+  recalcularSoloTotales();
+});
+function gastoEnvio() {
+  if (!aplicaEnvio) return 0;
+  const n = parseFloat($('input-gasto-envio').value);
+  return n > 0 ? Math.round(n * 100) / 100 : 0;
+}
 
 document.querySelectorAll('#chips-vigencia .nc-chip').forEach(chip => chip.addEventListener('click', () => {
   document.querySelectorAll('#chips-vigencia .nc-chip').forEach(c => c.classList.remove('active'));
@@ -1353,11 +1385,16 @@ $('form-cotizacion').addEventListener('submit', async (e) => {
     mostrarError('Revisa el correo del cliente.', $('input-email'));
     return;
   }
+  if (aplicaEnvio && !(gastoEnvio() > 0)) {
+    mostrarError('Captura el costo del gasto de envío o marca «No».', $('input-gasto-envio'));
+    return;
+  }
   if (avisarEntregaAntesDeGuardar()) return;
   recalcularTodo();
   const fd = new FormData(e.target);
   fd.set('tipo_lista', tipoLista);
   fd.set('pronto_pago', prontoPago ? '1' : '0');
+  fd.set('aplicar_gasto_envio', aplicaEnvio ? '1' : '0');
   setGuardando(true);
   try {
     const res = await fetch('../api/cotizaciones.php', { method: 'POST', body: fd });
