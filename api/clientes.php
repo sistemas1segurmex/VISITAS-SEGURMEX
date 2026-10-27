@@ -3,8 +3,17 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 
-$u  = requireRole('vendedor');
+// 'muestras' solo consulta: los clientes del vendedor que eligió en Nueva
+// cotización (?vendedor_id=). Dar de alta sigue siendo solo del vendedor.
+$u  = requireAnyRole(['vendedor', 'muestras']);
 $db = getDB();
+$idVendedor = (int)$u['id'];
+if ($u['rol'] === 'muestras') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+        jsonResponse(['ok' => false, 'error' => 'Sin permiso para esta acción'], 403);
+    }
+    $idVendedor = (int)($_GET['vendedor_id'] ?? 0);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Se suman visitas completadas y la fecha de la última, para que la
@@ -22,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
          WHERE c.vendedor_id = ?
          ORDER BY c.nombre"
     );
-    $stmt->execute([$u['id']]);
+    $stmt->execute([$idVendedor]);
     jsonResponse(['ok' => true, 'clientes' => $stmt->fetchAll()]);
 }
 

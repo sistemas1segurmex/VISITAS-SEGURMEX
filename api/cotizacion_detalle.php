@@ -17,22 +17,34 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/cotizador_helpers.php';
 
-$u  = requireRole('vendedor');
+$u  = requireAnyRole(['vendedor', 'muestras']);
 $db = getDB();
-
-$stmtU = $db->prepare('SELECT email FROM usuarios WHERE id = ?');
-$stmtU->execute([$u['id']]);
-$email = $stmtU->fetchColumn();
-if (!$email) {
-    jsonResponse(['ok' => false, 'error' => 'No se encontró tu correo registrado.'], 500);
-}
-
 $dbErp = getDBErp();
-$idVendedorErp = obtenerOCrearVendedorErp($email, $u['nombre']);
 
 $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
 if (!$id) {
     jsonResponse(['ok' => false, 'error' => 'Cotización no encontrada.'], 404);
+}
+
+if ($u['rol'] === 'muestras') {
+    // La responsable de muestras ve y mueve las cotizaciones de cualquier
+    // vendedor de VISITAS (mismo cruce por correo que api/cotizaciones.php).
+    $stmtV = $db->prepare(
+        "SELECT co.id_vendedor FROM public.cotizaciones co
+         JOIN public.usuarios eu ON eu.id = co.id_vendedor
+         JOIN usuarios u ON LOWER(u.email) = LOWER(eu.email) AND u.rol = 'vendedor'
+         WHERE co.id = ?"
+    );
+    $stmtV->execute([$id]);
+    $idVendedorErp = (int)$stmtV->fetchColumn();
+} else {
+    $stmtU = $db->prepare('SELECT email FROM usuarios WHERE id = ?');
+    $stmtU->execute([$u['id']]);
+    $email = $stmtU->fetchColumn();
+    if (!$email) {
+        jsonResponse(['ok' => false, 'error' => 'No se encontró tu correo registrado.'], 500);
+    }
+    $idVendedorErp = obtenerOCrearVendedorErp($email, $u['nombre']);
 }
 
 function cargarCotizacion(PDO $dbErp, int $id, int $idVendedorErp): ?array {

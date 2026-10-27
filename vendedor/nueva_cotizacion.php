@@ -2,11 +2,15 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
-$u = requireRole('vendedor');
+// La responsable de muestras usa este mismo cotizador: antes del cliente
+// elige a nombre de qué vendedor cotiza, y solo ve los clientes de ese vendedor.
+$u = requireAnyRole(['vendedor', 'muestras']);
+$esMuestras = $u['rol'] === 'muestras';
+$urlVolver  = $esMuestras ? '../muestras/cotizaciones.php' : 'cotizaciones.php';
 
-$clientePrellenado      = (int)($_GET['cliente_id'] ?? 0);
-$citaPrellenada         = (int)($_GET['cita_id'] ?? 0);
-$prospeccionPrellenada  = (int)($_GET['prospeccion_id'] ?? 0);
+$clientePrellenado      = $esMuestras ? 0 : (int)($_GET['cliente_id'] ?? 0);
+$citaPrellenada         = $esMuestras ? 0 : (int)($_GET['cita_id'] ?? 0);
+$prospeccionPrellenada  = $esMuestras ? 0 : (int)($_GET['prospeccion_id'] ?? 0);
 ?>
 <!doctype html>
 <html lang="es">
@@ -261,8 +265,8 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
   #sheet-catalogo .nc-sheet-body { padding: 0; max-height: 440px; border-radius: 14px; }
 
   /* Clientes: ventana centrada. */
-  #sheet-cliente.abierta { inset: auto; top: 9vh; left: 50%; transform: translateX(-50%); width: min(540px, 92vw); max-height: 78vh; border-radius: 20px; box-shadow: var(--v26-shadow-md); overflow: hidden; animation: none; }
-  #sheet-cliente .nc-sheet-head { padding-top: 12px; }
+  #sheet-cliente.abierta, #sheet-vendedor.abierta { inset: auto; top: 9vh; left: 50%; transform: translateX(-50%); width: min(540px, 92vw); max-height: 78vh; border-radius: 20px; box-shadow: var(--v26-shadow-md); overflow: hidden; animation: none; }
+  #sheet-cliente .nc-sheet-head, #sheet-vendedor .nc-sheet-head { padding-top: 12px; }
   body.nc-sheet-abierta .nc-backdrop { display: block; position: fixed; inset: 0; z-index: 85; background: rgba(20,23,31,.4); }
 
   .nc-barra, .nc-solo-movil { display: none !important; }
@@ -325,9 +329,9 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
   <div class="v26-header">
     <div class="v26-topbar">
       <div class="v26-topbar-left">
-        <a href="cotizaciones.php" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis cotizaciones" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
+        <a href="<?= $urlVolver ?>" class="v26-back v26-tip v26-tip--bottom" data-tip="<?= $esMuestras ? 'Volver a cotizaciones' : 'Volver a mis cotizaciones' ?>" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
-          <div class="hi">Ventas</div>
+          <div class="hi"><?= $esMuestras ? 'Cotizaciones' : 'Ventas' ?></div>
           <div class="name">Nueva cotización</div>
         </div>
       </div>
@@ -343,10 +347,10 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
     <section class="nc-hero">
       <div class="nc-hero-txt">
         <div class="nc-hero-eyebrow"><i class="bi bi-file-earmark-plus"></i> Nueva cotización</div>
-        <h1 class="nc-hero-titulo">Arma tu cotización en 4 pasos</h1>
+        <h1 class="nc-hero-titulo"><?= $esMuestras ? 'Arma la cotización en 4 pasos' : 'Arma tu cotización en 4 pasos' ?></h1>
       </div>
       <ol class="nc-hero-pasos" aria-hidden="true">
-        <li><span>1</span> Cliente</li>
+        <li><span>1</span> <?= $esMuestras ? 'Vendedor y cliente' : 'Cliente' ?></li>
         <li><span>2</span> Lista</li>
         <li><span>3</span> Modelos</li>
         <li><span>4</span> Condiciones</li>
@@ -357,8 +361,20 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
 
         <!-- Cliente -->
         <section class="v26-card" id="sec-cliente">
-          <h2 class="nc-titulo"><span class="nc-paso"><span class="nc-paso-n">1</span> Cliente</span></h2>
+          <h2 class="nc-titulo"><span class="nc-paso"><span class="nc-paso-n">1</span> <?= $esMuestras ? 'Vendedor y cliente' : 'Cliente' ?></span></h2>
+          <?php if ($esMuestras): ?>
           <div class="v26-field">
+            <label>Vendedor</label>
+            <button type="button" class="nc-cliente-btn vacio" id="btn-vendedor" aria-haspopup="dialog">
+              <i class="bi bi-person-badge"></i>
+              <span class="nom" id="vendedor-nombre">Cargando vendedores…</span>
+              <i class="bi bi-chevron-down"></i>
+            </button>
+            <input type="hidden" name="vendedor_id" id="input-vendedor" value="">
+          </div>
+          <?php endif; ?>
+          <div class="v26-field">
+            <?php if ($esMuestras): ?><label>Cliente</label><?php endif; ?>
             <button type="button" class="nc-cliente-btn vacio" id="btn-cliente" aria-haspopup="dialog">
               <i class="bi bi-person"></i>
               <span class="nom" id="cliente-nombre">Cargando clientes…</span>
@@ -366,7 +382,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
               <i class="bi bi-chevron-down"></i>
             </button>
             <input type="hidden" name="cliente_id" id="input-cliente" value="">
-            <div class="nc-sub">¿No está en la lista? <a href="nuevo_cliente.php">Regístralo primero</a>.</div>
+            <?php if (!$esMuestras): ?><div class="nc-sub">¿No está en la lista? <a href="nuevo_cliente.php">Regístralo primero</a>.</div><?php endif; ?>
           </div>
           <div class="v26-fila-2 nc-cliente-extra">
             <div class="v26-field">
@@ -548,6 +564,24 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
       <div class="nc-lista" id="lista-clientes"></div>
     </div>
   </div>
+  <?php if ($esMuestras): ?>
+  <!-- Hoja de vendedores (solo la responsable de muestras): igual que la de clientes -->
+  <div class="nc-sheet" id="sheet-vendedor" role="dialog" aria-label="Elegir vendedor">
+    <div class="nc-sheet-head">
+      <h2>Elegir vendedor</h2>
+      <button type="button" class="nc-cerrar" data-cerrar aria-label="Cerrar"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="nc-sheet-search">
+      <div class="v26-search">
+        <i class="bi bi-search"></i>
+        <input type="search" id="input-buscar-vendedor" class="v26-input" placeholder="Buscar vendedor…" autocomplete="off" enterkeyhint="search">
+      </div>
+    </div>
+    <div class="nc-sheet-body">
+      <div class="nc-lista" id="lista-vendedores"></div>
+    </div>
+  </div>
+  <?php endif; ?>
   <div class="nc-backdrop" id="nc-backdrop"></div>
 
   <!-- Barra inferior (celular / APK) -->
@@ -567,8 +601,9 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
 <script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <?php include __DIR__ . '/../includes/foto_zoom.php'; ?>
 <script>
-iniciarTrackingPeriodico();
+<?php if (!$esMuestras): ?>iniciarTrackingPeriodico();<?php endif; ?>
 
+const ES_MUESTRAS = <?= $esMuestras ? 'true' : 'false' ?>;
 const CLIENTE_PRELLENADO = <?= (int)$clientePrellenado ?>;
 let CFG = { descuento_distribuidor: 0.15, descuento_pronto_pago: 0.05, descuento_mayoreo: 0.10, minimo_pares_mayoreo: 16, minimo_pares_dickies: 16, tasa_iva: 0.16, vigencia_default_dias: 15 };
 // Fotos del catálogo: viven en el ERP (mismo servidor), no se duplican aquí.
@@ -708,8 +743,12 @@ function pintarCliente() {
   const badge = $('badge-etapa-cliente');
   btn.classList.toggle('vacio', !c);
   if (c) btn.classList.remove('falta');
+  btn.disabled = estadoClientes === 'sin_vendedor';
   $('cliente-nombre').textContent = c ? c.nombre
-    : estadoClientes === 'error' ? 'No se pudieron cargar tus clientes'
+    : estadoClientes === 'sin_vendedor' ? 'Primero elige el vendedor'
+    : estadoClientes === 'error' ? 'No se pudieron cargar los clientes'
+    : ES_MUESTRAS && !clientes.length && estadoClientes === 'listo' ? 'Este vendedor no tiene clientes registrados'
+    : ES_MUESTRAS ? 'Elige un cliente de ' + nombreVendedor()
     : (clientes.length || estadoClientes === 'cargando') ? 'Selecciona un cliente' : 'No tienes clientes registrados aún';
   if (!c || !c.etapa) { badge.style.display = 'none'; return; }
   const esCliente = c.etapa === 'convertido';
@@ -744,7 +783,9 @@ function renderClientes(q) {
     return;
   }
   if (!lista.length) {
-    cont.innerHTML = `<div class="nc-sin">${clientes.length ? 'Sin resultados.' : 'No tienes clientes registrados aún.'}<br><a href="nuevo_cliente.php">Registrar cliente</a></div>`;
+    cont.innerHTML = ES_MUESTRAS
+      ? `<div class="nc-sin">${clientes.length ? 'Sin resultados.' : 'Este vendedor no tiene clientes registrados.'}</div>`
+      : `<div class="nc-sin">${clientes.length ? 'Sin resultados.' : 'No tienes clientes registrados aún.'}<br><a href="nuevo_cliente.php">Registrar cliente</a></div>`;
     return;
   }
   cont.innerHTML = lista.map(c => {
@@ -770,9 +811,17 @@ $('btn-cliente').addEventListener('click', () => {
 });
 
 async function cargarClientes() {
+  const idVendedor = ES_MUESTRAS ? (parseInt($('input-vendedor').value) || 0) : 0;
+  if (ES_MUESTRAS && !idVendedor) {
+    clientes = []; estadoClientes = 'sin_vendedor';
+    pintarCliente();
+    return;
+  }
   try {
-    const res = await fetch('../api/clientes.php');
+    const res = await fetch('../api/clientes.php' + (ES_MUESTRAS ? '?vendedor_id=' + idVendedor : ''));
     const data = await res.json();
+    // Si mientras llegaba la lista ya eligió otro vendedor, se ignora.
+    if (ES_MUESTRAS && idVendedor !== (parseInt($('input-vendedor').value) || 0)) return;
     clientes = data.ok ? data.clientes.map(c => ({ ...c, id: +c.id })) : [];
     estadoClientes = data.ok ? 'listo' : 'error';
   } catch (e) { clientes = []; estadoClientes = 'error'; }
@@ -780,6 +829,65 @@ async function cargarClientes() {
   renderClientes($('input-buscar-cliente').value.trim());
   if (CLIENTE_PRELLENADO && clientes.some(c => c.id === CLIENTE_PRELLENADO)) elegirCliente(CLIENTE_PRELLENADO);
   else pintarCliente();
+}
+
+// ================= Vendedor (solo responsable de muestras) =================
+// Se cotiza a nombre del vendedor elegido: la lista de clientes es la suya y
+// al cambiarlo se quita el cliente que ya estaba elegido.
+let vendedores = [];
+function nombreVendedor() {
+  const id = ES_MUESTRAS ? (parseInt($('input-vendedor').value) || 0) : 0;
+  const v = vendedores.find(x => x.id === id);
+  return v ? v.nombre : '';
+}
+function pintarVendedor(texto) {
+  const nom = nombreVendedor();
+  $('btn-vendedor').classList.toggle('vacio', !nom);
+  if (nom) $('btn-vendedor').classList.remove('falta');
+  $('vendedor-nombre').textContent = nom || texto || 'Elige el vendedor';
+  $('sheet-cliente').querySelector('h2').textContent = nom ? 'Clientes de ' + nom : 'Elegir cliente';
+}
+function renderVendedores(q) {
+  const nq = norm(q);
+  const sel = parseInt($('input-vendedor').value) || 0;
+  const lista = !nq ? vendedores : vendedores.filter(v => norm(v.nombre).includes(nq));
+  $('lista-vendedores').innerHTML = !lista.length
+    ? `<div class="nc-sin">${vendedores.length ? 'Sin resultados.' : 'No hay vendedores activos.'}</div>`
+    : lista.map(v => `<div class="nc-op ${v.id === sel ? 'sel' : ''}" data-id="${v.id}" role="option">
+        <span style="min-width:0;">${escHtml(v.nombre)}<span class="contacto">${v.clientes} ${v.clientes === 1 ? 'cliente' : 'clientes'}</span></span>
+      </div>`).join('');
+}
+function elegirVendedor(id) {
+  if ((parseInt($('input-vendedor').value) || 0) === id) return;
+  $('input-vendedor').value = id || '';
+  $('input-cliente').value = '';
+  if ($('input-contacto').value === contactoAuto) $('input-contacto').value = '';
+  contactoAuto = '';
+  estadoClientes = 'cargando';
+  pintarVendedor();
+  cargarClientes();
+}
+async function cargarVendedores() {
+  try {
+    const res = await fetch('../api/cotizaciones.php?vendedores=1');
+    const data = await res.json();
+    vendedores = data.ok ? data.vendedores.map(v => ({ id: +v.id, nombre: v.nombre, clientes: +v.clientes })) : [];
+    pintarVendedor(data.ok ? '' : 'No se pudieron cargar los vendedores');
+  } catch (e) { pintarVendedor('No se pudieron cargar los vendedores'); }
+}
+if (ES_MUESTRAS) {
+  $('lista-vendedores').addEventListener('click', e => {
+    const op = e.target.closest('.nc-op');
+    if (!op) return;
+    elegirVendedor(+op.dataset.id);
+    cerrarSheet(false);
+  });
+  $('input-buscar-vendedor').addEventListener('input', e => renderVendedores(e.target.value.trim()));
+  $('btn-vendedor').addEventListener('click', () => {
+    $('input-buscar-vendedor').value = '';
+    renderVendedores('');
+    abrirSheet('sheet-vendedor', esEscritorio());
+  });
 }
 
 // ================= Renglones =================
@@ -1360,6 +1468,11 @@ $('form-cotizacion').addEventListener('submit', async (e) => {
   if (guardando) return;
   if (document.activeElement) document.activeElement.blur();
   $('msg-cotizacion').innerHTML = '';
+  if (ES_MUESTRAS && !$('input-vendedor').value) {
+    $('btn-vendedor').classList.add('falta');
+    mostrarError('Elige el vendedor a cuyo nombre va la cotización.', $('sec-cliente'));
+    return;
+  }
   if (!$('input-cliente').value) {
     $('btn-cliente').classList.add('falta');
     mostrarError('Elige el cliente de la cotización.', $('sec-cliente'));
@@ -1425,7 +1538,12 @@ window.addEventListener('beforeunload', e => {
 function pasosTourNuevaCotizacion() {
   const pp = Math.round((CFG.descuento_pronto_pago || 0) * 100);
   return [
-    { selector: '#btn-cliente', texto: 'Primero elige a quién le vas a cotizar. Si no aparece en la lista, regístralo primero.' },
+    ...(ES_MUESTRAS ? [
+      { selector: '#btn-vendedor', texto: 'Primero elige a nombre de qué vendedor va la cotización.' },
+      { selector: '#btn-cliente', texto: 'Luego elige el cliente: solo salen los clientes de ese vendedor.' },
+    ] : [
+      { selector: '#btn-cliente', texto: 'Primero elige a quién le vas a cotizar. Si no aparece en la lista, regístralo primero.' },
+    ]),
     { selector: '#seg-tipo-lista', texto: 'Elige la lista de precios que le toca a este cliente: Industria o Distribuidor.' },
     { selector: '#seg-pronto-pago', texto: `Toca «Sí aplica» solo si el cliente va a pagar de contado o por adelantado. Le baja ${pp}% al precio.` },
     esEscritorio()
@@ -1451,7 +1569,7 @@ $('btn-tour-ayuda').addEventListener('click', () => {
 
 recalcularTodo();
 // La primera vez, el tour arranca ya con parámetros, clientes y catálogo cargados.
-Promise.all([cargarConfig(), cargarClientes(), cargarEstilos()])
+Promise.all([cargarConfig(), cargarClientes(), cargarEstilos(), ES_MUESTRAS ? cargarVendedores() : null])
   .then(() => V26Tour.iniciar(pasosTourNuevaCotizacion(), OPCIONES_TOUR_NUEVA_COTIZACION));
 </script>
 </body>

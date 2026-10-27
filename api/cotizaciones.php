@@ -14,20 +14,45 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/cotizador_helpers.php';
 
-$u  = requireRole('vendedor');
+// 'muestras' (la responsable de muestras) también cotiza, a nombre del
+// vendedor que elija, y ve las cotizaciones de todos los vendedores.
+$u  = requireAnyRole(['vendedor', 'muestras']);
 $db = getDB(); // esquema "visitas" -- para leer cliente/cita/prospección del foráneo
+$esMuestras = $u['rol'] === 'muestras';
 
-// currentUser() (auth.php) no trae el correo -- solo id/nombre/rol. Se
-// necesita el correo real para ligar (o crear) el vendedor espejo del ERP.
-$stmtU = $db->prepare('SELECT email FROM usuarios WHERE id = ?');
-$stmtU->execute([$u['id']]);
-$email = $stmtU->fetchColumn();
-if (!$email) {
-    jsonResponse(['ok' => false, 'error' => 'No se encontró tu correo registrado.'], 500);
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $esMuestras) {
+    if (isset($_GET['vendedores'])) {
+        // Vendedores a cuyo nombre se puede cotizar, con cuántos clientes tiene cada uno.
+        $stmt = $db->query(
+            "SELECT u.id, u.nombre, COUNT(c.id) AS clientes
+             FROM usuarios u LEFT JOIN clientes c ON c.vendedor_id = u.id
+             WHERE u.rol = 'vendedor' AND u.activo = 1
+             GROUP BY u.id, u.nombre ORDER BY u.nombre"
+        );
+        jsonResponse(['ok' => true, 'vendedores' => $stmt->fetchAll()]);
+    }
+    // Cotizaciones de todos los vendedores de VISITAS (mismo cruce por correo que admin_cotizaciones.php).
+    $stmt = $db->query(
+        "SELECT co.id, co.folio, co.cliente_nombre, co.estado, co.total, co.total_pares, co.vigencia_dias, co.created_at,
+                u.id AS vendedor_id, u.nombre AS vendedor_nombre
+         FROM public.cotizaciones co
+         JOIN public.usuarios eu ON eu.id = co.id_vendedor
+         JOIN usuarios u ON LOWER(u.email) = LOWER(eu.email) AND u.rol = 'vendedor'
+         ORDER BY co.created_at DESC LIMIT 500"
+    );
+    jsonResponse(['ok' => true, 'cotizaciones' => $stmt->fetchAll()]);
 }
 
+// Vendedor a cuyo nombre queda la cotización: el logueado, o el que eligió
+// la responsable de muestras. Su correo liga (o crea) el vendedor espejo del ERP.
+$vend = vendedorQueCotiza($db, $u, (int)($_POST['vendedor_id'] ?? 0));
+if (!$vend) {
+    jsonResponse(['ok' => false, 'error' => $esMuestras ? 'Elige el vendedor.' : 'No se encontró tu correo registrado.'], $esMuestras ? 400 : 500);
+}
+$email = $vend['email'];
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $idVendedorErp = obtenerOCrearVendedorErp($email, $u['nombre']);
+    $idVendedorErp = obtenerOCrearVendedorErp($email, $vend['nombre']);
     $stmt = getDBErp()->prepare(
         "SELECT id, folio, cliente_nombre, estado, total, total_pares, vigencia_dias, created_at, visitas_cita_id
          FROM cotizaciones WHERE id_vendedor = ? ORDER BY created_at DESC LIMIT 200"
@@ -38,8 +63,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $clienteId = (int)($_POST['cliente_id'] ?? 0);
-    $citaId        = !empty($_POST['visitas_cita_id']) ? (int)$_POST['visitas_cita_id'] : null;
-    $prospeccionId = !empty($_POST['visitas_prospeccion_id']) ? (int)$_POST['visitas_prospeccion_id'] : null;
+    $citaId        = !$esMuestras && !empty($_POST['visitas_cita_id']) ? (int)$_POST['visitas_cita_id'] : null;
+    $prospeccionId = !$esMuestras && !empty($_POST['visitas_prospeccion_id']) ? (int)$_POST['visitas_prospeccion_id'] : null;
     $tipoLista  = ($_POST['tipo_lista'] ?? '') === 'distribuidor' ? 'distribuidor' : 'industria';
     $prontoPago = isset($_POST['pronto_pago']) && $_POST['pronto_pago'] !== '' && $_POST['pronto_pago'] !== '0';
     $vigenciaDias  = max(1, (int)($_POST['vigencia_dias'] ?? 15));
@@ -61,10 +86,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         jsonResponse(['ok' => false, 'error' => 'El correo no tiene un formato válido.'], 400);
     }
 
-    // Cliente de VISITAS: debe ser del vendedor logueado (mismo criterio de
-    // propiedad que ya usa api/citas.php).
+    // Cliente de VISITAS: debe ser del vendedor a cuyo nombre se cotiza
+    // (mismo criterio de propiedad que ya usa api/citas.php).
     $stmtC = $db->prepare('SELECT * FROM clientes WHERE id = ? AND vendedor_id = ?');
-    $stmtC->execute([$clienteId, $u['id']]);
+    $stmtC->execute([$clienteId, $vend['id']]);
     $clienteVisitas = $stmtC->fetch();
     if (!$clienteVisitas) {
         jsonResponse(['ok' => false, 'error' => 'Cliente no válido.'], 400);
@@ -73,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Si viene de una cita, confirmar que también es del vendedor logueado.
     if ($citaId) {
         $chkCita = $db->prepare('SELECT 1 FROM citas WHERE id = ? AND vendedor_id = ?');
-        $chkCita->execute([$citaId, $u['id']]);
+        $chkCita->execute([$citaId, $vend['id']]);
         if (!$chkCita->fetchColumn()) $citaId = null;
     }
 
@@ -103,9 +128,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $dbErp->beginTransaction();
 
-        $idVendedorErp = obtenerOCrearVendedorErp($email, $u['nombre']);
+        $idVendedorErp = obtenerOCrearVendedorErp($email, $vend['nombre']);
         [$idProspecto, $prospectoEsNuevo] = obtenerOCrearProspectoErp(
-            $clienteId, $clienteVisitas['nombre'], $clienteVisitas['telefono'] ?? null, $u['nombre']
+            $clienteId, $clienteVisitas['nombre'], $clienteVisitas['telefono'] ?? null, $vend['nombre']
         );
 
         $dbErp->prepare("INSERT INTO cotizaciones
@@ -158,7 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // El detalle completo (líneas, cambios de estado) ya vive en
         // cotizacion_historial del ERP -- aquí solo se anota el alta para
         // que aparezca junto con clientes/citas en la bitácora del admin.
-        registrarCambio($db, $u['id'], 'cotizacion', $newId, 'alta', "Generó la cotización {$folio} para {$clienteVisitas['nombre']}", [
+        registrarCambio($db, $u['id'], 'cotizacion', $newId, 'alta', "Generó la cotización {$folio} para {$clienteVisitas['nombre']}"
+            . ($esMuestras ? " a nombre de {$vend['nombre']}" : ''), [
             'Total' => [null, money($total)],
         ]);
 
