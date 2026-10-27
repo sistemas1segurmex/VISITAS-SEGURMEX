@@ -78,12 +78,13 @@ function redondearCentavosErp(float $x): float {
 }
 
 /** Copia exacta de totalesCotizacion(). */
-function totalesCotizacionErp(float $subtotalExacto, float $tasaIva): array {
-    $iva = $subtotalExacto * $tasaIva;
+function totalesCotizacionErp(float $subtotalExacto, float $tasaIva, float $gastoEnvio = 0.0): array {
+    // El gasto de envío se cobra al cliente, así que también lleva IVA.
+    $iva = ($subtotalExacto + $gastoEnvio) * $tasaIva;
     return [
         'subtotal' => redondearCentavosErp($subtotalExacto),
         'iva'      => redondearCentavosErp($iva),
-        'total'    => redondearCentavosErp($subtotalExacto + $iva),
+        'total'    => redondearCentavosErp($subtotalExacto + $gastoEnvio + $iva),
     ];
 }
 

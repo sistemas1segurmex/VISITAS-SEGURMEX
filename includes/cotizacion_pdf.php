@@ -284,6 +284,7 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
 </table>' . $leyenda . '
 <table class="totales">
   <tr><td>Subtotal</td><td class="n">' . money($cot['subtotal']) . '</td></tr>' . $descFilas . '
+  ' . ((float)($cot['gasto_envio'] ?? 0) > 0 ? '<tr><td>Gasto de envío</td><td class="n">' . money($cot['gasto_envio']) . '</td></tr>' : '') . '
   <tr><td>IVA (' . $tasa . '%)</td><td class="n">' . money($cot['iva']) . '</td></tr>
   <tr class="t"><td>Total</td><td class="n">' . money($cot['total']) . '</td></tr>
 </table>

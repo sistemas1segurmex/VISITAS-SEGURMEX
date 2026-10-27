@@ -482,6 +482,7 @@ function render(data) {
       <div class="vc-totales">
         ${descuentos.length ? `<div class="vc-descuentos">${descuentos.map(d => `<span class="vc-tag vc-tag--desc"><i class="bi bi-tag"></i>${d}</span>`).join('')}</div>` : ''}
         <div class="fila"><span>Subtotal</span><span>${money(c.subtotal)}</span></div>
+        ${Number(c.gasto_envio) > 0 ? `<div class="fila"><span>Gasto de envío</span><span>${money(c.gasto_envio)}</span></div>` : ''}
         <div class="fila"><span>IVA</span><span>${money(c.iva)}</span></div>
         <div class="fila total"><span>Total</span><span>${money(c.total)}</span></div>
       </div>

@@ -410,6 +410,7 @@ function pintarFicha(d) {
     ${Object.keys(d.atributos || {}).length ? `<div style="font-size:.72rem;color:#6B7280;margin:6px 0">${Object.entries(d.atributos).map(([k, s]) => `<strong>${esc(k)}</strong> = ${esc(s)}`).join(' · ')}</div>` : ''}
     <div class="ac-totales">
       <div class="fila"><span>Subtotal</span><span>${money(c.subtotal)}</span></div>
+      ${Number(c.gasto_envio) > 0 ? `<div class="fila"><span>Gasto de envío</span><span>${money(c.gasto_envio)}</span></div>` : ''}
       <div class="fila"><span>IVA</span><span>${money(c.iva)}</span></div>
       <div class="fila total"><span>Total</span><span>${money(c.total)}</span></div>
     </div>
