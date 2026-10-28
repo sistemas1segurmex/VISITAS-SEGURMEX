@@ -99,6 +99,11 @@ if (!$cliente) {
           <input type="text" name="nombre_contacto" class="v26-input" placeholder="¿Con quién tratas ahí?" value="<?= htmlspecialchars($cliente['nombre_contacto'] ?? '') ?>">
         </div>
 
+        <div class="v26-field">
+          <label>Correo (opcional)</label>
+          <input type="email" name="correo" class="v26-input" inputmode="email" maxlength="150" placeholder="correo@empresa.com" value="<?= htmlspecialchars($cliente['correo'] ?? '') ?>">
+        </div>
+
         <?php $calleNumeroPrevio = $cliente['calle_numero'] ?? ''; include __DIR__ . '/../includes/form_direccion_cliente.php'; ?>
 
         <div id="msg-cliente"></div>

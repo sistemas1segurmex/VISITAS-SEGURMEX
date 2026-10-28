@@ -24,8 +24,9 @@ function urlMailto(string $para, string $asunto = '', string $cuerpo = ''): stri
 // de 150 a 250 para cubrir casos normales como estar en el estacionamiento
 // de la empresa en vez de exactamente sobre el pin de la entrada. Se subió a
 // 350 (5-oct-2026): naves de parques industriales salían "Fuera de zona" con
-// el pin bien puesto y GPS de ±9 m (Grupo Urvina, entrada a 266 m).
-define('RADIO_VERIFICACION_METROS', 350);
+// el pin bien puesto y GPS de ±9 m (Grupo Urvina, entrada a 266 m). Se subió
+// a 600 (28-oct-2026): casi 6 cuadras a la redonda, a petición de dirección.
+define('RADIO_VERIFICACION_METROS', 600);
 
 // El propio checkin.php del vendedor ya reintenta obtener GPS hasta lograr
 // una precisión razonable antes de dejar enviar (ver vendedor/checkin.php).

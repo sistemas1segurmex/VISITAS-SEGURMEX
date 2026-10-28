@@ -100,6 +100,11 @@ $u = requireRole('vendedor');
           <input type="text" name="nombre_contacto" class="v26-input" placeholder="¿Con quién tratas ahí?">
         </div>
 
+        <div class="v26-field">
+          <label>Correo (opcional)</label>
+          <input type="email" name="correo" class="v26-input" inputmode="email" maxlength="150" placeholder="correo@empresa.com">
+        </div>
+
         <?php include __DIR__ . '/../includes/form_direccion_cliente.php'; ?>
 
         <div id="msg-cliente"></div>

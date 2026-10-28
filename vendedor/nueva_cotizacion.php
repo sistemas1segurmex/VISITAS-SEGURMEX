@@ -735,6 +735,7 @@ let clientes = [];
 // de que lleguen los clientes; así no dice «No tienes clientes» en falso.
 let estadoClientes = 'cargando';
 let contactoAuto = '';
+let correoAuto = '';
 
 function pintarCliente() {
   const id = parseInt($('input-cliente').value) || 0;
@@ -765,6 +766,12 @@ function elegirCliente(id) {
   if (c && (inp.value.trim() === '' || inp.value === contactoAuto)) {
     contactoAuto = c.nombre_contacto || '';
     inp.value = contactoAuto;
+  }
+  // Lo mismo con el correo. Si lo corrige, al guardar se actualiza la ficha.
+  const inpE = $('input-email');
+  if (c && (inpE.value.trim() === '' || inpE.value === correoAuto)) {
+    correoAuto = c.correo || '';
+    inpE.value = correoAuto;
   }
   pintarCliente();
 }
@@ -862,7 +869,9 @@ function elegirVendedor(id) {
   $('input-vendedor').value = id || '';
   $('input-cliente').value = '';
   if ($('input-contacto').value === contactoAuto) $('input-contacto').value = '';
+  if ($('input-email').value === correoAuto) $('input-email').value = '';
   contactoAuto = '';
+  correoAuto = '';
   estadoClientes = 'cargando';
   pintarVendedor();
   cargarClientes();
