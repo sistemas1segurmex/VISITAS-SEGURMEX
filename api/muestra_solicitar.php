@@ -73,34 +73,29 @@ if (!$cliente) {
     jsonResponse(['ok' => false, 'error' => 'Cliente no encontrado'], 404);
 }
 
-// Contacto del cliente: sale de su ficha. Si a la ficha le falta el nombre
-// de contacto o el teléfono, el vendedor lo escribe aquí (obligatorio) y se
-// guarda también en la ficha -- solo lo que faltaba, nunca se pisa un dato
-// que ya tenía. Lo que mande el navegador para un dato que la ficha ya tiene
-// se ignora.
+// Contacto del cliente: el formulario lo prellena con su ficha y el vendedor
+// lo puede corregir (los dos son obligatorios). Lo que cambió respecto a la
+// ficha se guarda también en ella.
 $fichaContacto = trim((string)($cliente['nombre_contacto'] ?? ''));
 $fichaTelefono = trim((string)($cliente['telefono'] ?? ''));
-$llenarFicha   = []; // columna => valor nuevo
-$contactoNombre = $fichaContacto;
+$llenarFicha   = []; // columna => [valor anterior, valor nuevo]
+$contactoNombre = mb_substr(trim((string)($_POST['contacto_nombre'] ?? '')), 0, 150);
 if ($contactoNombre === '') {
-    $contactoNombre = mb_substr(trim((string)($_POST['contacto_nombre'] ?? '')), 0, 150);
-    if ($contactoNombre === '') {
-        jsonResponse(['ok' => false, 'error' => 'Escribe el nombre de contacto del cliente'], 400);
-    }
-    $llenarFicha['nombre_contacto'] = $contactoNombre;
+    jsonResponse(['ok' => false, 'error' => 'Escribe el nombre de contacto del cliente'], 400);
 }
-$contactoTelefono = $fichaTelefono;
+if ($contactoNombre !== $fichaContacto) {
+    $llenarFicha['nombre_contacto'] = [$fichaContacto ?: null, $contactoNombre];
+}
+$contactoTelefono = normalizarTelefonoMx((string)($_POST['contacto_telefono'] ?? ''));
 if ($contactoTelefono === '') {
-    $contactoTelefono = normalizarTelefonoMx((string)($_POST['contacto_telefono'] ?? ''));
-    if ($contactoTelefono === '') {
-        jsonResponse(['ok' => false, 'error' => 'Escribe el teléfono de contacto del cliente'], 400);
-    }
-    if ($contactoTelefono === null) {
-        jsonResponse(['ok' => false, 'error' => MSG_TELEFONO_INVALIDO], 400);
-    }
-    $llenarFicha['telefono'] = $contactoTelefono;
+    jsonResponse(['ok' => false, 'error' => 'Escribe el teléfono de contacto del cliente'], 400);
 }
-
+if ($contactoTelefono === null) {
+    jsonResponse(['ok' => false, 'error' => MSG_TELEFONO_INVALIDO], 400);
+}
+if ($contactoTelefono !== $fichaTelefono) {
+    $llenarFicha['telefono'] = [$fichaTelefono ?: null, $contactoTelefono];
+}
 // Cada estilo tiene que estar en el catálogo de la Nueva cotización (modelo
 // del cotizador anterior o estilo del ERP); el nombre, los colores y las
 // tallas válidas salen de ahí, no de lo que mande el navegador.
@@ -274,10 +269,10 @@ try {
 
     $db->prepare("INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id) VALUES (?, 'enviada', ?)")
        ->execute([$id, (int)$u['id']]);
-    // Completa la ficha del cliente con lo que le faltaba (columnas fijas,
-    // no vienen del navegador).
-    foreach ($llenarFicha as $col => $valor) {
-        $db->prepare("UPDATE clientes SET $col = ? WHERE id = ? AND COALESCE(TRIM($col), '') = ''")
+    // Actualiza la ficha del cliente con lo que corrigió o le faltaba
+    // (columnas fijas, no vienen del navegador).
+    foreach ($llenarFicha as $col => [, $valor]) {
+        $db->prepare("UPDATE clientes SET $col = ? WHERE id = ?")
            ->execute([$valor, $clienteId]);
     }
     $db->commit();
@@ -291,8 +286,8 @@ registrarCambio($db, (int)$u['id'], 'muestra', $id, 'alta', "Solicitó la muestr
 if ($llenarFicha) {
     $etiquetas = ['nombre_contacto' => 'Contacto', 'telefono' => 'Teléfono'];
     $diff = [];
-    foreach ($llenarFicha as $col => $valor) $diff[$etiquetas[$col]] = [null, $valor];
-    registrarCambio($db, (int)$u['id'], 'cliente', $clienteId, 'edicion', "Completó la ficha de {$cliente['nombre']} al pedir la muestra {$folio}", $diff);
+    foreach ($llenarFicha as $col => $par) $diff[$etiquetas[$col]] = $par;
+    registrarCambio($db, (int)$u['id'], 'cliente', $clienteId, 'edicion', "Actualizó la ficha de {$cliente['nombre']} al pedir la muestra {$folio}", $diff);
 }
 
 $s = cargarSolicitudMuestra($db, $id);

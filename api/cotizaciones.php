@@ -186,6 +186,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             registrarActividadSeguimientoErp($idVendedorErp, 'prospecto_nuevo', $idProspecto, null);
         }
 
+        // Si al cotizar corrigió el contacto o el correo, se guarda también en
+        // la ficha del cliente. Un campo que dejó vacío no borra lo que ya
+        // había. Va aparte: si falla, la cotización ya quedó hecha.
+        $nuevosDatos = ['nombre_contacto' => $clienteContacto, 'correo' => $clienteEmail];
+        $diffCliente = [];
+        foreach ($nuevosDatos as $col => $valor) {
+            $valor = mb_substr($valor, 0, 150);
+            $antes = trim((string)($clienteVisitas[$col] ?? ''));
+            if ($valor !== '' && $valor !== $antes) $diffCliente[$col] = [$antes ?: null, $valor];
+        }
+        if ($diffCliente) {
+            try {
+                $sets = implode(', ', array_map(fn($c) => "$c = ?", array_keys($diffCliente)));
+                $db->prepare("UPDATE clientes SET $sets WHERE id = ?")
+                   ->execute([...array_column($diffCliente, 1), $clienteId]);
+                $etiquetas = ['nombre_contacto' => 'Contacto', 'correo' => 'Correo'];
+                $diff = [];
+                foreach ($diffCliente as $col => $par) $diff[$etiquetas[$col]] = $par;
+                registrarCambio($db, $u['id'], 'cliente', $clienteId, 'edicion', "Actualizó los datos de {$clienteVisitas['nombre']} al cotizar ({$folio})", $diff);
+            } catch (Throwable $e) {
+                error_log('[VISITAS] api/cotizaciones.php (datos del cliente): ' . $e->getMessage());
+            }
+        }
+
         // El detalle completo (líneas, cambios de estado) ya vive en
         // cotizacion_historial del ERP -- aquí solo se anota el alta para
         // que aparezca junto con clientes/citas en la bitácora del admin.

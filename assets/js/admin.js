@@ -515,9 +515,9 @@ function textoVisitaCorta(segundos, gps, fotosVerificadas) {
     return { alerta: false, html: `<b>Tomó las dos fotos con ${formatoDuracion(segundos)} de diferencia, pero el GPS confirma que estuvo ${plural(gps.minutos)} en el cliente</b> (de ${horaSoloUTC(gps.desde)} a ${horaSoloUTC(gps.hasta)}).${hueco}` };
   }
   let detalle = '';
-  // Si las fotos salieron "GPS verificado" (radio de 350 m) se aclara, para que no parezca contradicción.
+  // Si las fotos salieron "GPS verificado" (radio de 600 m) se aclara, para que no parezca contradicción.
   if (gps && !gps.desde) detalle = fotosVerificadas
-    ? ' Las fotos se tomaron dentro del radio permitido (350 m), pero el rastreo GPS nunca lo ubica a menos de 150 m del cliente.'
+    ? ' Las fotos se tomaron dentro del radio permitido (600 m), pero el rastreo GPS nunca lo ubica a menos de 150 m del cliente.'
     : ' El rastreo GPS nunca lo ubica a menos de 150 m del cliente.';
   else if (gps && !gps.minutos) detalle = ` El GPS confirma que sí llegó al cliente a las ${horaSoloUTC(gps.desde)}, pero estuvo ahí menos de 1 minuto.`;
   else if (gps) detalle = ` El GPS lo ubica en el cliente solo ${plural(gps.minutos)} (de ${horaSoloUTC(gps.desde)} a ${horaSoloUTC(gps.hasta)}).${hueco}`;

@@ -79,11 +79,11 @@ $u = requireRole('vendedor');
               </select>
               <div class="mu-msg-err"></div>
             </div>
-            <!-- Contacto del cliente: sale de su ficha; si le falta algo se pide aquí y se guarda también en la ficha -->
+            <!-- Contacto del cliente: se prellena con su ficha; lo que corrija aquí se guarda también en la ficha -->
             <div id="bloque-contacto" class="d-none mt-3">
-              <div id="contacto-lectura" class="mu-nota mb-0"></div>
-              <div id="contacto-faltan" class="d-none">
-                <div class="mu-aviso-falta mb-3" id="contacto-aviso"></div>
+              <div>
+                <div class="mu-aviso-falta mb-3 d-none" id="contacto-aviso"></div>
+                <div class="mu-nota mb-3" id="contacto-nota"><i class="bi bi-info-circle"></i> Viene de la ficha del cliente. Si algo cambió, corrígelo aquí y se actualiza también en su ficha.</div>
                 <div class="v26-field" id="campo-contacto-nombre">
                   <label for="contacto_nombre">Nombre de contacto <span class="mu-ast">*</span></label>
                   <input type="text" id="contacto_nombre" class="v26-input" maxlength="150" placeholder="Ej. Antonio de León" autocomplete="off">
@@ -257,8 +257,8 @@ function pintarResumen() {
   const val = (id) => document.getElementById(id).value.trim();
   document.getElementById('r-cliente').textContent = textoSel(document.getElementById('id_cliente'));
   const cr = clienteElegido();
-  const nomC = cr ? ((cr.nombre_contacto || '').trim() || val('contacto_nombre')) : '';
-  const telC = cr ? ((cr.telefono || '').trim() || val('contacto_telefono')) : '';
+  const nomC = cr ? val('contacto_nombre') : '';
+  const telC = cr ? val('contacto_telefono') : '';
   document.getElementById('r-contacto').textContent = [nomC, telC].filter(Boolean).join(' · ') || '—';
   const conEstilo = lineas.filter(l => l.item);
   document.getElementById('r-estilos').innerHTML = conEstilo.length ? conEstilo.map(l => {
@@ -279,9 +279,9 @@ function pintarResumen() {
   pintarValidacion();
 }
 
-// Contacto del cliente: si la ficha tiene los dos datos, solo se muestran;
-// si le falta alguno, se pide ese (obligatorio) y el servidor lo guarda
-// también en la ficha.
+// Contacto del cliente: los dos campos se llenan con lo que tiene su ficha y
+// el vendedor los puede corregir; el servidor guarda en la ficha lo que
+// cambió. Si a la ficha le falta alguno, se avisa (son obligatorios).
 function pintarContacto() {
   const c = clienteElegido();
   const bloque = document.getElementById('bloque-contacto');
@@ -289,23 +289,17 @@ function pintarContacto() {
   if (!c) return;
   const nom = (c.nombre_contacto || '').trim();
   const tel = (c.telefono || '').trim();
-  const lectura = [];
-  if (nom) lectura.push(escHtml(nom));
-  if (tel) lectura.push(escHtml(tel));
-  const lec = document.getElementById('contacto-lectura');
-  lec.innerHTML = lectura.length ? `<i class="bi bi-person-badge"></i> Contacto: <strong>${lectura.join(' · ')}</strong>` : '';
-  lec.classList.toggle('d-none', !lectura.length);
-  lec.classList.toggle('mb-2', lectura.length && (!nom || !tel));
-  const sinNom = !nom, sinTel = !tel, dos = sinNom && sinTel;
-  document.getElementById('contacto-aviso').innerHTML = (sinNom || sinTel)
+  document.getElementById('contacto_nombre').value = nom;
+  document.getElementById('contacto_telefono').value = tel;  const sinNom = !nom, sinTel = !tel, dos = sinNom && sinTel;
+  const aviso = document.getElementById('contacto-aviso');
+  aviso.innerHTML = (sinNom || sinTel)
     ? `<i class="bi bi-exclamation-circle-fill"></i> <strong>A la ficha de este cliente le ${dos ? 'faltan el nombre y el teléfono' : 'falta ' + (sinNom ? 'el nombre' : 'el teléfono')} de contacto.</strong> `
       + `${dos ? 'Son obligatorios' : 'Es obligatorio'} para enviar. ${dos ? 'Escríbelos' : 'Escríbelo'} aquí y ${dos ? 'los' : 'lo'} guardamos también en su ficha.`
     : '';
-  document.getElementById('contacto-faltan').classList.toggle('d-none', !!(nom && tel));
-  document.getElementById('campo-contacto-nombre').classList.toggle('d-none', !!nom);
-  document.getElementById('campo-contacto-tel').classList.toggle('d-none', !!tel);
-  document.getElementById('contacto_nombre').required = !nom;
-  document.getElementById('contacto_telefono').required = !tel;
+  aviso.classList.toggle('d-none', !(sinNom || sinTel));
+  document.getElementById('contacto-nota').classList.toggle('d-none', sinNom || sinTel);
+  document.getElementById('contacto_nombre').required = true;
+  document.getElementById('contacto_telefono').required = true;
 }
 ['contacto_nombre', 'contacto_telefono'].forEach(id => document.getElementById(id).addEventListener('input', () => pintarResumen()));
 ['motivo', 'fecha_promesa', 'tiempo_prueba_dias', 'destino_direccion'].forEach(id => document.getElementById(id).addEventListener('input', pintarResumen));
@@ -709,15 +703,12 @@ function faltantes() {
   if (!c) {
     f.push({ paso: 1, campo: 'campo-cliente', lista: 'Cliente o prospecto', msg: 'Elige para quién es la muestra.', foco: () => $('id_cliente') });
   } else {
-    if (!(c.nombre_contacto || '').trim() && !$('contacto_nombre').value.trim()) {
+    if (!$('contacto_nombre').value.trim()) {
       f.push({ paso: 1, campo: 'campo-contacto-nombre', lista: 'Nombre de contacto del cliente', msg: 'Escribe el nombre de la persona de contacto.', foco: () => $('contacto_nombre') });
     }
-    if (!(c.telefono || '').trim()) {
-      const t = telefonoMx($('contacto_telefono').value);
-      if (t === '') f.push({ paso: 1, campo: 'campo-contacto-tel', lista: 'Teléfono de contacto del cliente', msg: 'Escribe el teléfono de contacto (10 dígitos).', foco: () => $('contacto_telefono') });
-      else if (t === null) f.push({ paso: 1, campo: 'campo-contacto-tel', lista: 'Teléfono de contacto: debe tener 10 dígitos', msg: MSG_TELEFONO_INVALIDO, foco: () => $('contacto_telefono') });
-    }
-  }
+    const t = telefonoMx($('contacto_telefono').value);
+    if (t === '') f.push({ paso: 1, campo: 'campo-contacto-tel', lista: 'Teléfono de contacto del cliente', msg: 'Escribe el teléfono de contacto (10 dígitos).', foco: () => $('contacto_telefono') });
+    else if (t === null) f.push({ paso: 1, campo: 'campo-contacto-tel', lista: 'Teléfono de contacto: debe tener 10 dígitos', msg: MSG_TELEFONO_INVALIDO, foco: () => $('contacto_telefono') });  }
   lineas.forEach((l, i) => erroresLinea(l, i + 1).forEach(x => f.push(x)));
   if (!$('motivo').value.trim()) f.push({ paso: 2, campo: 'campo-motivo', lista: 'Motivo de la muestra', msg: 'Escribe para qué es la muestra (ej. prueba de uso en planta).', foco: () => $('motivo') });
   if (!$('destino_direccion').value.trim()) f.push({ paso: 3, campo: 'campo-direccion', lista: 'Dirección de entrega', msg: 'Escribe a dónde se manda la muestra.', foco: () => $('destino_direccion') });
@@ -805,8 +796,7 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     const fd = new FormData();
     fd.append('cliente_id', document.getElementById('id_cliente').value);
     fd.append('contacto_nombre', document.getElementById('contacto_nombre').value);
-    fd.append('contacto_telefono', document.getElementById('contacto_telefono').value);
-    fd.append('estilos', JSON.stringify(lineas.map(l => ({
+    fd.append('contacto_telefono', document.getElementById('contacto_telefono').value);    fd.append('estilos', JSON.stringify(lineas.map(l => ({
       item: l.item, color: l.color, tipo: l.tipo, adendum: l.tipo === 'variante' ? adendumDe(l) : [],
       tallas: l.tallas.map(t => ({ talla: t.talla, pares: parseInt(t.pares, 10) || 0, nota: (t.nota || '').trim() })),
     }))));
