@@ -46,7 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $lng           = $_POST['lng'] ?? null;
     $telefono      = trim($_POST['telefono'] ?? '');
     $nombreContacto = trim($_POST['nombre_contacto'] ?? '');
-    $correo        = mb_substr(trim($_POST['correo'] ?? ''), 0, 150);
     // Si ya es un cliente conocido (no un prospecto nuevo) se registra
     // directo como "convertido", para no forzarlo a pasar por todo el
     // embudo de ventas.
@@ -67,9 +66,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($telefono === null) {
         jsonResponse(['ok' => false, 'error' => MSG_TELEFONO_INVALIDO], 400);
     }
-    if ($correo !== '' && !filter_var($correo, FILTER_VALIDATE_EMAIL)) {
-        jsonResponse(['ok' => false, 'error' => 'El correo no tiene un formato válido.'], 400);
-    }
 
     // Dirección completa y legible, compuesta a partir de las partes
     // capturadas (para no tener que tocar las pantallas que ya muestran
@@ -81,16 +77,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     [$ubicacionConfirmada, $ubicacionFuente] = ubicacionDesdeFormulario('registro');
     $stmt = $db->prepare(
-        'INSERT INTO clientes (vendedor_id, nombre, direccion, calle_numero, lat, lng, telefono, codigo_postal, estado, municipio, colonia, etapa, etapa_inicial, etapa_actualizada_en, tipo_cliente, nombre_contacto, correo,
+        'INSERT INTO clientes (vendedor_id, nombre, direccion, calle_numero, lat, lng, telefono, codigo_postal, estado, municipio, colonia, etapa, etapa_inicial, etapa_actualizada_en, tipo_cliente, nombre_contacto,
                                ubicacion_confirmada, ubicacion_fuente, ubicacion_confirmada_en)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?,' . ($ubicacionConfirmada ? 'CURRENT_TIMESTAMP' : 'NULL') . ')'
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,' . ($ubicacionConfirmada ? 'CURRENT_TIMESTAMP' : 'NULL') . ')'
     );
     $stmt->execute([
         $u['id'], $nombre, $direccion, $calleNumero,
         $lat !== '' ? $lat : null, $lng !== '' ? $lng : null,
         $telefono,
         $codigoPostal ?: null, $estado ?: null, $municipio ?: null, $colonia ?: null,
-        $etapaInicial, $etapaInicial, $tipoCliente, $nombreContacto ?: null, $correo ?: null,
+        $etapaInicial, $etapaInicial, $tipoCliente, $nombreContacto ?: null,
         $ubicacionConfirmada ? 'true' : 'false', $ubicacionFuente,
     ]);
     $nuevoId = (int)$db->lastInsertId();

@@ -89,9 +89,14 @@ $u = requireRole('vendedor');
                   <input type="text" id="contacto_nombre" class="v26-input" maxlength="150" placeholder="Ej. Antonio de León" autocomplete="off">
                   <div class="mu-msg-err"></div>
                 </div>
-                <div class="v26-field mb-0" id="campo-contacto-tel">
+                <div class="v26-field" id="campo-contacto-tel">
                   <label for="contacto_telefono">Teléfono de contacto <span class="mu-ast">*</span></label>
                   <input type="tel" id="contacto_telefono" class="v26-input" maxlength="20" inputmode="tel" placeholder="Ej. 477 123 4567" autocomplete="off">
+                  <div class="mu-msg-err"></div>
+                </div>
+                <div class="v26-field mb-0" id="campo-contacto-correo">
+                  <label for="contacto_correo">Correo (opcional)</label>
+                  <input type="email" id="contacto_correo" class="v26-input" maxlength="150" inputmode="email" placeholder="correo@empresa.com" autocomplete="off">
                   <div class="mu-msg-err"></div>
                 </div>
               </div>
@@ -291,6 +296,7 @@ function pintarContacto() {
   const tel = (c.telefono || '').trim();
   document.getElementById('contacto_nombre').value = nom;
   document.getElementById('contacto_telefono').value = tel;
+  document.getElementById('contacto_correo').value = (c.correo || '').trim();
   const sinNom = !nom, sinTel = !tel, dos = sinNom && sinTel;
   const aviso = document.getElementById('contacto-aviso');
   aviso.innerHTML = (sinNom || sinTel)
@@ -302,7 +308,7 @@ function pintarContacto() {
   document.getElementById('contacto_nombre').required = true;
   document.getElementById('contacto_telefono').required = true;
 }
-['contacto_nombre', 'contacto_telefono'].forEach(id => document.getElementById(id).addEventListener('input', () => pintarResumen()));
+['contacto_nombre', 'contacto_telefono', 'contacto_correo'].forEach(id => document.getElementById(id).addEventListener('input', () => pintarResumen()));
 ['motivo', 'fecha_promesa', 'tiempo_prueba_dias', 'destino_direccion'].forEach(id => document.getElementById(id).addEventListener('input', pintarResumen));
 document.getElementById('id_cliente').addEventListener('change', (e) => {
   pintarContacto();
@@ -710,6 +716,10 @@ function faltantes() {
     const t = telefonoMx($('contacto_telefono').value);
     if (t === '') f.push({ paso: 1, campo: 'campo-contacto-tel', lista: 'Teléfono de contacto del cliente', msg: 'Escribe el teléfono de contacto (10 dígitos).', foco: () => $('contacto_telefono') });
     else if (t === null) f.push({ paso: 1, campo: 'campo-contacto-tel', lista: 'Teléfono de contacto: debe tener 10 dígitos', msg: MSG_TELEFONO_INVALIDO, foco: () => $('contacto_telefono') });
+    const correo = $('contacto_correo').value.trim();
+    if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
+      f.push({ paso: 1, campo: 'campo-contacto-correo', lista: 'Correo del cliente: formato no válido', msg: 'Revisa el correo (ej. nombre@empresa.com).', foco: () => $('contacto_correo') });
+    }
   }
   lineas.forEach((l, i) => erroresLinea(l, i + 1).forEach(x => f.push(x)));
   if (!$('motivo').value.trim()) f.push({ paso: 2, campo: 'campo-motivo', lista: 'Motivo de la muestra', msg: 'Escribe para qué es la muestra (ej. prueba de uso en planta).', foco: () => $('motivo') });
@@ -799,6 +809,7 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     fd.append('cliente_id', document.getElementById('id_cliente').value);
     fd.append('contacto_nombre', document.getElementById('contacto_nombre').value);
     fd.append('contacto_telefono', document.getElementById('contacto_telefono').value);
+    fd.append('contacto_correo', document.getElementById('contacto_correo').value);
     fd.append('estilos', JSON.stringify(lineas.map(l => ({
       item: l.item, color: l.color, tipo: l.tipo, adendum: l.tipo === 'variante' ? adendumDe(l) : [],
       tallas: l.tallas.map(t => ({ talla: t.talla, pares: parseInt(t.pares, 10) || 0, nota: (t.nota || '').trim() })),

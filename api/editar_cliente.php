@@ -38,7 +38,6 @@ $lng           = $_POST['lng'] ?? null;
 $telefono      = trim($_POST['telefono'] ?? '');
 $tipoCliente   = ($_POST['tipo_cliente'] ?? '') === 'persona' ? 'persona' : 'organizacion';
 $nombreContacto = trim($_POST['nombre_contacto'] ?? '');
-$correo        = mb_substr(trim($_POST['correo'] ?? ''), 0, 150);
 
 if ($nombre === '' || $calleNumero === '') {
     jsonResponse(['ok' => false, 'error' => 'Nombre y dirección son obligatorios'], 400);
@@ -53,9 +52,6 @@ $telefono = normalizarTelefonoMx($telefono);
 if ($telefono === null) {
     jsonResponse(['ok' => false, 'error' => MSG_TELEFONO_INVALIDO], 400);
 }
-if ($correo !== '' && !filter_var($correo, FILTER_VALIDATE_EMAIL)) {
-    jsonResponse(['ok' => false, 'error' => 'El correo no tiene un formato válido.'], 400);
-}
 
 // Sin colonia/CP/ciudad repetidos aunque los hayan pegado en la calle.
 $calleNumero = limpiarCalleNumero($calleNumero, $colonia, $municipio, $estado);
@@ -65,14 +61,14 @@ $direccion = implode(', ', $partes);
 $stmt = $db->prepare(
     'UPDATE clientes
      SET nombre = ?, direccion = ?, calle_numero = ?, lat = ?, lng = ?, telefono = ?,
-         codigo_postal = ?, estado = ?, municipio = ?, colonia = ?, tipo_cliente = ?, nombre_contacto = ?, correo = ?
+         codigo_postal = ?, estado = ?, municipio = ?, colonia = ?, tipo_cliente = ?, nombre_contacto = ?
      WHERE id = ? AND vendedor_id = ?'
 );
 $stmt->execute([
     $nombre, $direccion, $calleNumero,
     $lat !== '' ? $lat : null, $lng !== '' ? $lng : null,
     $telefono,
-    $codigoPostal ?: null, $estado ?: null, $municipio ?: null, $colonia ?: null, $tipoCliente, $nombreContacto ?: null, $correo ?: null,
+    $codigoPostal ?: null, $estado ?: null, $municipio ?: null, $colonia ?: null, $tipoCliente, $nombreContacto ?: null,
     $id, $u['id'],
 ]);
 
@@ -95,7 +91,6 @@ $campos = [
     'Dirección'  => [$antes['direccion'], $direccion],
     'Teléfono'   => [$antes['telefono'], $telefono],
     'Contacto'   => [$antes['nombre_contacto'], $nombreContacto ?: null],
-    'Correo'     => [$antes['correo'] ?? null, $correo ?: null],
 ];
 $diff = [];
 if ($pinMovido) $campos['Ubicación'] = [$antes['lat'] . ', ' . $antes['lng'], $lat . ', ' . $lng];
