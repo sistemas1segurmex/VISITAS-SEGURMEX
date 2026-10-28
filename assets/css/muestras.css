@@ -579,3 +579,37 @@ body.v26 { overflow-x: clip; }
 .mu-cot-buscar .v26-select { flex: 0 0 230px; min-width: 0; }
 .mu-cot-buscar .v26-search { flex: 1 1 auto; min-width: 0; }
 @media (max-width: 760px) { .mu-cot-buscar { flex: 1 1 100%; flex-wrap: wrap; } .mu-cot-buscar .v26-select { flex: 1 1 100%; } }
+
+/* ---- Datos obligatorios en Solicitar muestra (28-oct-2026) ----
+   Asterisco rojo en lo obligatorio, aviso amarillo de datos que le faltan a
+   la ficha del cliente, campos en rojo con su mensaje y lista de faltantes
+   junto al botón «Enviar solicitud». */
+.mu-ast { color: var(--v26-red); font-weight: 800; margin-left: 2px; }
+.mu-leyenda-oblig { font-size: .8rem; color: var(--v26-ink-soft); margin: 0 0 12px; }
+.mu-aviso-falta { font-size: .84rem; line-height: 1.4; padding: 10px 12px; border-radius: 12px; background: #FFF8E6; border: 1px solid #F5D27A; border-left: 4px solid var(--v26-brand-1); color: var(--v26-ink); }
+.mu-aviso-falta strong { color: #8A5A00; }
+.mu-aviso-falta i { color: var(--v26-brand-2); }
+.mu-aviso-falta:empty { display: none; }
+.mu-msg-err { color: var(--v26-red); font-size: .8rem; font-weight: 600; margin-top: 6px; }
+.mu-msg-err::before { content: "⚠ "; }
+.mu-msg-err:empty { display: none; }
+.v26-field.mu-err .v26-input,
+.v26-field.mu-err .v26-select,
+.v26-field.mu-err .v26-textarea { border-color: var(--v26-red); background-color: #FFF5F7; }
+.mu-lin-err { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: #FFF1F3; border: 1px solid #FECDD3; color: var(--v26-red); font-size: .8rem; font-weight: 600; }
+.mu-lin-err div + div { margin-top: 4px; }
+.mu-lin-err:empty { display: none; }
+.mu-lin.mu-lin--err { border-color: #FDA4B4; }
+.mu-paso-estado { display: none; margin-left: auto; flex: none; font-size: .7rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: #FFF1F3; color: var(--v26-red); }
+.mu-paso-head.con-error .mu-paso-estado { display: inline-block; }
+.mu-paso-head.ok .mu-paso-n { background: var(--v26-green); box-shadow: 0 8px 18px -8px rgba(22,163,74,.55); }
+.mu-faltan { background: #FFF1F3; border: 1.5px solid #FDA4B4; border-radius: var(--v26-r-md); padding: 12px 14px; margin-bottom: 10px; }
+.mu-faltan-t { font-weight: 800; color: var(--v26-red); font-size: .9rem; margin-bottom: 6px; }
+.mu-faltan ul { list-style: none; margin: 0; padding: 0; }
+.mu-faltan button { border: none; background: none; padding: 4px 0; font: inherit; font-size: .86rem; color: var(--v26-ink); text-align: left; cursor: pointer; display: flex; gap: 6px; align-items: baseline; }
+.mu-faltan button::before { content: "→"; color: var(--v26-red); font-weight: 800; }
+.mu-faltan button small { color: var(--v26-ink-soft); }
+.mu-faltan-srv { font-size: .86rem; }
+.mu-contador { text-align: center; font-size: .78rem; font-weight: 600; color: var(--v26-ink-soft); margin-top: 8px; }
+.mu-contador b, .mu-contador.bloquea { color: var(--v26-red); }
+.mu-contador.listo { color: var(--v26-green); }
