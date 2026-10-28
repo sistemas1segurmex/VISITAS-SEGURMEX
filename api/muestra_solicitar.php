@@ -66,7 +66,7 @@ $db = getDB();
 
 // El cliente/prospecto tiene que ser de ESTE vendedor -- nadie pide muestra
 // a nombre de un cliente ajeno solo cambiando el id en la petición.
-$stmt = $db->prepare('SELECT id, nombre, nombre_contacto, telefono, correo FROM clientes WHERE id = ? AND vendedor_id = ?');
+$stmt = $db->prepare('SELECT id, nombre, nombre_contacto, telefono FROM clientes WHERE id = ? AND vendedor_id = ?');
 $stmt->execute([$clienteId, $u['id']]);
 $cliente = $stmt->fetch();
 if (!$cliente) {
@@ -96,17 +96,6 @@ if ($contactoTelefono === null) {
 if ($contactoTelefono !== $fichaTelefono) {
     $llenarFicha['telefono'] = [$fichaTelefono ?: null, $contactoTelefono];
 }
-// El correo es opcional y solo se pide aquí o al cotizar (no en el alta del
-// cliente). Vacío no borra el que ya tenía la ficha.
-$fichaCorreo   = trim((string)($cliente['correo'] ?? ''));
-$contactoCorreo = mb_substr(trim((string)($_POST['contacto_correo'] ?? '')), 0, 150);
-if ($contactoCorreo !== '' && !filter_var($contactoCorreo, FILTER_VALIDATE_EMAIL)) {
-    jsonResponse(['ok' => false, 'error' => 'El correo no tiene un formato válido.'], 400);
-}
-if ($contactoCorreo !== '' && $contactoCorreo !== $fichaCorreo) {
-    $llenarFicha['correo'] = [$fichaCorreo ?: null, $contactoCorreo];
-}
-
 // Cada estilo tiene que estar en el catálogo de la Nueva cotización (modelo
 // del cotizador anterior o estilo del ERP); el nombre, los colores y las
 // tallas válidas salen de ahí, no de lo que mande el navegador.
@@ -295,7 +284,7 @@ try {
 
 registrarCambio($db, (int)$u['id'], 'muestra', $id, 'alta', "Solicitó la muestra {$folio} (" . textoParesMuestra($totalPares) . ") para {$cliente['nombre']}");
 if ($llenarFicha) {
-    $etiquetas = ['nombre_contacto' => 'Contacto', 'telefono' => 'Teléfono', 'correo' => 'Correo'];
+    $etiquetas = ['nombre_contacto' => 'Contacto', 'telefono' => 'Teléfono'];
     $diff = [];
     foreach ($llenarFicha as $col => $par) $diff[$etiquetas[$col]] = $par;
     registrarCambio($db, (int)$u['id'], 'cliente', $clienteId, 'edicion', "Actualizó la ficha de {$cliente['nombre']} al pedir la muestra {$folio}", $diff);
