@@ -66,41 +66,47 @@ $u = requireRole('vendedor');
       <div id="msg-muestra"></div>
       <div id="aviso-tope" class="d-none"></div>
 
+      <p class="mu-leyenda-oblig">Los campos con <span class="mu-ast">*</span> son obligatorios para enviar la solicitud.</p>
+
       <div class="mu-sol-grid">
-        <form id="form-muestra" class="mu-sol-form">
+        <form id="form-muestra" class="mu-sol-form" novalidate>
           <section class="v26-card mu-paso">
-            <div class="mu-paso-head"><span class="mu-paso-n">1</span><div><strong>¿Para quién es?</strong><small>Uno de tus clientes o prospectos</small></div></div>
-            <div class="v26-field mb-0">
-              <label>Cliente o prospecto</label>
-              <select id="id_cliente" class="v26-select" required>
+            <div class="mu-paso-head" id="paso-1"><span class="mu-paso-n">1</span><div><strong>¿Para quién es?</strong><small>Uno de tus clientes o prospectos</small></div><span class="mu-paso-estado">Falta llenar</span></div>
+            <div class="v26-field mb-0" id="campo-cliente">
+              <label for="id_cliente">Cliente o prospecto <span class="mu-ast">*</span></label>
+              <select id="id_cliente" class="v26-select">
                 <option value="">Cargando tus clientes y prospectos...</option>
               </select>
+              <div class="mu-msg-err"></div>
             </div>
             <!-- Contacto del cliente: sale de su ficha; si le falta algo se pide aquí y se guarda también en la ficha -->
             <div id="bloque-contacto" class="d-none mt-3">
               <div id="contacto-lectura" class="mu-nota mb-0"></div>
               <div id="contacto-faltan" class="d-none">
-                <div class="mu-nota mb-2"><i class="bi bi-info-circle"></i> A la ficha de este cliente le falta este dato. Escríbelo y lo guardamos también en su ficha.</div>
+                <div class="mu-aviso-falta mb-3" id="contacto-aviso"></div>
                 <div class="v26-field" id="campo-contacto-nombre">
-                  <label>Nombre de contacto</label>
+                  <label for="contacto_nombre">Nombre de contacto <span class="mu-ast">*</span></label>
                   <input type="text" id="contacto_nombre" class="v26-input" maxlength="150" placeholder="Ej. Antonio de León" autocomplete="off">
+                  <div class="mu-msg-err"></div>
                 </div>
                 <div class="v26-field mb-0" id="campo-contacto-tel">
-                  <label>Teléfono de contacto</label>
+                  <label for="contacto_telefono">Teléfono de contacto <span class="mu-ast">*</span></label>
                   <input type="tel" id="contacto_telefono" class="v26-input" maxlength="20" inputmode="tel" placeholder="Ej. 477 123 4567" autocomplete="off">
+                  <div class="mu-msg-err"></div>
                 </div>
               </div>
             </div>
           </section>
 
           <section class="v26-card mu-paso">
-            <div class="mu-paso-head"><span class="mu-paso-n">2</span><div><strong>¿Qué muestras?</strong><small>Uno o varios estilos, cada uno con sus tallas y pares</small></div></div>
+            <div class="mu-paso-head" id="paso-2"><span class="mu-paso-n">2</span><div><strong>¿Qué muestras?</strong><small>Uno o varios estilos, cada uno con sus tallas y pares</small></div><span class="mu-paso-estado">Falta llenar</span></div>
             <div id="mu-estilos"></div>
             <button type="button" class="v26-btn v26-btn-ghost v26-btn-block" id="btn-agregar-estilo"><i class="bi bi-plus-lg"></i> Agregar otro estilo</button>
             <div class="mu-total-pares" id="mu-total-pares"></div>
-            <div class="v26-field mt-3">
-              <label>Motivo de la muestra</label>
-              <textarea id="motivo" class="v26-textarea" rows="2" maxlength="500" required placeholder="Ej. Prueba de uso en planta, licitación, presentación al área de compras…"></textarea>
+            <div class="v26-field mt-3" id="campo-motivo">
+              <label for="motivo">Motivo de la muestra <span class="mu-ast">*</span></label>
+              <textarea id="motivo" class="v26-textarea" rows="2" maxlength="500" placeholder="Ej. Prueba de uso en planta, licitación, presentación al área de compras…"></textarea>
+              <div class="mu-msg-err"></div>
             </div>
             <div class="v26-field mb-0">
               <label>Notas para planta <span class="mu-opc">(opcional)</span></label>
@@ -109,7 +115,7 @@ $u = requireRole('vendedor');
           </section>
 
           <section class="v26-card mu-paso">
-            <div class="mu-paso-head"><span class="mu-paso-n">3</span><div><strong>¿Cuándo y a dónde?</strong><small>La fecha que le prometiste y dónde entregarla</small></div></div>
+            <div class="mu-paso-head" id="paso-3"><span class="mu-paso-n">3</span><div><strong>¿Cuándo y a dónde?</strong><small>La fecha que le prometiste y dónde entregarla</small></div><span class="mu-paso-estado">Falta llenar</span></div>
             <div class="row g-2">
               <div class="col-sm-6 v26-field">
                 <label>Fecha promesa <span class="mu-opc">(opcional)</span></label>
@@ -131,15 +137,19 @@ $u = requireRole('vendedor');
                 </button>
               </div>
             </div>
-            <div class="v26-field mb-0">
-              <label>Dirección de entrega</label>
-              <textarea id="destino_direccion" class="v26-textarea" rows="3" required placeholder="Calle, número, colonia, ciudad..."></textarea>
+            <div class="v26-field mb-0" id="campo-direccion">
+              <label for="destino_direccion">Dirección de entrega <span class="mu-ast">*</span></label>
+              <textarea id="destino_direccion" class="v26-textarea" rows="3" placeholder="Calle, número, colonia, ciudad..."></textarea>
+              <div class="mu-msg-err"></div>
               <div class="mu-nota mt-2 mb-0 d-none" id="nota-direccion"><i class="bi bi-magic"></i> Usamos la dirección del cliente. Cámbiala si se entrega en otro lado.</div>
             </div>
           </section>
 
+          <!-- Lista de lo que falta (o el error del servidor) junto al botón -->
+          <div id="mu-faltan" class="mu-faltan d-none" role="alert" aria-live="polite"></div>
           <div class="mu-sol-enviar">
             <button type="submit" class="v26-btn v26-btn-primary v26-btn-block" id="btn-enviar-muestra">Enviar solicitud</button>
+            <div class="mu-contador" id="mu-contador"></div>
           </div>
         </form>
 
@@ -184,6 +194,13 @@ let uidSig = 1;
 // [{uid, item, color, tipo, cambios:{casco:{on,txt}...}, otros:[{nombre,txt}], tallas:[{talla,pares,nota}]}]
 let lineas = [];
 let eligiendo = null; // uid de la tarjeta con el catálogo abierto
+// Datos obligatorios (28-oct-2026): ya no se usa la burbuja del navegador
+// (casi no se ve en la APK). Tras el primer intento de enviar, cada campo que
+// falta se pone en rojo con su mensaje y junto al botón sale la lista de todo
+// lo que falta. Ver faltantes() y pintarValidacion().
+let intentoEnviar = false;
+let faltantesActual = [];
+let errorServidor = '';
 
 function nuevaLinea() {
   const cambios = {};
@@ -259,6 +276,7 @@ function pintarResumen() {
   document.getElementById('r-entrega').textContent = entregaElegida() === 'vendedor' ? 'A mí (vendedor)' : 'Al cliente';
   document.getElementById('r-dir').textContent = val('destino_direccion') || '—';
   pintarCupo();
+  pintarValidacion();
 }
 
 // Contacto del cliente: si la ficha tiene los dos datos, solo se muestran;
@@ -278,6 +296,11 @@ function pintarContacto() {
   lec.innerHTML = lectura.length ? `<i class="bi bi-person-badge"></i> Contacto: <strong>${lectura.join(' · ')}</strong>` : '';
   lec.classList.toggle('d-none', !lectura.length);
   lec.classList.toggle('mb-2', lectura.length && (!nom || !tel));
+  const sinNom = !nom, sinTel = !tel, dos = sinNom && sinTel;
+  document.getElementById('contacto-aviso').innerHTML = (sinNom || sinTel)
+    ? `<i class="bi bi-exclamation-circle-fill"></i> <strong>A la ficha de este cliente le ${dos ? 'faltan el nombre y el teléfono' : 'falta ' + (sinNom ? 'el nombre' : 'el teléfono')} de contacto.</strong> `
+      + `${dos ? 'Son obligatorios' : 'Es obligatorio'} para enviar. ${dos ? 'Escríbelos' : 'Escríbelo'} aquí y ${dos ? 'los' : 'lo'} guardamos también en su ficha.`
+    : '';
   document.getElementById('contacto-faltan').classList.toggle('d-none', !!(nom && tel));
   document.getElementById('campo-contacto-nombre').classList.toggle('d-none', !!nom);
   document.getElementById('campo-contacto-tel').classList.toggle('d-none', !!tel);
@@ -400,7 +423,7 @@ function tallasHTML(l, e) {
       <input type="text" class="v26-input mu-talla-nota" data-accion="nota" maxlength="500" placeholder="Nota de esta talla (opcional)" value="${escHtml(t.nota)}">
     </div>`).join('');
   const puedeMas = l.tallas.length < MAX_TALLAS && l.tallas.length < opciones.length;
-  return `<div class="mu-tallas-head"><span>Tallas y pares</span>${e && !e.tallas_del_estilo ? '<small>Este modelo no tiene numeración: elige de 20 a 35</small>' : ''}</div>
+  return `<div class="mu-tallas-head"><span>Tallas y pares <span class="mu-ast">*</span></span>${e && !e.tallas_del_estilo ? '<small>Este modelo no tiene numeración: elige de 20 a 35</small>' : ''}</div>
     ${filas}
     <button type="button" class="mu-link-btn" data-accion="agregar-talla" ${puedeMas ? '' : 'disabled'}><i class="bi bi-plus-circle"></i> Agregar talla</button>`;
 }
@@ -408,7 +431,7 @@ function tallasHTML(l, e) {
 function cambiosHTML(l) {
   if (l.tipo !== 'variante') return '';
   return `<div class="v26-field mb-0 mt-2">
-    <label>Cambios que pide el cliente <span class="mu-opc">— marca y describe cada uno</span></label>
+    <label>Cambios que pide el cliente <span class="mu-ast">*</span> <span class="mu-opc">— marca y describe al menos uno</span></label>
     <div class="mu-cambios-grid">
       ${Object.entries(CATEGORIAS_ADENDUM).map(([k, et]) => `
         <div class="v26-adendum-cat">
@@ -477,6 +500,7 @@ function tarjetaHTML(l, n) {
       ${quitar}
     </div>
     ${cuerpo}
+    <div class="mu-lin-err"></div>
   </div>`;
 }
 
@@ -579,6 +603,8 @@ function onCampo(ev) {
   }
 }
 cont.addEventListener('input', onCampo);
+cont.addEventListener('input', pintarValidacion);
+cont.addEventListener('change', pintarValidacion);
 cont.addEventListener('change', onCampo);
 
 document.getElementById('btn-agregar-estilo').addEventListener('click', () => {
@@ -627,10 +653,11 @@ pintarLineas();
 cargarCatalogos();
 
 // ---- Enviar ----
-function errorEn(msgTxt, el) {
-  document.getElementById('msg-muestra').innerHTML = `<div class="alert alert-danger py-2">${escHtml(msgTxt)}</div>`;
-  if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (el.focus) el.focus({ preventScroll: true }); }
-  else window.scrollTo({ top: 0, behavior: 'smooth' });
+// Errores del servidor (o del tope de pares): salen junto al botón.
+function errorEn(msgTxt) {
+  errorServidor = msgTxt;
+  pintarValidacion();
+  document.getElementById('mu-faltan').scrollIntoView({ behavior: 'smooth', block: 'center' });
   return false;
 }
 function adendumDe(l) {
@@ -642,33 +669,133 @@ function adendumDe(l) {
   l.otros.forEach(o => { if (o.nombre.trim() && o.txt.trim()) a.push({ categoria: 'otro', categoria_otro: o.nombre.trim(), descripcion_cliente: o.txt.trim() }); });
   return a;
 }
-function validarLineas() {
-  for (let i = 0; i < lineas.length; i++) {
-    const l = lineas[i], n = i + 1;
-    let div = document.querySelector(`.mu-lin[data-uid="${l.uid}"]`);
-    const e = estiloDe(l);
-    if (!e) return errorEn(`Elige el estilo ${n}.`, div);
-    if (eligiendo === l.uid) { eligiendo = null; repintarLinea(l); div = document.querySelector(`.mu-lin[data-uid="${l.uid}"]`); }
-    if ((e.colores || []).length > 1 && !l.color) return errorEn(`Elige el color del estilo ${e.clave}.`, div.querySelector('[data-accion="color"]'));
-    for (const t of l.tallas) {
-      if (!t.talla) return errorEn(`Elige la talla en el estilo ${e.clave}.`, div.querySelector('.mu-talla-sel.falta') || div);
-      if (!(parseInt(t.pares, 10) >= 1)) return errorEn(`Pon cuántos pares de la talla ${t.talla} del estilo ${e.clave} (al menos 1).`, div);
+// Misma regla que normalizarTelefonoMx() en includes/helpers.php:
+// '' = vacío, null = no válido, si no los 10 dígitos.
+const MSG_TELEFONO_INVALIDO = 'El teléfono debe tener 10 dígitos (sin 52 ni +52). Ejemplo: 477 123 4567.';
+function telefonoMx(v) {
+  let d = String(v || '').replace(/\D+/g, '');
+  if (d === '') return '';
+  if (d.length === 13 && d.startsWith('521')) d = d.slice(3);
+  else if (d.length === 13 && (d.startsWith('044') || d.startsWith('045'))) d = d.slice(3);
+  else if (d.length === 12 && (d.startsWith('52') || d.startsWith('01'))) d = d.slice(2);
+  return /^[2-9]\d{9}$/.test(d) ? d : null;
+}
+// Lo que falta en una tarjeta de estilo. Cada dato: paso, uid de la tarjeta,
+// texto de la lista junto al botón, mensaje dentro de la tarjeta y a dónde llevar.
+function erroresLinea(l, n) {
+  const f = [];
+  const tarjeta = () => document.querySelector(`.mu-lin[data-uid="${l.uid}"]`);
+  const en = (sel) => () => { const d = tarjeta(); return (d && d.querySelector(sel)) || d; };
+  const e = estiloDe(l);
+  const add = (lista, msg, foco) => f.push({ paso: 2, uid: l.uid, lista, msg, foco });
+  if (!e) { add(`Estilo ${n}: elige el modelo`, 'Elige el modelo de este estilo.', en('[data-accion="buscar"]')); return f; }
+  const pre = `Estilo ${n} (${e.clave})`;
+  if ((e.colores || []).length > 1 && !l.color) add(`${pre}: elige el color`, 'Elige el color.', en('[data-accion="color"]'));
+  const sinTalla = l.tallas.filter(t => !t.talla).length;
+  if (sinTalla) add(`${pre}: elige la talla`, sinTalla === 1 ? 'Elige la talla.' : `Elige la talla en las ${sinTalla} filas.`, en('.mu-talla-sel.falta'));
+  l.tallas.forEach((t, i) => {
+    if (t.talla && !(parseInt(t.pares, 10) >= 1)) add(`${pre}: pon cuántos pares de la talla ${t.talla}`, `Pon cuántos pares de la talla ${t.talla} (al menos 1).`, en(`.mu-talla[data-i="${i}"] .mu-pares-inp`));
+  });
+  if (l.tipo === 'variante' && !adendumDe(l).length) add(`${pre}: describe al menos un cambio de la variante`, 'Marca y describe al menos un cambio que pide el cliente.', en('.mu-cambios-box'));
+  if (lineas.some((x, j) => j < n - 1 && x.item === l.item && x.color === l.color)) {
+    add(`${pre}: está repetido`, `Este estilo${l.color ? ' en ' + l.color : ''} ya está en otra tarjeta. Pon todas sus tallas en una sola.`, tarjeta);
+  }
+  return f;
+}
+function faltantes() {
+  const f = [];
+  const $ = (id) => document.getElementById(id);
+  const c = clienteElegido();
+  if (!c) {
+    f.push({ paso: 1, campo: 'campo-cliente', lista: 'Cliente o prospecto', msg: 'Elige para quién es la muestra.', foco: () => $('id_cliente') });
+  } else {
+    if (!(c.nombre_contacto || '').trim() && !$('contacto_nombre').value.trim()) {
+      f.push({ paso: 1, campo: 'campo-contacto-nombre', lista: 'Nombre de contacto del cliente', msg: 'Escribe el nombre de la persona de contacto.', foco: () => $('contacto_nombre') });
     }
-    if (l.tipo === 'variante' && !adendumDe(l).length) return errorEn(`Describe al menos un cambio de la variante del estilo ${e.clave}.`, div.querySelector('.mu-cambios-box'));
-    if (lineas.some((x, j) => j < i && x.item === l.item && x.color === l.color)) {
-      return errorEn(`El estilo ${e.clave}${l.color ? ' en ' + l.color : ''} está repetido. Pon todas sus tallas en una sola tarjeta.`, div);
+    if (!(c.telefono || '').trim()) {
+      const t = telefonoMx($('contacto_telefono').value);
+      if (t === '') f.push({ paso: 1, campo: 'campo-contacto-tel', lista: 'Teléfono de contacto del cliente', msg: 'Escribe el teléfono de contacto (10 dígitos).', foco: () => $('contacto_telefono') });
+      else if (t === null) f.push({ paso: 1, campo: 'campo-contacto-tel', lista: 'Teléfono de contacto: debe tener 10 dígitos', msg: MSG_TELEFONO_INVALIDO, foco: () => $('contacto_telefono') });
     }
   }
-  return true;
+  lineas.forEach((l, i) => erroresLinea(l, i + 1).forEach(x => f.push(x)));
+  if (!$('motivo').value.trim()) f.push({ paso: 2, campo: 'campo-motivo', lista: 'Motivo de la muestra', msg: 'Escribe para qué es la muestra (ej. prueba de uso en planta).', foco: () => $('motivo') });
+  if (!$('destino_direccion').value.trim()) f.push({ paso: 3, campo: 'campo-direccion', lista: 'Dirección de entrega', msg: 'Escribe a dónde se manda la muestra.', foco: () => $('destino_direccion') });
+  return f;
 }
+function pintarValidacion() {
+  const f = faltantes();
+  faltantesActual = f;
+  // Círculo del paso en verde cuando está completo; «Falta llenar» tras intentar enviar.
+  [1, 2, 3].forEach(p => {
+    const h = document.getElementById('paso-' + p);
+    const malos = f.some(x => x.paso === p);
+    h.classList.toggle('ok', !malos);
+    h.classList.toggle('con-error', intentoEnviar && malos);
+  });
+  // Debajo del botón: cuántos datos faltan (o por qué está desactivado).
+  const c = clienteElegido();
+  const disp = paresDisponiblesCliente();
+  const cont = document.getElementById('mu-contador');
+  let txt, cls = '';
+  if (c && disp === 0) { txt = '<i class="bi bi-exclamation-triangle-fill"></i> Este cliente ya usó sus pares de muestra de este mes.'; cls = 'bloquea'; }
+  else if (totalPares() > disp) { txt = '<i class="bi bi-exclamation-triangle-fill"></i> Quita pares: la solicitud pasa del máximo de este cliente.'; cls = 'bloquea'; }
+  else if (f.length) txt = `Faltan <b>${f.length}</b> ${f.length === 1 ? 'dato obligatorio' : 'datos obligatorios'}`;
+  else { txt = '<i class="bi bi-check-circle-fill"></i> Todo listo para enviar'; cls = 'listo'; }
+  cont.innerHTML = txt;
+  cont.className = 'mu-contador ' + cls;
+
+  const box = document.getElementById('mu-faltan');
+  if (!intentoEnviar) { box.classList.add('d-none'); return; }
+  // Cada campo que falta en rojo con su mensaje.
+  ['campo-cliente', 'campo-contacto-nombre', 'campo-contacto-tel', 'campo-motivo', 'campo-direccion'].forEach(id => {
+    const d = document.getElementById(id);
+    const x = f.find(y => y.campo === id);
+    d.classList.toggle('mu-err', !!x);
+    d.querySelector('.mu-msg-err').textContent = x ? x.msg : '';
+  });
+  lineas.forEach(l => {
+    const d = document.querySelector(`.mu-lin[data-uid="${l.uid}"]`);
+    if (!d) return;
+    const errs = f.filter(x => x.uid === l.uid);
+    d.classList.toggle('mu-lin--err', errs.length > 0);
+    d.querySelector('.mu-lin-err').innerHTML = errs.map(x => `<div><i class="bi bi-exclamation-triangle-fill"></i> ${escHtml(x.msg)}</div>`).join('');
+  });
+  // Junto al botón: la lista de todo lo que falta; si no falta nada, el error del servidor.
+  if (f.length) {
+    box.innerHTML = `<div class="mu-faltan-t"><i class="bi bi-exclamation-circle-fill"></i> ${f.length === 1 ? 'Te falta 1 dato para enviar:' : `Te faltan ${f.length} datos para enviar:`}</div>`
+      + '<ul>' + f.map((x, i) => `<li><button type="button" data-ir="${i}">${escHtml(x.lista)} <small>(paso ${x.paso})</small></button></li>`).join('') + '</ul>';
+  } else if (errorServidor) {
+    box.innerHTML = `<div class="mu-faltan-t"><i class="bi bi-exclamation-circle-fill"></i> No se pudo enviar</div><div class="mu-faltan-srv">${escHtml(errorServidor)}</div>`;
+  }
+  box.classList.toggle('d-none', !f.length && !errorServidor);
+}
+document.getElementById('mu-faltan').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-ir]');
+  if (!b) return;
+  const x = faltantesActual[Number(b.dataset.ir)];
+  const el = x && x.foco();
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (el.focus) el.focus({ preventScroll: true });
+});
 
 document.getElementById('form-muestra').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('btn-enviar-muestra');
   document.getElementById('msg-muestra').innerHTML = '';
-  if (!validarLineas()) return;
+  errorServidor = '';
+  // Si un estilo ya elegido tiene el catálogo abierto, se cierra para ver sus campos.
+  const abierta = eligiendo !== null ? lineaPorUid(eligiendo) : null;
+  if (abierta && estiloDe(abierta)) { eligiendo = null; repintarLinea(abierta); }
+  intentoEnviar = true;
+  pintarValidacion();
+  if (faltantesActual.length) {
+    document.getElementById('mu-faltan').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
   if (totalPares() > paresDisponiblesCliente()) {
-    errorEn('Esta solicitud pasa del máximo de pares de muestra de este cliente este mes. Quita pares.', document.getElementById('mu-total-pares'));
+    errorEn('Esta solicitud pasa del máximo de pares de muestra de este cliente este mes. Quita pares.');
     return;
   }
 
