@@ -613,3 +613,8 @@ body.v26 { overflow-x: clip; }
 .mu-contador { text-align: center; font-size: .78rem; font-weight: 600; color: var(--v26-ink-soft); margin-top: 8px; }
 .mu-contador b, .mu-contador.bloquea { color: var(--v26-red); }
 .mu-contador.listo { color: var(--v26-green); }
+
+/* Botón «Tour guiado» del hero de Solicitar muestra: abre el mismo recorrido que el ícono ? de arriba. */
+.mu-btn-tour { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; font-size: .8rem; font-weight: 800; padding: 7px 14px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1.5px solid rgba(255,210,63,.6); color: #FFD23F; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+.mu-btn-tour[hidden] { display: none; }
+.mu-btn-tour:hover, .mu-btn-tour:focus-visible { background: #F5A623; border-color: #F5A623; color: #111827; }
