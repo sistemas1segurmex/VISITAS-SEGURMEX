@@ -29,6 +29,7 @@ $u = requireRole('vendedor');
       </div>
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
+        <button type="button" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Tour guiado: cómo pedir una muestra" aria-label="Tour guiado" id="btn-tour-ayuda"><i class="bi bi-question-lg"></i></button>
         <a href="../logout.php" class="v26-icon-btn v26-tip v26-tip--bottom" data-tip="Cerrar sesión" aria-label="Salir"><i class="bi bi-box-arrow-right"></i></a>
       </div>
     </div>
@@ -56,8 +57,9 @@ $u = requireRole('vendedor');
           <div class="mu-hero-eyebrow"><i class="bi bi-box-seam"></i> Nueva solicitud</div>
           <h1 class="mu-hero-titulo">¿Qué muestra necesita tu cliente?</h1>
           <p class="mu-hero-sub">Llena los 3 pasos. Puedes pedir varios estilos y tallas en la misma solicitud. La recibe el equipo de Segurmex y te avisamos cuando esté en preparación y cuando se embarque.</p>
+          <button type="button" class="mu-btn-tour" id="btn-tour-guiado"><i class="bi bi-signpost-split"></i> Tour guiado</button>
         </div>
-        <div class="mu-cupo">
+        <div class="mu-cupo" data-tour="sol-cupo">
           <div class="mu-cupo-txt"><span id="cupo-n">6</span> de <span id="cupo-tope">6</span><small id="cupo-sub">pares por cliente al mes</small></div>
           <div class="mu-cupo-barra"><span id="cupo-barra" style="width:0%"></span></div>
         </div>
@@ -70,7 +72,7 @@ $u = requireRole('vendedor');
 
       <div class="mu-sol-grid">
         <form id="form-muestra" class="mu-sol-form" novalidate>
-          <section class="v26-card mu-paso">
+          <section class="v26-card mu-paso" data-tour="sol-cliente">
             <div class="mu-paso-head" id="paso-1"><span class="mu-paso-n">1</span><div><strong>¿Para quién es?</strong><small>Uno de tus clientes o prospectos</small></div><span class="mu-paso-estado">Falta llenar</span></div>
             <div class="v26-field mb-0" id="campo-cliente">
               <label for="id_cliente">Cliente o prospecto <span class="mu-ast">*</span></label>
@@ -98,7 +100,7 @@ $u = requireRole('vendedor');
             </div>
           </section>
 
-          <section class="v26-card mu-paso">
+          <section class="v26-card mu-paso" data-tour="sol-muestras">
             <div class="mu-paso-head" id="paso-2"><span class="mu-paso-n">2</span><div><strong>¿Qué muestras?</strong><small>Uno o varios estilos, cada uno con sus tallas y pares</small></div><span class="mu-paso-estado">Falta llenar</span></div>
             <div id="mu-estilos"></div>
             <button type="button" class="v26-btn v26-btn-ghost v26-btn-block" id="btn-agregar-estilo"><i class="bi bi-plus-lg"></i> Agregar otro estilo</button>
@@ -114,7 +116,7 @@ $u = requireRole('vendedor');
             </div>
           </section>
 
-          <section class="v26-card mu-paso">
+          <section class="v26-card mu-paso" data-tour="sol-entrega">
             <div class="mu-paso-head" id="paso-3"><span class="mu-paso-n">3</span><div><strong>¿Cuándo y a dónde?</strong><small>La fecha que le prometiste y dónde entregarla</small></div><span class="mu-paso-estado">Falta llenar</span></div>
             <div class="row g-2">
               <div class="col-sm-6 v26-field">
@@ -174,6 +176,7 @@ $u = requireRole('vendedor');
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
+<script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
 <?php include __DIR__ . '/../includes/foto_zoom.php'; ?>
 <script>
 const CATEGORIAS_ADENDUM = { casco: 'Casco', suela: 'Suela', piel: 'Piel', forro: 'Forro' };
@@ -644,7 +647,36 @@ async function cargarCatalogos() {
 }
 lineas = [nuevaLinea()];
 pintarLineas();
-cargarCatalogos();
+
+// ================= Tour guiado =================
+// Mismo motor que las demás pantallas (assets/js/v26-tour.js). Sale solo la
+// primera vez; después se repite con «Tour guiado» o el ícono ? de arriba.
+// El resumen solo existe en computadora (en celular está oculto).
+function pasosTourSolicitarMuestra() {
+  const visible = sel => { const el = document.querySelector(sel); return !!(el && el.getClientRects().length); };
+  return [
+    { selector: '[data-tour="sol-cliente"]', texto: 'Paso 1: elige el cliente o prospecto. Si le falta el contacto o el teléfono, escríbelo aquí y se guarda también en su ficha.' },
+    { selector: '[data-tour="sol-cupo"]', texto: 'Cada cliente puede recibir hasta 6 pares al mes. Aquí ves cuántos le quedan al cliente que elegiste.' },
+    { selector: '#mu-estilos', texto: 'Paso 2: elige el estilo y, si tiene varios, el color. Luego escribe cada talla con sus pares. Si el cliente quiere cambios (casco, suela, piel, forro…), elige «Variante» y descríbelos.' },
+    { selector: '#btn-agregar-estilo', texto: '¿Quiere otro estilo? Toca «Agregar otro estilo» para pedir más de uno en la misma solicitud.' },
+    { selector: '#campo-motivo', texto: 'Escribe para qué es la muestra, por ejemplo: prueba de uso en planta. Es obligatorio.' },
+    { selector: '[data-tour="sol-entrega"]', texto: 'Paso 3: la dirección de entrega es obligatoria; si el cliente ya tiene una, viene llena: solo revísala. La fecha promesa y los días de prueba son opcionales.' },
+    ...(visible('.mu-resumen') ? [{ selector: '.mu-resumen', texto: 'Aquí ves todo lo que llevas antes de enviarla.' }] : []),
+    { selector: '.mu-sol-enviar', texto: 'Cuando esté todo, toca «Enviar solicitud». Si falta algo, te dice qué y lo marca en rojo.' },
+  ];
+}
+const OPCIONES_TOUR_SOLICITAR_MUESTRA = {
+  storageKey: 'v26_tour_solicitar_muestra_visto',
+  saludoTitulo: 'Cómo pedir una muestra',
+  saludoTexto: 'Te enseñamos en unos pasos rápidos.',
+  finalTexto: 'Repite este recorrido cuando quieras con el botón «Tour guiado».',
+};
+function abrirTourSolicitarMuestra() { V26Tour.reiniciar(pasosTourSolicitarMuestra(), OPCIONES_TOUR_SOLICITAR_MUESTRA); }
+document.getElementById('btn-tour-ayuda').addEventListener('click', abrirTourSolicitarMuestra);
+document.getElementById('btn-tour-guiado').addEventListener('click', abrirTourSolicitarMuestra);
+
+// La primera vez, el tour arranca ya con clientes y catálogo cargados.
+cargarCatalogos().then(() => V26Tour.iniciar(pasosTourSolicitarMuestra(), OPCIONES_TOUR_SOLICITAR_MUESTRA));
 
 // ---- Enviar ----
 // Errores del servidor (o del tope de pares): salen junto al botón.
