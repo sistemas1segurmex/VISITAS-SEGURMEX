@@ -303,6 +303,10 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
 .nc-hero-pasos li { display: inline-flex; align-items: center; gap: 6px; font-size: .74rem; font-weight: 700; padding: 5px 10px 5px 5px; border-radius: 999px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.14); }
 .nc-hero-pasos li span { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .66rem; font-weight: 800; background: var(--v26-brand-grad); color: #fff; }
 @media (max-width: 560px) { .nc-hero { padding: 14px 16px; } .nc-hero-titulo { font-size: 1.02rem; } .nc-hero-pasos { display: none; } }
+/* Botón «Tour guiado» del hero: abre el mismo recorrido que el ícono ? de arriba. */
+.nc-btn-tour { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 800; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1.5px solid rgba(255,210,63,.6); color: #FFD23F; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+.nc-btn-tour:hover, .nc-btn-tour:focus-visible { background: #F5A623; border-color: #F5A623; color: #111827; }
+@media (max-width: 560px) { .nc-btn-tour { font-size: .76rem; padding: 7px 12px; } }
 
 .nc-titulo { font-size: .95rem; text-transform: none; letter-spacing: 0; color: var(--v26-ink); }
 .nc-paso { display: inline-flex; align-items: center; gap: 10px; }
@@ -355,6 +359,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
         <li><span>3</span> Modelos</li>
         <li><span>4</span> Condiciones</li>
       </ol>
+      <button type="button" class="nc-btn-tour" id="btn-tour-guiado"><i class="bi bi-signpost-split"></i> Tour guiado</button>
     </section>
     <form id="form-cotizacion" novalidate>
       <div class="nc-grid">
@@ -1569,12 +1574,14 @@ const OPCIONES_TOUR_NUEVA_COTIZACION = {
   storageKey: 'v26_tour_nueva_cotizacion_visto',
   saludoTitulo: 'Cómo hacer una cotización',
   saludoTexto: 'Te enseñamos en 7 pasos rápidos.',
-  finalTexto: 'Repite este recorrido cuando quieras tocando el ícono ? de arriba.',
+  finalTexto: 'Repite este recorrido cuando quieras con el botón «Tour guiado».',
 };
-$('btn-tour-ayuda').addEventListener('click', () => {
+function abrirTourNuevaCotizacion() {
   if (sheetAbierta) cerrarSheet(false);
   V26Tour.reiniciar(pasosTourNuevaCotizacion(), OPCIONES_TOUR_NUEVA_COTIZACION);
-});
+}
+$('btn-tour-ayuda').addEventListener('click', abrirTourNuevaCotizacion);
+$('btn-tour-guiado').addEventListener('click', abrirTourNuevaCotizacion);
 
 recalcularTodo();
 // La primera vez, el tour arranca ya con parámetros, clientes y catálogo cargados.
