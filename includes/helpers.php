@@ -650,6 +650,49 @@ function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): 
     return $R * $c;
 }
 
+// Velocidad a partir de la cual un brinco entre dos puntos GPS se considera
+// imposible (mismo límite que los km de admin_metricas.php), y distancia
+// mínima para tomarlo en cuenta: con puntos a 1-2 segundos de distancia, el
+// "temblor" normal del GPS ya da velocidades altas sin que haya brinco real.
+define('GPS_VELOCIDAD_IMPOSIBLE_KMH', 150);
+define('GPS_BRINCO_MIN_METROS', 2000);
+
+/**
+ * ¿Ir del punto $a al $b implica un brinco imposible? Cada punto es un array
+ * con lat, lng y fecha_hora.
+ */
+function brincoGpsImposible(array $a, array $b): bool {
+    $metros = haversineDistance((float)$a['lat'], (float)$a['lng'], (float)$b['lat'], (float)$b['lng']);
+    if ($metros < GPS_BRINCO_MIN_METROS) return false;
+    $seg = max(1, abs(strtotime($b['fecha_hora']) - strtotime($a['fecha_hora'])));
+    return ($metros / 1000) / ($seg / 3600) > GPS_VELOCIDAD_IMPOSIBLE_KMH;
+}
+
+/**
+ * Quita los "picos" de un recorrido ordenado por hora: un punto al que solo
+ * se pudo llegar Y del que solo se pudo regresar a velocidad imposible. Es
+ * una lectura falsa por Wi-Fi/red (ej. 30-oct-2026: un vendedor en Puebla
+ * marcó un solo punto en León, 2 minutos antes de volver a Puebla). Se
+ * piden las dos condiciones para no tirar un viaje real con la app cerrada:
+ * ahí el salto de ida es rápido, pero el vendedor ya se queda en la ciudad
+ * nueva. Solo filtra lo que se muestra; la tabla no se toca.
+ */
+function quitarPicosGps(array $puntos): array {
+    $limpios = [];
+    $n = count($puntos);
+    for ($i = 0; $i < $n; $i++) {
+        $anterior = $limpios ? $limpios[count($limpios) - 1] : null;
+        $siguiente = $puntos[$i + 1] ?? null;
+        if ($anterior && $siguiente
+            && brincoGpsImposible($anterior, $puntos[$i])
+            && brincoGpsImposible($puntos[$i], $siguiente)) {
+            continue;
+        }
+        $limpios[] = $puntos[$i];
+    }
+    return $limpios;
+}
+
 // Hora local (CDMX) a partir de la cual se considera que ya "debería" haber
 // actividad si el vendedor de verdad salió a trabajar.
 define('HORA_CORTE_SIN_ACTIVIDAD', 11);
