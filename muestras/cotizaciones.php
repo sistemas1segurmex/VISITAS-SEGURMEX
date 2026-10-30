@@ -152,6 +152,7 @@ function tarjeta(c, i) {
       </div>
       <div class="mu-cot-total">${money(c.total)}</div>
       <div class="mu-card-talla">${c.total_pares} ${Number(c.total_pares) === 1 ? 'par' : 'pares'} · ${fechaCotMx(c.created_at)}</div>
+      ${c.reemplazada_por ? `<div class="mu-card-talla"><i class="bi bi-arrow-return-right"></i> Reemplazada por ${escHtml(c.reemplazada_por)}</div>` : ''}
       <div class="mu-card-quien">
         <span class="mu-avatar">${escHtml(iniciales(c.vendedor_nombre))}</span>
         <div class="mu-card-quien-txt">

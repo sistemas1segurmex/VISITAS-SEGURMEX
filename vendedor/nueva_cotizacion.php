@@ -11,13 +11,24 @@ $urlVolver  = $esMuestras ? '../muestras/cotizaciones.php' : 'cotizaciones.php';
 $clientePrellenado      = $esMuestras ? 0 : (int)($_GET['cliente_id'] ?? 0);
 $citaPrellenada         = $esMuestras ? 0 : (int)($_GET['cita_id'] ?? 0);
 $prospeccionPrellenada  = $esMuestras ? 0 : (int)($_GET['prospeccion_id'] ?? 0);
+
+// «Corregir» (30-oct-2026), desde Ver cotización:
+//   ?editar=ID   -> Pendiente: se corrige la misma (mismo folio).
+//   ?corregir=ID -> Enviada / En negociación: se hace una nueva con todo lo
+//                   de esa (COT-00123-2) y esa se cancela al guardar.
+// La pantalla arranca con los datos de la cotización (api/cotizacion_detalle.php?para_corregir=1).
+$editarId   = (int)($_GET['editar'] ?? 0);
+$corregirId = $editarId ? 0 : (int)($_GET['corregir'] ?? 0);
+$correccion = $editarId ? ['modo' => 'editar', 'id' => $editarId] : ($corregirId ? ['modo' => 'corregir', 'id' => $corregirId] : null);
+if ($correccion) { $clientePrellenado = 0; $citaPrellenada = 0; $prospeccionPrellenada = 0; }
+$tituloPantalla = $correccion ? 'Corregir cotización' : 'Nueva cotización';
 ?>
 <!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nueva cotización</title>
+<title><?= $tituloPantalla ?></title>
 <link rel="icon" type="image/png" href="../assets/img/Favv-Segu.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
@@ -38,6 +49,10 @@ $prospeccionPrellenada  = $esMuestras ? 0 : (int)($_GET['prospeccion_id'] ?? 0);
   --nc-safe-t: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
 }
 body.v26 { padding-bottom: calc(96px + var(--nc-safe-b)); }
+/* «Corregir»: aviso de qué pasa al guardar */
+.nc-corr-aviso { margin-top: 8px; font-size: .82rem; line-height: 1.4; color: #312E81; background: #EEF2FF; border: 1.5px solid #C7D2FE; border-radius: 12px; padding: 9px 12px; }
+.nc-corr-aviso:empty { display: none; }
+.nc-corr-aviso.error { color: #881337; background: #FEF2F2; border-color: #FCA5A5; }
 
 .nc-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .nc-grid > .v26-card { padding: 16px 14px; }
@@ -336,7 +351,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
         <a href="<?= $urlVolver ?>" class="v26-back v26-tip v26-tip--bottom" data-tip="<?= $esMuestras ? 'Volver a cotizaciones' : 'Volver a mis cotizaciones' ?>" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
           <div class="hi"><?= $esMuestras ? 'Cotizaciones' : 'Ventas' ?></div>
-          <div class="name">Nueva cotización</div>
+          <div class="name"><?= $tituloPantalla ?></div>
         </div>
       </div>
       <div class="v26-topbar-right">
@@ -350,8 +365,14 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
   <div class="v26-wrap nc-wrap">
     <section class="nc-hero">
       <div class="nc-hero-txt">
+        <?php if ($correccion): ?>
+        <div class="nc-hero-eyebrow"><i class="bi bi-pencil"></i> Corregir cotización</div>
+        <h1 class="nc-hero-titulo" id="nc-corr-titulo">Cargando la cotización…</h1>
+        <div class="nc-corr-aviso" id="nc-corr-aviso"></div>
+        <?php else: ?>
         <div class="nc-hero-eyebrow"><i class="bi bi-file-earmark-plus"></i> Nueva cotización</div>
         <h1 class="nc-hero-titulo"><?= $esMuestras ? 'Arma la cotización en 4 pasos' : 'Arma tu cotización en 4 pasos' ?></h1>
+        <?php endif; ?>
       </div>
       <ol class="nc-hero-pasos" aria-hidden="true">
         <li><span>1</span> <?= $esMuestras ? 'Vendedor y cliente' : 'Cliente' ?></li>
@@ -550,6 +571,8 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
       <input type="hidden" name="visitas_cita_id" value="<?= $citaPrellenada ?: '' ?>">
       <input type="hidden" name="visitas_prospeccion_id" value="<?= $prospeccionPrellenada ?: '' ?>">
       <input type="hidden" name="renglones" id="input-renglones" value="[]">
+      <input type="hidden" name="editar_id" value="<?= $editarId ?: '' ?>">
+      <input type="hidden" name="desde_id" value="<?= $corregirId ?: '' ?>">
     </form>
   </div>
 
@@ -609,7 +632,11 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
 <?php if (!$esMuestras): ?>iniciarTrackingPeriodico();<?php endif; ?>
 
 const ES_MUESTRAS = <?= $esMuestras ? 'true' : 'false' ?>;
-const CLIENTE_PRELLENADO = <?= (int)$clientePrellenado ?>;
+let CLIENTE_PRELLENADO = <?= (int)$clientePrellenado ?>;
+// «Corregir»: {modo: 'editar'|'corregir', id} o null (cotización nueva).
+const CORRECCION = <?= json_encode($correccion) ?>;
+const TXT_GUARDAR = !CORRECCION ? 'Guardar cotización' : CORRECCION.modo === 'editar' ? 'Guardar cambios' : 'Guardar corrección';
+const TXT_GUARDAR_CORTO = !CORRECCION ? 'Guardar' : 'Guardar cambios';
 let CFG = { descuento_distribuidor: 0.15, descuento_pronto_pago: 0.05, descuento_mayoreo: 0.10, minimo_pares_mayoreo: 16, minimo_pares_dickies: 16, tasa_iva: 0.16, vigencia_default_dias: 15 };
 // Fotos del catálogo: viven en el ERP (mismo servidor), no se duplican aquí.
 const FOTOS_URL = '/erp/assets/img/cotizador/';
@@ -1286,7 +1313,7 @@ function filtrarCatalogo() {
 
 async function cargarEstilos() {
   try {
-    const res = await fetch('../api/estilos_erp.php');
+    const res = await fetch('../api/estilos_erp.php' + (CORRECCION ? '?cotizacion=' + CORRECCION.id : ''));
     const data = await res.json();
     catalogo = data.ok ? data.catalogo : [];
     ATRIBUTOS = (data.ok && data.atributos) || {};
@@ -1473,7 +1500,7 @@ function setGuardando(v) {
   ['btn-guardar', 'barra-guardar'].forEach(id => {
     const b = $(id);
     b.disabled = v;
-    b.innerHTML = v ? '<span class="spinner-border spinner-border-sm"></span> Guardando…' : (id === 'barra-guardar' ? 'Guardar' : 'Guardar cotización');
+    b.innerHTML = v ? '<span class="spinner-border spinner-border-sm"></span> Guardando…' : (id === 'barra-guardar' ? TXT_GUARDAR_CORTO : TXT_GUARDAR);
   });
 }
 
@@ -1529,7 +1556,8 @@ $('form-cotizacion').addEventListener('submit', async (e) => {
     if (data.ok) {
       guardada = true;
       // Directo a la cotización: ahí se avisa que quedó generada y se envía.
-      window.location.href = data.id ? `ver_cotizacion.php?id=${data.id}&nueva=1` : 'cotizaciones.php';
+      window.location.href = !data.id ? 'cotizaciones.php'
+        : data.modo === 'editar' ? `ver_cotizacion.php?id=${data.id}&corregida=1` : `ver_cotizacion.php?id=${data.id}&nueva=1`;
       return;
     }
     mostrarError(data.error || 'No se pudo guardar la cotización.');
@@ -1583,10 +1611,103 @@ function abrirTourNuevaCotizacion() {
 $('btn-tour-ayuda').addEventListener('click', abrirTourNuevaCotizacion);
 $('btn-tour-guiado').addEventListener('click', abrirTourNuevaCotizacion);
 
+// ================= «Corregir»: arrancar con los datos de la cotización =================
+let datosCorreccion = null;
+async function cargarCorreccion() {
+  try {
+    const res = await fetch('../api/cotizacion_detalle.php?para_corregir=1&id=' + CORRECCION.id);
+    const data = await res.json();
+    if (!data.ok) return { error: data.error || 'No se encontró la cotización.' };
+    if (!data.corregir || data.corregir.modo !== CORRECCION.modo) {
+      const folio = data.cotizacion ? data.cotizacion.folio : '';
+      return { error: `La cotización ${folio} ya está ${String((data.cotizacion || {}).estado || '').replace('_', ' ')}: así ya no se puede corregir. Vuelve a abrirla.` };
+    }
+    return data;
+  } catch (e) {
+    return { error: 'No se pudo cargar la cotización: revisa tu conexión y vuelve a abrir la página.' };
+  }
+}
+function clickSeg(id, valor) {
+  const b = document.querySelector(`#${id} .v26-seg-btn[data-valor="${valor}"]`);
+  if (b && !b.classList.contains('active')) b.click();
+}
+// Chip con ese valor; si no hay, «Otro…» con el texto.
+function elegirChipConOtro(gridId, otroInputId, hiddenId, valor) {
+  if (!valor) return;
+  const chip = document.querySelector(`#${gridId} .nc-chip[data-valor="${CSS.escape(valor)}"]`);
+  if (chip) { chip.style.display = ''; chip.click(); return; }
+  document.querySelector(`#${gridId} .nc-chip[data-otro]`).click();
+  $(otroInputId).value = valor;
+  $(hiddenId).value = valor;
+}
+function aplicarCorreccion(data) {
+  const c = data.cotizacion, k = data.corregir;
+  if (CORRECCION.modo === 'editar') {
+    $('nc-corr-titulo').textContent = 'Corregir ' + c.folio;
+    $('nc-corr-aviso').innerHTML = `Todavía no se envía al cliente: los cambios se guardan en la misma <b>${escHtml(c.folio)}</b>.`;
+  } else {
+    $('nc-corr-titulo').textContent = 'Corregir ' + c.folio;
+    $('nc-corr-aviso').innerHTML = `El cliente ya tiene la ${escHtml(c.folio)}, por eso se hará una nueva con estos datos. Al guardar quedará como <b>${escHtml(k.folio_nuevo)}</b> y la ${escHtml(c.folio)} se cancelará. No olvides mandarle la nueva.`;
+  }
+  clickSeg('seg-tipo-lista', c.tipo_lista === 'distribuidor' ? 'distribuidor' : 'industria');
+  clickSeg('seg-pronto-pago', parseInt(c.pronto_pago) ? '1' : '0');
+  const envio = parseFloat(c.gasto_envio) || 0;
+  if (envio > 0) { clickSeg('seg-gasto-envio', '1'); $('input-gasto-envio').value = envio.toFixed(2); }
+  const vig = String(parseInt(c.vigencia_dias) || 15);
+  $('input-vigencia').value = vig;
+  document.querySelectorAll('#chips-vigencia .nc-chip').forEach(b => b.classList.toggle('active', b.dataset.valor === vig));
+  elegirChipConOtro('chips-entrega', 'input-entrega-otro', 'input-tiempo-entrega', c.tiempo_entrega || '');
+  elegirChipConOtro('chips-forma-pago', 'input-forma-otro', 'input-forma-pago', c.forma_pago || '');
+  $('input-notas').value = c.notas || '';
+  // Contacto y correo: los de la cotización (no los de la ficha del cliente).
+  contactoAuto = ''; correoAuto = '';
+  $('input-contacto').value = c.cliente_contacto || '';
+  $('input-email').value = c.cliente_email || '';
+  // Renglones: mismo modelo, color, pares, extra y precio a mano.
+  const faltan = [];
+  renglones = [];
+  (k.renglones || []).forEach(r => {
+    const it = catalogo.find(x => x.item === r.item);
+    if (!it) { faltan.push(r); return; }
+    const extra = parseFloat(r.extra_precio) || 0;
+    renglones.push({ it, cantidad: parseInt(r.cantidad) || 1, color: r.color || (it.colores.length === 1 ? it.colores[0] : ''),
+                     precio_final: null, mano: parseFloat(r.precio_final) || 0,
+                     extra_abierto: extra > 0, extra_concepto: r.extra_concepto || '', extra_precio: extra > 0 ? String(extra) : '' });
+  });
+  recalcularTodo();
+  filtrarCatalogo();
+  if (faltan.length) {
+    $('nc-corr-aviso').innerHTML += `<br><b>Ojo:</b> ${faltan.length === 1 ? 'un modelo ya no está' : faltan.length + ' modelos ya no están'} en el catálogo y no se pasaron; agrégalos de nuevo si hace falta.`;
+  }
+  // La responsable de muestras no cambia el vendedor al corregir.
+  if (ES_MUESTRAS && $('btn-vendedor')) $('btn-vendedor').disabled = true;
+}
+
 recalcularTodo();
-// La primera vez, el tour arranca ya con parámetros, clientes y catálogo cargados.
-Promise.all([cargarConfig(), cargarClientes(), cargarEstilos(), ES_MUESTRAS ? cargarVendedores() : null])
-  .then(() => V26Tour.iniciar(pasosTourNuevaCotizacion(), OPCIONES_TOUR_NUEVA_COTIZACION));
+setGuardando(false);
+if (CORRECCION) {
+  // Primero la cotización (vendedor y cliente), luego lo demás, y al final se llena la pantalla.
+  cargarCorreccion().then(data => {
+    if (data.error) {
+      $('nc-corr-titulo').textContent = 'No se puede corregir';
+      const av = $('nc-corr-aviso');
+      av.classList.add('error');
+      av.innerHTML = `${escHtml(data.error)} <a href="${CORRECCION ? 'ver_cotizacion.php?id=' + CORRECCION.id : 'cotizaciones.php'}">Volver a la cotización</a>`;
+      $('form-cotizacion').style.display = 'none';
+      $('nc-barra').style.display = 'none';
+      return;
+    }
+    datosCorreccion = data;
+    CLIENTE_PRELLENADO = data.corregir.cliente_id || 0;
+    if (ES_MUESTRAS && data.corregir.vendedor_id) $('input-vendedor').value = data.corregir.vendedor_id;
+    return Promise.all([cargarConfig(), cargarClientes(), cargarEstilos(), ES_MUESTRAS ? cargarVendedores() : null])
+      .then(() => aplicarCorreccion(data));
+  });
+} else {
+  // La primera vez, el tour arranca ya con parámetros, clientes y catálogo cargados.
+  Promise.all([cargarConfig(), cargarClientes(), cargarEstilos(), ES_MUESTRAS ? cargarVendedores() : null])
+    .then(() => V26Tour.iniciar(pasosTourNuevaCotizacion(), OPCIONES_TOUR_NUEVA_COTIZACION));
+}
 </script>
 </body>
 </html>
