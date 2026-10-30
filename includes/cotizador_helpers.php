@@ -99,6 +99,80 @@ function folioCotizacionErp(int $id): string {
     return 'COT-' . str_pad((string)$id, 5, '0', STR_PAD_LEFT);
 }
 
+/**
+ * «Corregir» (30-oct-2026) -- copia exacta de folioCorreccionCotizacion() del
+ * ERP: la corrección de una cotización ya enviada conserva el número base y
+ * lleva el número de corrección al final (COT-00123 → COT-00123-2 → -3 …).
+ */
+function folioCorreccionCotizacionErp(string $folioAnterior): string {
+    if (preg_match('/^(COT-\d+)(?:-(\d+))?$/', $folioAnterior, $m)) {
+        return $m[1] . '-' . (isset($m[2]) ? (int)$m[2] + 1 : 2);
+    }
+    return mb_substr($folioAnterior, 0, 17) . '-2';
+}
+
+/**
+ * Qué hace «Corregir» según el estado (mismo criterio que el ERP):
+ *   'editar'    -> Pendiente: el cliente no la tiene; se corrige la misma.
+ *   'corregir'  -> Enviada / En negociación: se hace una nueva (-2) y esta se cancela.
+ *   null        -> cerrada: ya no se corrige.
+ */
+function modoCorregirCotizacionErp(string $estado): ?string {
+    if ($estado === 'pendiente') return 'editar';
+    if (in_array($estado, ['enviada', 'en_negociacion'], true)) return 'corregir';
+    return null;
+}
+
+/** La cotización que reemplazó a esta (id, folio) o null -- copia de cotizacionReemplazadaPor(). */
+function cotizacionReemplazadaPorErp(PDO $dbErp, int $id): ?array {
+    $st = $dbErp->prepare('SELECT id, folio FROM cotizaciones WHERE reemplaza_a = ? ORDER BY id DESC LIMIT 1');
+    $st->execute([$id]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/** La cotización a la que esta reemplazó (id, folio, created_at) o null -- copia de cotizacionAnteriorDe(). */
+function cotizacionAnteriorDeErp(PDO $dbErp, array $cot): ?array {
+    if (empty($cot['reemplaza_a'])) return null;
+    $st = $dbErp->prepare('SELECT id, folio, created_at FROM cotizaciones WHERE id = ?');
+    $st->execute([(int)$cot['reemplaza_a']]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/** Estilos del ERP que ya trae una cotización -- copia de idsEstilosErpDeCotizacion(). */
+function idsEstilosErpDeCotizacionErp(PDO $dbErp, int $idCotizacion): array {
+    if (!$idCotizacion) return [];
+    $st = $dbErp->prepare('SELECT DISTINCT id_estilo FROM cotizacion_detalle WHERE id_cotizacion = ? AND id_estilo IS NOT NULL AND id_modelo_legacy IS NULL');
+    $st->execute([$idCotizacion]);
+    return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+}
+
+/**
+ * Renglones guardados → forma que espera Nueva cotización al «Corregir» --
+ * copia de renglonesDesdeDetalle() del ERP. precio_final solo va si el
+ * vendedor lo había subido a mano (arriba del mínimo).
+ */
+function renglonesDesdeDetalleErp(array $detalle): array {
+    return array_map(function ($d) {
+        $extra    = round((float)($d['extra_precio'] ?? 0), 2);
+        $concepto = (string)($d['extra_concepto'] ?? '');
+        $minimo   = (float)($d['precio_minimo'] ?? 0);
+        $final    = (float)($d['precio_final'] ?? 0);
+        $precioMano = null;
+        if ($extra > 0 && $concepto === 'Ajuste de precio') {
+            $extra = 0.0; $concepto = '';
+            $precioMano = $final > 0 ? round($final, 2) : null;
+        } elseif ($minimo > 0 && $final > $minimo + 0.004) {
+            $precioMano = round($final, 2);
+        }
+        return [
+            'item' => $d['id_modelo_legacy'] ? 'm:' . (int)$d['id_modelo_legacy'] : 'e:' . (int)$d['id_estilo'],
+            'cantidad' => (int)$d['cantidad'], 'color' => (string)($d['color'] ?? ''),
+            'extra_concepto' => $extra > 0 ? $concepto : '', 'extra_precio' => max(0, $extra),
+            'precio_final' => $precioMano,
+        ];
+    }, $detalle);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Catálogo cotizable y renglones -- COPIA de catalogoCotizable(),
 // marcaSinDescuentos() y resolverRenglonesCotizacion() de
@@ -121,7 +195,7 @@ function folioCotizacionErp(int $id): string {
 // ERP" (ni en Nueva cotización ni en Solicitar muestra) y los modelos del
 // cotizador anterior salen todos, aunque ya estén ligados a su estilo. Sin la
 // fila, o con 1, todo queda como antes. Ver catalogoCotizable() del ERP.
-function catalogoCotizableErp(array $cfg): array {
+function catalogoCotizableErp(array $cfg, array $conservarEstilos = []): array {
     $db = getDBErp();
     $mostrarEstilos = ($cfg['mostrar_estilos_erp'] ?? 1) >= 1;
     $items = [];
@@ -146,11 +220,15 @@ function catalogoCotizableErp(array $cfg): array {
             'atributo' => ($m['atributo'] ?? '') !== '' ? $m['atributo'] : null,
         ];
     }
-    if (!$mostrarEstilos) return $items;
+    // Al «Corregir» se conservan los Estilos del ERP que ya traía la
+    // cotización aunque estén ocultos (igual que el ERP).
+    $conservar = array_values(array_unique(array_filter(array_map('intval', $conservarEstilos))));
+    if (!$mostrarEstilos && !$conservar) return $items;
+    $filtro = $mostrarEstilos ? '' : ' AND id IN (' . implode(',', $conservar) . ')';
     foreach ($db->query("
         SELECT id, cinterno, estilo, precio_industrial
         FROM estilos
-        WHERE estatus = 1 AND precio_industrial IS NOT NULL
+        WHERE estatus = 1 AND precio_industrial IS NOT NULL$filtro
         ORDER BY cinterno
     ")->fetchAll(PDO::FETCH_ASSOC) as $e) {
         $items['e:' . (int)$e['id']] = [

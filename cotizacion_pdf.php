@@ -38,7 +38,17 @@ try {
         pdfNoDisponible(404, 'Este link no es válido', 'La cotización no existe o el link ya no está disponible. Pide al vendedor que te comparta uno nuevo.');
     }
     if ($cot['estado'] === 'cancelada') {
+        // «Corregir»: si se canceló porque se hizo una corrección, se dice cuál es la vigente.
+        $reemplazo = cotizacionReemplazadaPorErp($db, (int)$cot['id']);
+        if ($reemplazo) {
+            pdfNoDisponible(410, 'Esta cotización se corrigió', 'La vigente es la ' . $reemplazo['folio'] . '. Tu vendedor te la hará llegar.');
+        }
         pdfNoDisponible(410, 'Cotización cancelada', 'Esta cotización ya no está vigente. Pide al vendedor una nueva.');
+    }
+    // Si es corrección de otra, el PDF lo dice junto al folio.
+    if ($anterior = cotizacionAnteriorDeErp($db, $cot)) {
+        $cot['reemplaza_folio'] = $anterior['folio'];
+        $cot['reemplaza_fecha'] = date('d/m/Y', strtotime($anterior['created_at']));
     }
 
     $det = $db->prepare('SELECT * FROM cotizacion_detalle WHERE id_cotizacion = ? ORDER BY orden');
