@@ -51,6 +51,7 @@ $esAdmin = $u['rol'] === 'admin';
       <div class="mu-tabs-in">
         <a class="mu-tab activa" href="index.php" aria-current="page"><i class="bi bi-box-seam"></i> Muestras</a>
         <a class="mu-tab" href="cotizaciones.php"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a>
+        <a class="mu-tab" href="clientes.php"><i class="bi bi-people"></i> Clientes</a>
       </div>
     </nav>
     <?php endif; ?>
