@@ -84,6 +84,9 @@ if (!$id) { header('Location: ' . $urlVolver); exit; }
 .vc-aviso.mal > i { color: var(--v26-red); }
 .vc-aviso.gris { background: rgba(107,114,128,.08); border: 1.5px solid rgba(107,114,128,.25); color: #374151; }
 .vc-aviso.gris > i { color: #6B7280; }
+.vc-aviso.info { background: #EEF2FF; border: 1.5px solid #C7D2FE; color: #312E81; }
+.vc-aviso.info > i { color: var(--v26-blue); }
+.vc-aviso a { color: inherit; font-weight: 800; }
 @keyframes vc-entra { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 
 /* ---------- Enviar al cliente ---------- */
@@ -221,7 +224,9 @@ const NOMBRE_VENDEDOR = <?= json_encode((string)($u['nombre'] ?? ''), JSON_UNESC
 // Viene de "Guardar cotización" (nueva_cotizacion.php): se avisa una vez y
 // se quita el parámetro para que al recargar no vuelva a salir.
 const RECIEN_GENERADA = new URLSearchParams(location.search).get('nueva') === '1';
-if (RECIEN_GENERADA) history.replaceState(null, '', location.pathname + '?id=' + ID);
+// Viene de «Corregir» una Pendiente: se guardó en la misma cotización.
+const RECIEN_CORREGIDA = new URLSearchParams(location.search).get('corregida') === '1';
+if (RECIEN_GENERADA || RECIEN_CORREGIDA) history.replaceState(null, '', location.pathname + '?id=' + ID);
 // Texto de los botones de estado: "Enviada" sola parecía que mandaba algo.
 const ACCION_ESTADO = {
   enviada: 'Marcar como enviada', en_negociacion: 'Pasar a negociación', aceptada: 'Marcar como aceptada',
@@ -235,7 +240,7 @@ const TEXTO_ESTADO = {
   cancelada: 'El cliente ya no podrá abrir el PDF ni responderla. No se puede deshacer.',
 };
 const ESTADOS_PARA_ENVIAR = ['pendiente', 'enviada', 'en_negociacion'];
-let mostrarAvisoGenerada = RECIEN_GENERADA;
+let mostrarAvisoGenerada = RECIEN_GENERADA || RECIEN_CORREGIDA;
 let avisoMarcadaEnviada = false;
 let estadoActual = '';
 
@@ -321,7 +326,7 @@ function pasosHTML(c, historial) {
 }
 
 // Aviso cuando la cotización ya tiene una respuesta (o se canceló).
-function avisoResultadoHTML(c, historial) {
+function avisoResultadoHTML(c, historial, reemplazadaPor) {
   const h = historial.find(x => x.estado_nuevo === c.estado);
   // fechaHora() ya termina en "a.m."/"p.m.": se quita ese punto para no dejar "p.m.."
   const cuando = h ? ` el ${fechaHora(h.created_at).replace(/\.$/, '')}` : '';
@@ -335,6 +340,10 @@ function avisoResultadoHTML(c, historial) {
     return `<div class="vc-aviso mal" role="status"><i class="bi bi-x-octagon-fill"></i><div>
       <strong>${porCliente ? 'El cliente rechazó la cotización' : 'Cotización rechazada'}</strong>
       <span>${porCliente ? 'La rechazó desde el link' : 'Marcada como rechazada'}${cuando}. Puedes contactarlo para ofrecerle otra.</span></div></div>`;
+  }
+  if (c.estado === 'cancelada' && reemplazadaPor) {
+    return `<div class="vc-aviso gris" role="status"><i class="bi bi-arrow-repeat"></i><div>
+      <strong>Se corrigió: la vigente es la <a href="ver_cotizacion.php?id=${parseInt(reemplazadaPor.id)}">${escHtml(reemplazadaPor.folio)}</a></strong><span>Esta quedó cancelada${cuando}. Si el cliente abre su link, verá que hay una corrección.</span></div></div>`;
   }
   if (c.estado === 'cancelada') {
     return `<div class="vc-aviso gris" role="status"><i class="bi bi-slash-circle-fill"></i><div>
@@ -445,15 +454,22 @@ function render(data) {
         <div class="vc-stat"><div class="l">Lista</div><div class="v">${lista}</div><div class="s">${descuentos.length ? 'con ' + descuentos.join(' y ') : 'sin descuentos'}</div></div>
       </div>
       ${pasosHTML(c, data.historial)}
-      ${data.url_pdf && c.estado !== 'cancelada' ? `
+      ${(data.url_pdf && c.estado !== 'cancelada') || data.modo_corregir ? `
       <div class="vc-hero-acciones">
-        <a class="v26-btn v26-btn-ghost" id="btn-ver-pdf" href="${escHtml(data.url_pdf)}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a>
+        ${data.url_pdf && c.estado !== 'cancelada' ? `<a class="v26-btn v26-btn-ghost" id="btn-ver-pdf" href="${escHtml(data.url_pdf)}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a>` : ''}
+        ${data.modo_corregir ? `<button type="button" class="v26-btn v26-btn-primary" id="btn-corregir"><i class="bi bi-pencil"></i> Corregir</button>` : ''}
       </div>` : ''}
     </div>`;
 
+  // «Corregir»: de qué cotización viene esta / cuál la reemplazó.
+  const avisoCorreccion = data.reemplaza && c.estado !== 'cancelada' ? `
+    <div class="vc-aviso info" role="status"><i class="bi bi-arrow-repeat"></i>
+      <div><strong>Corrección de ${escHtml(data.reemplaza.folio)}</strong><span>Esta es la vigente; la <a href="ver_cotizacion.php?id=${parseInt(data.reemplaza.id)}">${escHtml(data.reemplaza.folio)}</a> quedó cancelada.</span></div>
+    </div>` : '';
+
   const avisoGenerada = mostrarAvisoGenerada ? `
     <div class="vc-aviso ok" role="status"><i class="bi bi-check-circle-fill"></i>
-      <div><strong>Cotización ${escHtml(c.folio)} generada</strong><span>Ya quedó guardada. Ahora envíasela al cliente.</span></div>
+      <div><strong>${RECIEN_CORREGIDA ? `Cambios guardados en ${escHtml(c.folio)}` : `Cotización ${escHtml(c.folio)} generada`}</strong><span>Ya quedó guardada. Ahora envíasela al cliente.</span></div>
     </div>` : '';
 
   const enviar = data.url_pdf && ESTADOS_PARA_ENVIAR.includes(c.estado) ? `
@@ -475,7 +491,7 @@ function render(data) {
       </div>
       <div class="vc-link-mini" id="link-publico">${escHtml(data.url_pdf)}</div>
       ${avisoMarcadaEnviada ? `
-      <div class="vc-marcada" role="status"><i class="bi bi-check-circle-fill"></i><span>Se marcó como <b>Enviada</b>. El cliente ya puede aceptarla o rechazarla desde el PDF.</span></div>` : ''}
+      <div class="vc-marcada" role="status"><i class="bi bi-check-circle-fill"></i><span>Se marcó como <b>Enviada</b>. El cliente ya puede aceptarla o rechazarla desde el PDF. Si necesitas cambiar algo, usa <b>Corregir</b>.</span></div>` : ''}
     </div>` : '';
 
   const modelos = `
@@ -540,11 +556,12 @@ function render(data) {
 
   document.getElementById('contenido').innerHTML = `
     <div class="vc-grid">
-      <div class="vc-col">${hero}${avisoGenerada}${avisoResultadoHTML(c, data.historial)}${enviar}${modelos}</div>
+      <div class="vc-col">${hero}${avisoGenerada}${avisoCorreccion}${avisoResultadoHTML(c, data.historial, data.reemplazada_por)}${enviar}${modelos}</div>
       <div class="vc-col vc-col--lado">${cliente}${condiciones}${estado}${historial}</div>
     </div>`;
 
   activarEnvio(c, data);
+  activarCorregir(c, data);
   document.querySelectorAll('.vc-btn-estado').forEach(btn => btn.addEventListener('click', async () => {
     const nuevo = btn.dataset.estado;
     const ok = await v26Sheet({
@@ -623,6 +640,28 @@ function activarEnvio(c, data) {
   });
   document.getElementById('btn-copiar-link').addEventListener('click', e => copiarTexto(data.url_pdf, e.currentTarget));
   document.getElementById('btn-copiar-mensaje').addEventListener('click', e => copiarTexto(mensaje.value, e.currentTarget));
+}
+
+// «Corregir» (mismo criterio que el ERP): Pendiente → se corrige la misma;
+// Enviada / En negociación → el cliente ya la tiene, se hace una nueva
+// (COT-00123-2) con los mismos datos y esta se cancela al guardarla.
+function activarCorregir(c, data) {
+  const btn = document.getElementById('btn-corregir');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    if (data.modo_corregir === 'editar') {
+      location.href = 'nueva_cotizacion.php?editar=' + ID;
+      return;
+    }
+    const ok = await v26Sheet({
+      titulo: 'Esta cotización ya la tiene el cliente',
+      desc: `Se hará una nueva con los mismos datos para que la corrijas. Al guardarla será ${data.folio_correccion} y esta (${c.folio}) se cancelará. No olvides mandarle la nueva al cliente.`,
+      pedirMotivo: false,
+      textoConfirmar: 'Sí, corregir',
+      textoCancelar: 'Volver',
+    });
+    if (ok) location.href = 'nueva_cotizacion.php?corregir=' + ID;
+  });
 }
 
 async function cambiarEstado(nuevoEstado, { alCompartir = false } = {}) {

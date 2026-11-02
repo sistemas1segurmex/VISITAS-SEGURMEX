@@ -258,7 +258,8 @@ function htmlPdfCotizacion(array $cot, array $detalle, string $atiende, ?string 
   <td class="folio">
     <div class="lbl">Folio</div>
     <div class="num">' . pdfH($cot['folio']) . '</div>
-    <div class="fechas">Emitida ' . $fecha . ($cerrada ? '' : '<br>Vence ' . $vence) . '</div>
+    <div class="fechas">Emitida ' . $fecha . ($cerrada ? '' : '<br>Vence ' . $vence) . '</div>'
+    . (!empty($cot['reemplaza_folio']) ? '<div class="fechas">Reemplaza a la ' . pdfH($cot['reemplaza_folio']) . ' del ' . pdfH($cot['reemplaza_fecha'] ?? '') . '</div>' : '') . '
   </td>
 </tr></table>
 <div class="regla"></div>

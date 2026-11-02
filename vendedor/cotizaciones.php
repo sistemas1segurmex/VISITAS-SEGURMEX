@@ -236,6 +236,7 @@ function renderCotizacionItem(c, i, conFecha) {
           ${c.visitas_cita_id ? '<span class="v26-pill v26-pill--verificado"><i class="bi bi-geo-alt"></i> De una visita</span>' : ''}
           ${badgeVigencia(c, d)}
         </span>
+        ${c.reemplazada_por ? `<span class="ct-meta"><span><i class="bi bi-arrow-return-right"></i> Reemplazada por ${escHtml(c.reemplazada_por)}</span></span>` : ''}
       </span>
       <span class="ct-lado">
         <span class="ct-total">${money(c.total)}</span>

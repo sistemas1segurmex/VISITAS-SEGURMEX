@@ -45,6 +45,8 @@ foreach ($stmt->fetchAll() as $r) {
 
 $rutas = [];
 foreach ($porVendedor as $vendedorId => $puntos) {
+    // Antes de muestrear, para comparar cada punto con sus vecinos reales.
+    $puntos = quitarPicosGps($puntos);
     $total = count($puntos);
     if ($total > MAX_PUNTOS_POR_VENDEDOR) {
         $paso = $total / MAX_PUNTOS_POR_VENDEDOR;

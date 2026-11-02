@@ -6,6 +6,9 @@
  *
  * GET  ?id=X                          -> ficha completa (cotización, renglones,
  *                                        historial, link público si existe).
+ * GET  ?id=X&para_corregir=1         -> además, los datos para llenar Nueva
+ *                                        cotización al «Corregir» (cliente de
+ *                                        VISITAS, renglones, condiciones).
  * POST accion=cambiar_estado, id, nuevo_estado -> mueve el estado y regresa la
  *                                        ficha actualizada.
  *
@@ -91,9 +94,42 @@ if (!empty($cot['token_publico'])) {
     $urlPdf     = urlPdfCotizacionVisitas($cot['token_publico']);
 }
 
+// «Corregir» (30-oct-2026): qué hace el botón y con qué folio quedaría, más
+// la relación con la anterior / la que la reemplazó.
+$modoCorregir = modoCorregirCotizacionErp((string)$cot['estado']);
+$corregir = null;
+if (!empty($_GET['para_corregir']) && $modoCorregir) {
+    // Cliente de VISITAS de la cotización (por el prospecto espejo del ERP).
+    $visitasClienteId = 0;
+    if (!empty($cot['id_prospecto'])) {
+        $stP = $dbErp->prepare('SELECT visitas_cliente_id FROM cotizador_prospectos WHERE id = ?');
+        $stP->execute([(int)$cot['id_prospecto']]);
+        $visitasClienteId = (int)$stP->fetchColumn();
+    }
+    // Vendedor de VISITAS a cuyo nombre está (lo necesita la responsable de muestras).
+    $stVend = $db->prepare(
+        "SELECT u.id FROM public.usuarios eu
+         JOIN usuarios u ON LOWER(u.email) = LOWER(eu.email) AND u.rol = 'vendedor'
+         WHERE eu.id = ? LIMIT 1"
+    );
+    $stVend->execute([(int)$cot['id_vendedor']]);
+    $corregir = [
+        'modo'               => $modoCorregir,
+        'cliente_id'         => $visitasClienteId,
+        'vendedor_id'        => (int)$stVend->fetchColumn(),
+        'renglones'          => renglonesDesdeDetalleErp($detalle),
+        'folio_nuevo'        => $modoCorregir === 'corregir' ? folioCorreccionCotizacionErp((string)$cot['folio']) : $cot['folio'],
+    ];
+}
+
 jsonResponse([
     'ok'           => true,
     'cotizacion'   => $cot,
+    'modo_corregir'   => $modoCorregir,
+    'folio_correccion'=> $modoCorregir === 'corregir' ? folioCorreccionCotizacionErp((string)$cot['folio']) : null,
+    'reemplaza'       => cotizacionAnteriorDeErp($dbErp, $cot),
+    'reemplazada_por' => $cot['estado'] === 'cancelada' ? cotizacionReemplazadaPorErp($dbErp, (int)$cot['id']) : null,
+    'corregir'        => $corregir,
     'detalle'      => $detalle,
     'atributos'    => leyendaAtributosDeLineasErp($detalle),
     'aviso_entrega'=> avisoTiempoEntregaErp($cot['tiempo_entrega'] ?? null, entregaRequeridaDeLineasErp($detalle)),

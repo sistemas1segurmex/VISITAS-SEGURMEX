@@ -19,9 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!is_array($puntos)) {
             jsonResponse(['ok' => false, 'error' => 'Lote inválido'], 400);
         }
+        // Si el envío anterior sí llegó pero el celular no alcanzó a ver la
+        // respuesta (tiempo límite, señal que se cae) o hay dos pestañas
+        // vaciando la misma cola, el lote se vuelve a mandar: un punto con la
+        // misma hora exacta del GPS ya guardado no se repite.
         $ins = $db->prepare(
             'INSERT INTO tracking_ubicaciones (vendedor_id, lat, lng, accuracy, fecha_hora)
-             VALUES (?, ?, ?, ?, COALESCE(to_timestamp(?::double precision), CURRENT_TIMESTAMP))'
+             SELECT ?::int, ?::numeric, ?::numeric, ?::double precision, x.f
+             FROM (SELECT COALESCE(to_timestamp(?::double precision), CURRENT_TIMESTAMP)::timestamp AS f) x
+             WHERE NOT EXISTS (SELECT 1 FROM tracking_ubicaciones t WHERE t.vendedor_id = ?::int AND t.fecha_hora = x.f)'
         );
         $ahora = time();
         $guardados = 0;
@@ -32,8 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$lat || !$lng || ($acc !== null && $acc > 500)) continue;
             $ts = isset($p['ts']) && is_numeric($p['ts']) ? (float)$p['ts'] / 1000 : null;
             if ($ts !== null && ($ts < $ahora - 86400 || $ts > $ahora + 300)) $ts = null;
-            $ins->execute([$u['id'], $lat, $lng, $acc, $ts]);
-            $guardados++;
+            $ins->execute([$u['id'], $lat, $lng, $acc, $ts, $u['id']]);
+            $guardados += $ins->rowCount();
         }
         jsonResponse(['ok' => true, 'guardados' => $guardados]);
     }
@@ -78,6 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     WHEN t.fecha_hora IS NULL OR t.fecha_hora < NOW() - INTERVAL '" . CONEXION_PERDIDA_HORAS . " hours' THEN 'perdida'
                     ELSE 'desconectado'
                 END AS estado_conexion,
+                p.lat AS prev_lat, p.lng AS prev_lng, p.fecha_hora AS prev_fecha_hora,
                 COALESCE(c.total, 0) AS citas_total,
                 COALESCE(c.completadas, 0) AS citas_completadas,
                 CASE WHEN COALESCE(c.total, 0) > 0
@@ -89,6 +96,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
              WHERE vendedor_id = u.id AND (accuracy IS NULL OR accuracy <= 500)
              ORDER BY fecha_hora DESC LIMIT 1
          ) t ON true
+         LEFT JOIN LATERAL (
+             SELECT lat, lng, fecha_hora FROM tracking_ubicaciones
+             WHERE vendedor_id = u.id AND (accuracy IS NULL OR accuracy <= 500)
+             ORDER BY fecha_hora DESC LIMIT 1 OFFSET 1
+         ) p ON true
          LEFT JOIN LATERAL (
              SELECT COUNT(*) AS total,
                     COUNT(*) FILTER (WHERE estado = 'completada') AS completadas
@@ -102,6 +114,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Ciudad/municipio real según el GPS (no el territorio asignado a mano)
     // para mostrar en el popup del mapa -- ver nombreLugarGPS() en helpers.php.
     foreach ($ubicaciones as &$row) {
+        // Si el último punto es un brinco imposible desde el anterior (lectura
+        // falsa por Wi-Fi/red, ver quitarPicosGps()), el pin se queda en el
+        // anterior. Si fue un viaje real, el siguiente punto desde la ciudad
+        // nueva ya no brinca y el pin se mueve solo. La hora (en línea /
+        // desconectado) sigue siendo la del último reporte.
+        if ($row['lat'] !== null && $row['prev_lat'] !== null
+            && brincoGpsImposible(
+                ['lat' => $row['prev_lat'], 'lng' => $row['prev_lng'], 'fecha_hora' => $row['prev_fecha_hora']],
+                ['lat' => $row['lat'], 'lng' => $row['lng'], 'fecha_hora' => $row['fecha_hora']])) {
+            $row['lat'] = $row['prev_lat'];
+            $row['lng'] = $row['prev_lng'];
+        }
+        unset($row['prev_lat'], $row['prev_lng'], $row['prev_fecha_hora']);
         $row['lugar'] = ($row['lat'] !== null && $row['lng'] !== null)
             ? nombreLugarGPS((float)$row['lat'], (float)$row['lng'])
             : null;
