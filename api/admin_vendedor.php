@@ -37,11 +37,11 @@ if ($accion === 'resumen') {
     // admin_vendedor_detalle.js); "Prospectos" = el resto del embudo, mismo
     // filtro que usa la pestaña Prospectos -- así los números de arriba
     // siempre cuadran con lo que se ve en cada pestaña.
-    $stmt = $db->prepare("SELECT COUNT(*) FROM clientes WHERE vendedor_id = ? AND etapa = 'convertido'");
+    $stmt = $db->prepare("SELECT COUNT(*) FROM clientes WHERE vendedor_id = ? AND etapa = 'convertido' AND estado_revision IS DISTINCT FROM 'descartado'");
     $stmt->execute([$vendedorId]);
     $totalClientes = (int)$stmt->fetchColumn();
 
-    $stmt = $db->prepare("SELECT COUNT(*) FROM clientes WHERE vendedor_id = ? AND etapa != 'convertido'");
+    $stmt = $db->prepare("SELECT COUNT(*) FROM clientes WHERE vendedor_id = ? AND etapa != 'convertido' AND estado_revision IS DISTINCT FROM 'descartado'");
     $stmt->execute([$vendedorId]);
     $totalProspectos = (int)$stmt->fetchColumn();
 
@@ -137,7 +137,7 @@ if ($accion === 'clientes') {
     $stmt = $db->prepare(
         "SELECT c.*,
                 (SELECT ci.interes FROM citas ci WHERE ci.cliente_id = c.id AND ci.interes IS NOT NULL ORDER BY ci.fecha_hora DESC LIMIT 1) AS ultimo_interes
-         FROM clientes c WHERE c.vendedor_id = ? ORDER BY c.nombre"
+         FROM clientes c WHERE c.vendedor_id = ? AND c.estado_revision IS DISTINCT FROM 'descartado' ORDER BY c.nombre"
     );
     $stmt->execute([$vendedorId]);
     jsonResponse(['ok' => true, 'clientes' => $stmt->fetchAll()]);

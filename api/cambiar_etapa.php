@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/coincidencias.php';
 
 $u  = requireRole('vendedor');
 $db = getDB();
@@ -38,6 +39,7 @@ $cliente = $stmt->fetch();
 if (!$cliente) {
     jsonResponse(['ok' => false, 'error' => 'Cliente no encontrado'], 404);
 }
+exigirClienteTrabajable($db, $clienteId); // en revisión / descartado
 
 // El motivo de "perdido" solo tiene sentido si de verdad se está marcando
 // (o ya estaba marcado) como perdido; si se mueve a otra etapa se limpia

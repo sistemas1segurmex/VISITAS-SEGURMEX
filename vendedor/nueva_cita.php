@@ -115,6 +115,8 @@ async function cargarSelectClientes() {
   const sel = document.getElementById('select-cliente');
   const res = await fetch('../api/clientes.php');
   const data = await res.json();
+  // En revisión (coincide con otro vendedor): no se le puede agendar.
+  if (data.ok) data.clientes = data.clientes.filter(c => !c.estado_revision);
   if (!data.ok || data.clientes.length === 0) {
     sel.innerHTML = '<option value="">No tienes clientes registrados aún</option>';
     return;

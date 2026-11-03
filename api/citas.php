@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/coincidencias.php';
 require_once __DIR__ . '/../includes/visita_checkins.php';
 
 $u  = requireLogin();
@@ -81,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$cliente) {
         jsonResponse(['ok' => false, 'error' => 'Cliente no válido'], 400);
     }
+    exigirClienteTrabajable($db, $clienteId); // en revisión / descartado
 
     // Evita citas duplicadas (mismo vendedor, mismo cliente, misma fecha/hora
     // exacta) -- ej. un doble tap en "Guardar cita" con conexión lenta

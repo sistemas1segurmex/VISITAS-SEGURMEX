@@ -20,8 +20,13 @@ if ($clienteId <= 0) {
     jsonResponse(['ok' => false, 'error' => 'Falta el cliente'], 400);
 }
 
-$stmtCliente = $db->prepare('SELECT * FROM clientes WHERE id = ? AND vendedor_id = ?');
-$stmtCliente->execute([$clienteId, $u['id']]);
+// También un cliente que la responsable de muestras pasó a otro vendedor:
+// quien lo atendía antes sigue viendo SU historial (sus citas) con él.
+$stmtCliente = $db->prepare(
+    'SELECT * FROM clientes cl WHERE cl.id = ? AND (cl.vendedor_id = ?
+        OR EXISTS (SELECT 1 FROM citas ci WHERE ci.cliente_id = cl.id AND ci.vendedor_id = ?))'
+);
+$stmtCliente->execute([$clienteId, $u['id'], $u['id']]);
 $cliente = $stmtCliente->fetch();
 
 if (!$cliente) {

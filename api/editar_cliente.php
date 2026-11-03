@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/coincidencias.php';
 
 $u  = requireRole('vendedor');
 $db = getDB();
@@ -26,6 +27,8 @@ $antes = $stmt->fetch();
 if (!$antes) {
     jsonResponse(['ok' => false, 'error' => 'Cliente no encontrado'], 404);
 }
+// En revisión o descartado: no se puede editar (ver includes/coincidencias.php).
+exigirClienteTrabajable($db, $id);
 
 $nombre        = trim($_POST['nombre'] ?? '');
 $calleNumero   = trim($_POST['calle_numero'] ?? '');
@@ -99,6 +102,24 @@ foreach ($campos as $etiqueta => [$antesValor, $despuesValor]) {
 }
 if ($diff) {
     registrarCambio($db, $u['id'], 'cliente', $id, 'edicion', "Editó al cliente {$nombre}", $diff);
+}
+
+// Si con la edición ahora coincide con el cliente de otro vendedor (p. ej.
+// lo dio de alta con otro nombre y luego lo corrigió), queda en revisión.
+// Solo si cambió algo de lo que se compara (no por editar el contacto).
+$cambioIdentidad = $pinMovido
+    || (string)$antes['nombre'] !== $nombre || (string)$antes['telefono'] !== (string)$telefono
+    || (string)$antes['municipio'] !== $municipio || (string)$antes['colonia'] !== $colonia
+    || (string)$antes['codigo_postal'] !== $codigoPostal;
+$coincidencias = !$cambioIdentidad ? [] : buscarCoincidenciasOtrosVendedores($db, (int)$u['id'], [
+    'nombre' => $nombre, 'telefono' => $telefono, 'municipio' => $municipio,
+    'colonia' => $colonia, 'codigo_postal' => $codigoPostal, 'lat' => $lat, 'lng' => $lng,
+    'id_cliente_erp' => $antes['id_cliente_erp'] ?? null,
+], $id);
+if ($coincidencias) {
+    registrarCoincidencias($db, $u, $id, $nombre, $coincidencias, 'edicion');
+    jsonResponse(['ok' => true, 'en_revision' => true,
+        'mensaje' => 'Se guardó, pero quedó en revisión: coincide con un cliente que ya atiende otro vendedor. La responsable de muestras lo va a validar y te avisaremos.']);
 }
 
 jsonResponse(['ok' => true]);

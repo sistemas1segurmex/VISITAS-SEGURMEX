@@ -13,6 +13,7 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/coincidencias.php';
 
 $u  = requireRole('vendedor');
 $db = getDB();
@@ -55,7 +56,7 @@ if ($nueva <= new DateTime('now', $tzMx)) {
 $nuevaStr = $nueva->format('Y-m-d H:i:s');
 
 $stmt = $db->prepare(
-    'SELECT c.id, c.estado, c.fecha_hora, cl.nombre AS cliente_nombre,
+    'SELECT c.id, c.cliente_id, c.estado, c.fecha_hora, cl.nombre AS cliente_nombre,
             (SELECT COUNT(*) FROM checkins ch WHERE ch.cita_id = c.id) AS checkins,
             ' . sqlReprogramaciones() . '
      FROM citas c
@@ -68,6 +69,12 @@ $cita = $stmt->fetch();
 if (!$cita) {
     jsonResponse(['ok' => false, 'error' => 'Cita no encontrada'], 404);
 }
+// Cliente reasignado a otro vendedor (coincidencias_clientes): la cita se
+// puede atender o cancelar, pero ya no moverse de fecha.
+if (citaDeClienteReasignado($db, $citaId)) {
+    jsonResponse(['ok' => false, 'error' => 'Este cliente fue asignado a otro vendedor. Puedes atender o cancelar esta cita, pero ya no reprogramarla.'], 409);
+}
+exigirClienteTrabajable($db, (int)$cita['cliente_id']);
 if ($cita['estado'] !== 'pendiente' || (int)$cita['checkins'] > 0) {
     jsonResponse(['ok' => false, 'error' => 'Esta cita ya no se puede reprogramar (ya tiene actividad registrada).'], 400);
 }

@@ -22,7 +22,7 @@ $ETAPAS = [
     'propuesta_enviada', 'convertido', 'perdido',
 ];
 
-$stmt = $db->query('SELECT etapa, COUNT(*) AS n FROM clientes GROUP BY etapa');
+$stmt = $db->query("SELECT etapa, COUNT(*) AS n FROM clientes WHERE estado_revision IS DISTINCT FROM 'descartado' GROUP BY etapa");
 $conteos = array_fill_keys($ETAPAS, 0);
 foreach ($stmt->fetchAll() as $fila) {
     if (isset($conteos[$fila['etapa']])) {
