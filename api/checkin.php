@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/coincidencias.php';
 require_once __DIR__ . '/../includes/visita_checkins.php';
 
 $u  = requireRole('vendedor');
@@ -62,6 +63,7 @@ $cita = $stmt->fetch();
 if (!$cita) {
     jsonResponse(['ok' => false, 'error' => 'Cita no encontrada'], 404);
 }
+exigirClienteTrabajable($db, (int)$cita['cliente_id']); // en revisión / descartado
 
 // Reintento: con señal débil el servidor puede haber guardado el check-in
 // sin que la respuesta llegara al celular. Si esta cita ya tiene uno de

@@ -15,6 +15,7 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/muestras.php';
+require_once __DIR__ . '/../includes/coincidencias.php';
 require_once __DIR__ . '/../includes/db_erp.php';
 
 $u = requireRole('vendedor');
@@ -72,6 +73,7 @@ $cliente = $stmt->fetch();
 if (!$cliente) {
     jsonResponse(['ok' => false, 'error' => 'Cliente no encontrado'], 404);
 }
+exigirClienteTrabajable($db, $clienteId); // en revisión / descartado
 
 // Contacto del cliente: el formulario lo prellena con su ficha y el vendedor
 // lo puede corregir (los dos son obligatorios). Lo que cambió respecto a la

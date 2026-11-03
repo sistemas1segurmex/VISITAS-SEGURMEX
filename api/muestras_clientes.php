@@ -30,6 +30,7 @@ $clientes = $db->query(
             (SELECT MAX(fecha_hora) FROM citas ci WHERE ci.cliente_id = c.id AND ci.estado = 'completada') AS ultima_visita
      FROM clientes c
      JOIN usuarios u ON u.id = c.vendedor_id AND u.rol = 'vendedor'
+     WHERE c.estado_revision IS DISTINCT FROM 'descartado'
      ORDER BY c.nombre"
 )->fetchAll();
 

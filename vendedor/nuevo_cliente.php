@@ -142,16 +142,19 @@ document.querySelectorAll('#seg-tipo-cliente .v26-seg-btn').forEach(btn => {
 });
 
 // --- Detección de posibles clientes duplicados ---
-async function buscarPosiblesDuplicados({ nombre, telefono, lat, lng, colonia, calleNumero }) {
+async function buscarPosiblesDuplicados({ nombre, telefono, lat, lng, colonia, calleNumero, municipio, cp }) {
   const params = new URLSearchParams({ nombre, telefono, colonia, calle_numero: calleNumero });
   if (lat) params.set('lat', lat);
   if (lng) params.set('lng', lng);
+  if (municipio) params.set('municipio', municipio);
+  if (cp) params.set('codigo_postal', cp);
   try {
     const res = await fetch('../api/verificar_duplicado.php?' + params.toString());
     const data = await res.json();
-    return data.ok ? data.candidatos : [];
+    // otro_vendedor: coincide con un cliente de OTRO vendedor (se guardará en revisión).
+    return data.ok ? data : { candidatos: [] };
   } catch (e) {
-    return [];
+    return { candidatos: [] };
   }
 }
 
@@ -192,7 +195,8 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
     document.getElementById('mapa-cliente').scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
-  const candidatos = await buscarPosiblesDuplicados({ nombre, telefono, lat, lng, colonia, calleNumero });
+  const dup = await buscarPosiblesDuplicados({ nombre, telefono, lat, lng, colonia, calleNumero, municipio, cp });
+  const candidatos = dup.candidatos || [];
   if (candidatos.length > 0) {
     const lista = candidatos.map(c => `• ${c.nombre} — ${c.direccion} (${c.razon})`).join('\n');
     const respuesta = await v26Sheet({
@@ -203,6 +207,18 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
       textoCancelar: 'Revisar de nuevo',
     });
     if (!respuesta) return;
+  }
+  // Coincide con el cliente de otro vendedor del mismo municipio: se puede
+  // guardar, pero queda en revisión (ver includes/coincidencias.php).
+  if (dup.otro_vendedor) {
+    const seguir = await v26Sheet({
+      titulo: 'Este cliente ya lo atiende otro vendedor',
+      desc: 'Coincide con un cliente de otro vendedor en el mismo municipio. Si lo guardas, quedará en revisión y no podrás trabajarlo (citas, cotizaciones ni muestras) hasta que la responsable de muestras lo valide.',
+      pedirMotivo: false,
+      textoConfirmar: 'Guardar y enviar a revisión',
+      textoCancelar: 'Revisar de nuevo',
+    });
+    if (!seguir) return;
   }
 
   const fd = new FormData(e.target);
@@ -217,7 +233,10 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
     return;
   }
   const data = await res.json();
-  if (data.ok) {
+  if (data.ok && data.en_revision) {
+    msg.innerHTML = `<div class="alert alert-warning py-2">${data.mensaje}</div>`;
+    setTimeout(() => { window.location.href = 'clientes.php'; }, 4000);
+  } else if (data.ok) {
     window.location.href = 'clientes.php';
   } else {
     msg.innerHTML = `<div class="alert alert-danger py-2">${data.error}</div>`;

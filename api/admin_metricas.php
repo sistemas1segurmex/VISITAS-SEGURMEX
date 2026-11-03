@@ -116,7 +116,7 @@ function metricasPorVendedor(PDO $db, array $L): array {
                 COUNT(*) FILTER (WHERE created_at >= ? AND created_at < ? AND etapa_inicial = 'convertido') AS clientes_capturados,
                 COUNT(*) FILTER (WHERE etapa = 'convertido' AND etapa_actualizada_en >= ? AND etapa_actualizada_en < ?
                                    AND etapa_inicial IS DISTINCT FROM 'convertido') AS prospectos_ganados
-         FROM clientes GROUP BY vendedor_id"
+         FROM clientes WHERE estado_revision IS DISTINCT FROM 'descartado' GROUP BY vendedor_id" // descartados por duplicado no cuentan
     );
     $st->execute($p(['ini_utc', 'fin_utc', 'ini_utc', 'fin_utc', 'ini_utc', 'fin_utc']));
     foreach ($st->fetchAll() as $r) {
@@ -299,7 +299,7 @@ try {
     $estados = array_map(fn($r) => ['estado' => $r['estado'], 'n' => (int)$r['n']], $st->fetchAll());
 
     // Embudo actual (foto de hoy, no del periodo) por vendedor.
-    $st = $db->query("SELECT vendedor_id, etapa, COUNT(*) AS n FROM clientes GROUP BY 1, 2");
+    $st = $db->query("SELECT vendedor_id, etapa, COUNT(*) AS n FROM clientes WHERE estado_revision IS DISTINCT FROM 'descartado' GROUP BY 1, 2");
     $embudo = [];
     foreach ($st->fetchAll() as $r) $embudo[(int)$r['vendedor_id']][$r['etapa']] = (int)$r['n'];
 

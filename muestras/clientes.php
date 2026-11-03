@@ -41,6 +41,7 @@ $u = requireRole('muestras');
         <a class="mu-tab" href="index.php"><i class="bi bi-box-seam"></i> Muestras</a>
         <a class="mu-tab" href="cotizaciones.php"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a>
         <a class="mu-tab activa" href="clientes.php" aria-current="page"><i class="bi bi-people"></i> Clientes</a>
+        <a class="mu-tab" href="coincidencias.php"><i class="bi bi-intersect"></i> Coincidencias</a>
       </div>
     </nav>
 

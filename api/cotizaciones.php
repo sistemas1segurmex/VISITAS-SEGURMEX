@@ -18,6 +18,7 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/cotizador_helpers.php';
+require_once __DIR__ . '/../includes/coincidencias.php';
 
 // 'muestras' (la responsable de muestras) también cotiza, a nombre del
 // vendedor que elija, y ve las cotizaciones de todos los vendedores.
@@ -129,6 +130,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$clienteVisitas) {
         jsonResponse(['ok' => false, 'error' => 'Cliente no válido.'], 400);
     }
+    // En revisión / descartado: tampoco la responsable de muestras puede cotizarle.
+    exigirClienteTrabajable($db, (int)$clienteId);
 
     // Si viene de una cita, confirmar que también es del vendedor logueado.
     if ($citaId) {

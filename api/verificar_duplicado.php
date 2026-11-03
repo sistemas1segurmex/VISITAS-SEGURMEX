@@ -9,6 +9,7 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/coincidencias.php';
 
 $u  = requireRole('vendedor');
 $db = getDB();
@@ -49,7 +50,7 @@ function normalizarTexto(string $s): string {
 
 $stmt = $db->prepare(
     'SELECT id, nombre, direccion, telefono, lat, lng, colonia, calle_numero
-     FROM clientes WHERE vendedor_id = ?'
+     FROM clientes WHERE vendedor_id = ? AND estado_revision IS DISTINCT FROM \'descartado\''
 );
 $stmt->execute([$u['id']]);
 $clientes = $stmt->fetchAll();
@@ -111,4 +112,12 @@ foreach ($clientes as $c) {
     }
 }
 
-jsonResponse(['ok' => true, 'candidatos' => $candidatos]);
+// Contra los clientes de OTROS vendedores del mismo municipio: no se dice
+// de quién es; solo que, si se guarda, quedará en revisión.
+$otros = buscarCoincidenciasOtrosVendedores($db, (int)$u['id'], [
+    'nombre' => $nombre, 'telefono' => $telefono,
+    'municipio' => trim($_GET['municipio'] ?? ''), 'colonia' => $colonia,
+    'codigo_postal' => trim($_GET['codigo_postal'] ?? ''), 'lat' => $lat, 'lng' => $lng,
+], $excluirId);
+
+jsonResponse(['ok' => true, 'candidatos' => $candidatos, 'otro_vendedor' => !empty($otros)]);

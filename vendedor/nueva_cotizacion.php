@@ -861,7 +861,8 @@ async function cargarClientes() {
     const data = await res.json();
     // Si mientras llegaba la lista ya eligió otro vendedor, se ignora.
     if (ES_MUESTRAS && idVendedor !== (parseInt($('input-vendedor').value) || 0)) return;
-    clientes = data.ok ? data.clientes.map(c => ({ ...c, id: +c.id })) : [];
+    // En revisión (coincide con otro vendedor): no se le puede cotizar.
+    clientes = data.ok ? data.clientes.filter(c => !c.estado_revision).map(c => ({ ...c, id: +c.id })) : [];
     estadoClientes = data.ok ? 'listo' : 'error';
   } catch (e) { clientes = []; estadoClientes = 'error'; }
   // Si la lista ya estaba abierta, se repinta con lo que llegó.

@@ -198,6 +198,26 @@ function renderClientes(lista) {
     const tel = telefonoMx(c.telefono);
     const digitos = tel.valido ? tel.digitos : soloDigitos(c.telefono);
     const distancia = (miPosicion && tieneGps) ? distanciaKm(miPosicion.lat, miPosicion.lng, parseFloat(c.lat), parseFloat(c.lng)) : null;
+    // En revisión (coincide con el cliente de otro vendedor) o asignado a
+    // otro vendedor: tarjeta de solo consulta (ver includes/coincidencias.php).
+    if (c.estado_revision === 'en_revision' || c.reasignado) {
+      const enRevision = c.estado_revision === 'en_revision';
+      return `
+    <div class="v26-cliente-card" style="opacity:.8">
+      <div class="top">
+        <div class="v26-avatar-ring"><div class="inner">${inicial}</div></div>
+        <div class="info">
+          <div class="nombre"><i class="bi ${c.tipo_cliente === 'persona' ? 'bi-person' : 'bi-building'} text-muted"></i> ${c.nombre}</div>
+          <div class="direccion"><i class="bi bi-geo-alt"></i> ${c.direccion}</div>
+        </div>
+        <span class="v26-pill v26-pill--noverificado">${enRevision ? 'En revisión' : 'Asignado a otro vendedor'}</span>
+      </div>
+      <div class="meta"><span class="meta-item"><i class="bi bi-info-circle"></i> ${enRevision
+        ? 'Coincide con un cliente de otro vendedor. La responsable de muestras lo está validando; mientras tanto no puedes trabajarlo.'
+        : 'Ya no puedes agendar, cotizar ni pedir muestras. Tus citas ya agendadas siguen en tu agenda (sin reprogramar).'}</span></div>
+      ${enRevision ? '' : `<div class="acciones"><a href="historial_cliente.php?id=${c.id}" class="v26-mini-btn"><i class="bi bi-clock-history"></i>Historial</a></div>`}
+    </div>`;
+    }
     return `
     <div class="v26-cliente-card">
       <div class="top">
@@ -253,7 +273,7 @@ function aplicarFiltros() {
 }
 
 async function cargarClientes() {
-  const res = await fetch('../api/clientes.php');
+  const res = await fetch('../api/clientes.php?incluir_reasignados=1');
   const data = await res.json();
   if (!data.ok) {
     document.getElementById('lista-clientes').innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
@@ -269,7 +289,8 @@ async function cargarClientes() {
     return;
   }
   todosLosClientes = data.clientes;
-  renderStats(todosLosClientes);
+  // Los reasignados a otro vendedor solo se listan para ver su historial.
+  renderStats(todosLosClientes.filter(c => !c.reasignado && !c.estado_revision));
   aplicarFiltros();
 }
 

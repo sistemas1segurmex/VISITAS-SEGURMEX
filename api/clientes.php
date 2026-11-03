@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/coincidencias.php';
 
 // 'muestras' solo consulta: los clientes del vendedor que eligió en Nueva
 // cotización (?vendedor_id=). Dar de alta sigue siendo solo del vendedor.
@@ -22,16 +23,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // El interés ya no vive en el cliente -- se califica por cita, al
     // registrar la salida (ver api/checkin.php). Aquí se trae el de la
     // visita completada más reciente que sí tenga uno capturado.
+    // ?incluir_reasignados=1 (solo "Mis clientes"): también los clientes que
+    // la responsable de muestras pasó a otro vendedor y con los que este
+    // vendedor tuvo citas -- de solo consulta, para seguir viendo su historial.
+    $conReasignados = $u['rol'] === 'vendedor' && !empty($_GET['incluir_reasignados']);
+    $whereDueno = $conReasignados
+        ? '(c.vendedor_id = ? OR EXISTS (SELECT 1 FROM citas cr WHERE cr.cliente_id = c.id AND cr.vendedor_id = ?))'
+        : 'c.vendedor_id = ?';
     $stmt = $db->prepare(
-        "SELECT c.*,
+        "SELECT c.*, (c.vendedor_id <> " . (int)$idVendedor . ") AS reasignado,
                 (SELECT COUNT(*) FROM citas ci WHERE ci.cliente_id = c.id AND ci.estado = 'completada') AS total_visitas,
                 (SELECT MAX(fecha_hora) FROM citas ci WHERE ci.cliente_id = c.id AND ci.estado = 'completada') AS ultima_visita,
                 (SELECT ci.interes FROM citas ci WHERE ci.cliente_id = c.id AND ci.interes IS NOT NULL ORDER BY ci.fecha_hora DESC LIMIT 1) AS ultimo_interes
          FROM clientes c
-         WHERE c.vendedor_id = ?
+         WHERE $whereDueno
+           -- Descartados por duplicado (coincidencias_clientes): solo evidencia.
+           AND c.estado_revision IS DISTINCT FROM 'descartado'
          ORDER BY c.nombre"
     );
-    $stmt->execute([$idVendedor]);
+    $stmt->execute($conReasignados ? [$idVendedor, $idVendedor] : [$idVendedor]);
     jsonResponse(['ok' => true, 'clientes' => $stmt->fetchAll()]);
 }
 
@@ -93,6 +103,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     registrarCambio($db, $u['id'], 'cliente', $nuevoId, 'alta', "Dio de alta al cliente {$nombre}", [
         'Etapa inicial' => [null, etiquetaEtapa($etapaInicial)],
     ]);
+    // ¿Coincide con el cliente de OTRO vendedor del mismo municipio? Se queda
+    // guardado pero en revisión hasta que la responsable de muestras decida.
+    $coincidencias = buscarCoincidenciasOtrosVendedores($db, (int)$u['id'], [
+        'nombre' => $nombre, 'telefono' => $telefono, 'municipio' => $municipio,
+        'colonia' => $colonia, 'codigo_postal' => $codigoPostal, 'lat' => $lat, 'lng' => $lng,
+    ], $nuevoId);
+    if ($coincidencias) {
+        registrarCoincidencias($db, $u, $nuevoId, $nombre, $coincidencias, 'alta');
+        jsonResponse(['ok' => true, 'id' => $nuevoId, 'en_revision' => true,
+            'mensaje' => 'Se guardó, pero quedó en revisión: coincide con un cliente que ya atiende otro vendedor. La responsable de muestras lo va a validar y te avisaremos.']);
+    }
     jsonResponse(['ok' => true, 'id' => $nuevoId]);
 }
 

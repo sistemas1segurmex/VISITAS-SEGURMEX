@@ -35,7 +35,7 @@ $stmtV = $db->prepare(
 $stmtV->execute([$estado]);
 $vendedores = $stmtV->fetchAll();
 
-$stmtC = $db->prepare('SELECT COUNT(*) FROM clientes WHERE estado = ?');
+$stmtC = $db->prepare("SELECT COUNT(*) FROM clientes WHERE estado = ? AND estado_revision IS DISTINCT FROM 'descartado'");
 $stmtC->execute([$estado]);
 $totalClientes = (int)$stmtC->fetchColumn();
 
