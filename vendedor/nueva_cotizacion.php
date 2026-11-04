@@ -247,6 +247,7 @@ body.nc-sheet-abierta { overflow: hidden; }
 body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translateY(110%); }
 
 .nc-solo-escritorio { display: none; }
+.nc-mayoreo-mini { display: none; }
 
 /* ============ Escritorio ============ */
 @media (hover: hover) {
@@ -269,8 +270,31 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
   #sec-precios { grid-area: precios; }
   #sec-modelos { grid-area: modelos; }
   #sec-condiciones { grid-area: condic; }
-  #sec-resumen { grid-area: resumen; position: sticky; top: 92px; max-height: calc(100vh - 110px); display: flex; flex-direction: column; }
-  #sec-resumen .nc-resumen-scroll { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -6px; padding: 0 6px; }
+  #sec-resumen { grid-area: resumen; position: sticky; top: 92px; max-height: calc(100vh - 110px); display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+  /* 04-nov-2026: los modelos se llevaban solo ~70 px en laptops (escala 125%).
+     La lista toma todo el espacio libre con un mínimo de 220 px; si la pantalla
+     no alcanza, se desplaza el panel completo y el pie (envío, totales y
+     Guardar) queda pegado abajo. */
+  #sec-resumen .nc-resumen-scroll { flex: 1 1 auto; min-height: 220px; overflow-y: auto; margin: 0 -6px; padding: 0 6px; }
+  #sec-resumen .nc-resumen-pie { flex: none; position: sticky; bottom: 0; z-index: 2; background: var(--v26-surface-solid); padding-top: 4px; }
+  /* Mayoreo: una línea bajo el título, fuera de la lista. */
+  #sec-resumen #aviso-mayoreo { display: none; }
+  .nc-mayoreo-mini:not(:empty) { display: flex; align-items: center; gap: 8px; margin: -4px 0 10px; font-size: .74rem; font-weight: 700; color: var(--v26-ink-soft); }
+  .nc-mayoreo-mini .nc-progreso { flex: 1; margin: 0; }
+  .nc-mayoreo-mini.ok { color: var(--v26-green); }
+  .nc-mayoreo-mini.ok .nc-progreso > div { background: var(--v26-green); }
+  /* Gasto de envío: una fila con interruptor No / Sí. */
+  #sec-resumen .nc-envio { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin: 10px 0 0; }
+  #sec-resumen .nc-envio > label { margin: 0; font-size: .82rem; text-transform: none; letter-spacing: 0; color: var(--v26-ink); }
+  #sec-resumen .nc-envio .nc-seg { flex: none; width: auto; margin: 0; padding: 3px; border-radius: 999px; box-shadow: none; }
+  #sec-resumen .nc-envio .nc-seg .v26-seg-btn { flex: none; min-height: 30px; padding: 4px 14px; border-radius: 999px; font-size: .78rem; }
+  #sec-resumen .nc-envio .nc-seg .v26-seg-btn small { display: none; }
+  #sec-resumen .nc-envio .nc-otro-wrap { flex-basis: 100%; margin-top: 2px; }
+  /* Totales: Pares, Subtotal e IVA en un renglón; Total abajo. */
+  #sec-resumen .nc-totales { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 8px; padding-top: 8px; font-size: .8rem; }
+  #sec-resumen .nc-totales .fila:not(.total) { gap: 5px; padding: 0; }
+  #sec-resumen .nc-totales .fila.total { flex-basis: calc(100% + 8px); margin-top: 6px; padding: 10px 14px; }
+  #sec-resumen .nc-guardar-panel { margin-top: 10px; }
   .nc-cliente-extra.v26-fila-2 { grid-template-columns: 1fr 1fr; }
 
   /* El catálogo vive fijo en la columna izquierda. */
@@ -476,6 +500,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
             <span class="nc-paso"><i class="bi bi-receipt"></i> Tu cotización</span>
             <span class="v26-pill v26-pill--pendiente" id="resumen-cuenta" style="display:none;"></span>
           </h2>
+          <div class="nc-mayoreo-mini" id="mayoreo-mini"></div>
           <div class="nc-resumen-scroll">
             <div id="nc-vacio" class="nc-vacio">
               <i class="bi bi-bag-plus"></i>
@@ -489,6 +514,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
             <div class="nc-aviso" id="aviso-mayoreo"></div>
             <div class="nc-aviso dickies" id="aviso-dickies"></div>
           </div>
+          <div class="nc-resumen-pie">
           <div class="v26-field nc-envio" id="campo-gasto-envio">
             <label>Aplicar gasto de envío</label>
             <div class="v26-seg nc-seg" id="seg-gasto-envio">
@@ -510,6 +536,7 @@ body.nc-teclado .nc-barra, body.nc-sheet-abierta .nc-barra { transform: translat
           <div class="nc-guardar-panel">
             <button type="submit" class="v26-btn v26-btn-primary v26-btn-block" id="btn-guardar">Guardar cotización</button>
           </div>
+          </div><!-- /nc-resumen-pie -->
         </section>
 
         <!-- Condiciones comerciales -->
@@ -1217,6 +1244,17 @@ function pintarAvisos() {
   const avD = $('aviso-dickies');
   const min = CFG.minimo_pares_mayoreo;
   // Solo Dickies (sin pares SEGURMEX): el mayoreo no aplica, el aviso sobra.
+  // La línea compacta bajo el título (escritorio) sigue la misma regla.
+  const mini = $('mayoreo-mini');
+  if (!renglones.length || (p.segurmex === 0 && p.dickies > 0)) {
+    mini.innerHTML = '';
+  } else {
+    const pctM = Math.min(100, Math.round(p.segurmex / min * 100));
+    const ok = p.segurmex >= min;
+    mini.innerHTML = `<span>${ok ? '<i class="bi bi-check-circle-fill"></i> Mayoreo aplicado' : 'Mayoreo'}: ${p.segurmex}/${min} pares SEGURMEX</span><div class="nc-progreso"><div style="width:${pctM}%"></div></div>`;
+    mini.classList.toggle('ok', ok);
+    mini.title = ok ? '' : `Faltan ${pares(min - p.segurmex)} SEGURMEX para el mayoreo (Dickies no cuenta).`;
+  }
   if (!renglones.length || (p.segurmex === 0 && p.dickies > 0)) {
     avM.innerHTML = '';
   } else if (p.segurmex >= min) {
