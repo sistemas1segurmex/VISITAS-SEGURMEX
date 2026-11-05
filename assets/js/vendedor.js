@@ -651,14 +651,27 @@ function v26SheetEtapa(cliente) {
     let etapaSel = cliente.etapa || 'prospecto_agregado';
     elMotivo.value = cliente.etapa_perdido_motivo || '';
 
+    // «Convertido» lo pone el ERP cuando CxC aprueba al cliente (05-nov-2026):
+    // aquí no se elige. Si ya es cliente del ERP, tampoco se puede regresar.
+    const yaEsClienteErp = (cliente.etapa === 'convertido') && !!cliente.id_cliente_erp;
+    function bloqueada(valor) {
+      if (yaEsClienteErp) return valor !== 'convertido';
+      return valor === 'convertido' && cliente.etapa !== 'convertido';
+    }
     function pintar() {
       const todas = [...ETAPAS_CLIENTE, ETAPA_PERDIDO];
       contEtapas.innerHTML = todas.map(e => `
-        <button type="button" class="v26-chip ${e.valor === etapaSel ? 'active' : ''} ${e.valor === 'perdido' ? 'peligro' : ''}" data-etapa="${e.valor}">
+        <button type="button" class="v26-chip ${e.valor === etapaSel ? 'active' : ''} ${e.valor === 'perdido' ? 'peligro' : ''}" data-etapa="${e.valor}"
+                ${bloqueada(e.valor) ? 'disabled style="opacity:.45;cursor:not-allowed"' : ''}>
           <i class="bi ${e.icono}"></i> ${e.etiqueta}
-        </button>`).join('');
+        </button>`).join('') + `
+        <p class="text-muted small mt-2 mb-0" style="width:100%">
+          ${yaEsClienteErp
+            ? '<i class="bi bi-trophy"></i> Ya es cliente en el ERP.'
+            : '<i class="bi bi-info-circle"></i> «Convertido» se marca solo cuando CxC aprueba su registro en el ERP (Prospectos › Hacer cliente).'}
+        </p>`;
       wrapMotivo.classList.toggle('d-none', etapaSel !== 'perdido');
-      contEtapas.querySelectorAll('[data-etapa]').forEach(b => b.addEventListener('click', () => { etapaSel = b.dataset.etapa; pintar(); }));
+      contEtapas.querySelectorAll('[data-etapa]:not([disabled])').forEach(b => b.addEventListener('click', () => { etapaSel = b.dataset.etapa; pintar(); }));
     }
     pintar();
 
