@@ -168,9 +168,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dbErp->beginTransaction();
 
         $idVendedorErp = obtenerOCrearVendedorErp($email, $vend['nombre']);
-        [$idProspecto, $prospectoEsNuevo] = obtenerOCrearProspectoErp(
-            $clienteId, $clienteVisitas['nombre'], $clienteVisitas['telefono'] ?? null, $vend['nombre']
-        );
+        // Cliente real del ERP o prospecto espejo (05-nov-2026, ver destinoCotizacionErp).
+        $destino = destinoCotizacionErp((int)$clienteId, $clienteVisitas, $vend['nombre'], $original);
+        $idClienteErp     = $destino['id_cliente'];
+        $idProspecto      = $destino['id_prospecto'];
+        $prospectoEsNuevo = $destino['prospecto_nuevo'];
 
         // «Corregir»: se bloquea la original y se revisa otra vez su estado
         // (el cliente pudo aceptarla desde el link mientras se capturaba).
@@ -188,13 +190,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($editarId) {
             // Pendiente: se corrige la misma cotización (mismo folio y link).
             $dbErp->prepare("UPDATE cotizaciones SET
-                    id_prospecto=?, cliente_nombre=?, cliente_contacto=?, cliente_telefono=?, cliente_email=?, cliente_direccion=?,
+                    id_cliente=?, id_prospecto=?, cliente_nombre=?, cliente_contacto=?, cliente_telefono=?, cliente_email=?, cliente_direccion=?,
                     tipo_lista=?, pronto_pago=?, aplica_mayoreo=?, total_pares=?,
                     desc_mayoreo_aplicado=?, desc_pronto_pago_aplicado=?, tasa_iva=?,
                     subtotal=?, gasto_envio=?, iva=?, total=?, vigencia_dias=?, tiempo_entrega=?, forma_pago=?, notas=?
                 WHERE id=?")
                ->execute([
-                    $idProspecto, $clienteVisitas['nombre'], $clienteContacto ?: null,
+                    $idClienteErp, $idProspecto, $clienteVisitas['nombre'], $clienteContacto ?: null,
                     $clienteVisitas['telefono'] ?: null, $clienteEmail ?: null, $clienteVisitas['direccion'] ?: null,
                     $tipoLista, $prontoPago ? 1 : 0, $mayoreoAplica ? 1 : 0, $totalPares,
                     $mayoreoAplica ? (float)($cfg['descuento_mayoreo'] ?? 0) : 0,
@@ -209,14 +211,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             generarTokenPublicoCotizacionErp($dbErp, $newId);
         } else {
         $dbErp->prepare("INSERT INTO cotizaciones
-            (id_prospecto, cliente_nombre, cliente_contacto, cliente_telefono, cliente_email, cliente_direccion,
+            (id_cliente, id_prospecto, cliente_nombre, cliente_contacto, cliente_telefono, cliente_email, cliente_direccion,
              id_vendedor, tipo_lista, pronto_pago, aplica_mayoreo, total_pares,
              desc_mayoreo_aplicado, desc_pronto_pago_aplicado, tasa_iva,
              subtotal, gasto_envio, iva, total, vigencia_dias, tiempo_entrega, forma_pago, notas, estado,
              visitas_cita_id, visitas_prospeccion_id, reemplaza_a)
-            VALUES (?,?,?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?, 'pendiente', ?,?,?)")
+            VALUES (?,?,?,?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?, 'pendiente', ?,?,?)")
            ->execute([
-                $idProspecto, $clienteVisitas['nombre'], $clienteContacto ?: null,
+                $idClienteErp, $idProspecto, $clienteVisitas['nombre'], $clienteContacto ?: null,
                 $clienteVisitas['telefono'] ?: null, $clienteEmail ?: null, $clienteVisitas['direccion'] ?: null,
                 $idVendedorErp, $tipoLista, $prontoPago ? 1 : 0, $mayoreoAplica ? 1 : 0, $totalPares,
                 $mayoreoAplica ? (float)($cfg['descuento_mayoreo'] ?? 0) : 0,
@@ -262,7 +264,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $dbErp->commit();
 
-        if ($prospectoEsNuevo) {
+        if ($prospectoEsNuevo && $idProspecto) {
             registrarActividadSeguimientoErp($idVendedorErp, 'prospecto_nuevo', $idProspecto, null);
         }
 

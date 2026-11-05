@@ -482,6 +482,76 @@ function obtenerOCrearProspectoErp(int $visitasClienteId, string $nombre, ?strin
 }
 
 /**
+ * ¿A nombre de quién va la cotización en el ERP? (05-nov-2026)
+ * Un cliente de VISITAS que ya es cliente real del ERP NO debe volver a
+ * cotizarse como prospecto: antes se creaba un prospecto nuevo (duplicado) y,
+ * al «Corregir» una cotización que ya estaba a nombre de un cliente, el ERP
+ * rechazaba el guardado (cotización con cliente Y prospecto a la vez).
+ *
+ * Orden: 1) si se corrige una que ya era de un cliente, se queda con ese
+ * cliente; 2) clientes.id_cliente_erp del cliente de VISITAS (cliente activo);
+ * 3) su prospecto espejo ya convertido; 4) prospecto espejo (lo crea si falta).
+ * Devuelve ['id_cliente' => ?int, 'id_prospecto' => ?int, 'prospecto_nuevo' => bool].
+ */
+function destinoCotizacionErp(int $visitasClienteId, array $clienteVisitas, string $creadoPor, ?array $original = null): array {
+    $db = getDBErp();
+    $activo = function (int $idCliente) use ($db): bool {
+        if ($idCliente <= 0) return false;
+        $st = $db->prepare('SELECT 1 FROM clientes WHERE id = ? AND estatus = 1');
+        $st->execute([$idCliente]);
+        return (bool)$st->fetchColumn();
+    };
+    $deCliente = fn(int $id) => ['id_cliente' => $id, 'id_prospecto' => null, 'prospecto_nuevo' => false];
+
+    if ($original && !empty($original['id_cliente'])) return $deCliente((int)$original['id_cliente']);
+
+    $idErp = (int)($clienteVisitas['id_cliente_erp'] ?? 0);
+    if ($activo($idErp)) return $deCliente($idErp);
+
+    $st = $db->prepare('SELECT convertido_a_cliente_id FROM cotizador_prospectos
+                         WHERE visitas_cliente_id = ? AND convertido_a_cliente_id IS NOT NULL
+                         ORDER BY convertido_en DESC NULLS LAST LIMIT 1');
+    $st->execute([$visitasClienteId]);
+    $idConv = (int)$st->fetchColumn();
+    if ($activo($idConv)) return $deCliente($idConv);
+
+    [$idProspecto, $esNuevo] = obtenerOCrearProspectoErp(
+        $visitasClienteId, (string)$clienteVisitas['nombre'], $clienteVisitas['telefono'] ?? null, $creadoPor
+    );
+    return ['id_cliente' => null, 'id_prospecto' => $idProspecto, 'prospecto_nuevo' => $esNuevo];
+}
+
+/**
+ * Cliente de VISITAS de una cotización del ERP (para «Corregir»): por su
+ * prospecto espejo o, si ya está a nombre de un cliente, por
+ * clientes.id_cliente_erp / el prospecto que se convirtió en ese cliente.
+ * Solo de ese vendedor de VISITAS ($vendedorVisitasId; 0 = cualquiera).
+ */
+function visitasClienteDeCotizacionErp(PDO $db, PDO $dbErp, array $cot, int $vendedorVisitasId = 0): int {
+    $ids = [];
+    if (!empty($cot['id_prospecto'])) {
+        $st = $dbErp->prepare('SELECT visitas_cliente_id FROM cotizador_prospectos WHERE id = ?');
+        $st->execute([(int)$cot['id_prospecto']]);
+        $ids[] = (int)$st->fetchColumn();
+    } elseif (!empty($cot['id_cliente'])) {
+        $st = $dbErp->prepare('SELECT visitas_cliente_id FROM cotizador_prospectos
+                                WHERE convertido_a_cliente_id = ? AND visitas_cliente_id IS NOT NULL ORDER BY id DESC');
+        $st->execute([(int)$cot['id_cliente']]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $v) $ids[] = (int)$v;
+        $st = $db->prepare('SELECT id FROM clientes WHERE id_cliente_erp = ? ORDER BY id');
+        $st->execute([(int)$cot['id_cliente']]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $v) $ids[] = (int)$v;
+    }
+    foreach (array_unique(array_filter($ids)) as $id) {
+        if (!$vendedorVisitasId) return $id;
+        $st = $db->prepare('SELECT 1 FROM clientes WHERE id = ? AND vendedor_id = ?');
+        $st->execute([$id, $vendedorVisitasId]);
+        if ($st->fetchColumn()) return $id;
+    }
+    return 0;
+}
+
+/**
  * Registra una actividad de sistema en el ERP (actividades_seguimiento) --
  * mismo criterio que registrarActividadSeguimiento() en
  * erp/cotizacion/_helpers.php: solo hechos reales y verificables, nunca

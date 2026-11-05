@@ -99,13 +99,6 @@ if (!empty($cot['token_publico'])) {
 $modoCorregir = modoCorregirCotizacionErp((string)$cot['estado']);
 $corregir = null;
 if (!empty($_GET['para_corregir']) && $modoCorregir) {
-    // Cliente de VISITAS de la cotización (por el prospecto espejo del ERP).
-    $visitasClienteId = 0;
-    if (!empty($cot['id_prospecto'])) {
-        $stP = $dbErp->prepare('SELECT visitas_cliente_id FROM cotizador_prospectos WHERE id = ?');
-        $stP->execute([(int)$cot['id_prospecto']]);
-        $visitasClienteId = (int)$stP->fetchColumn();
-    }
     // Vendedor de VISITAS a cuyo nombre está (lo necesita la responsable de muestras).
     $stVend = $db->prepare(
         "SELECT u.id FROM public.usuarios eu
@@ -113,10 +106,14 @@ if (!empty($_GET['para_corregir']) && $modoCorregir) {
          WHERE eu.id = ? LIMIT 1"
     );
     $stVend->execute([(int)$cot['id_vendedor']]);
+    $vendedorVisitasId = (int)$stVend->fetchColumn();
+    // Cliente de VISITAS de la cotización: por el prospecto espejo o, si ya
+    // está a nombre de un cliente del ERP, por ese cliente (05-nov-2026).
+    $visitasClienteId = visitasClienteDeCotizacionErp($db, $dbErp, $cot, $vendedorVisitasId);
     $corregir = [
         'modo'               => $modoCorregir,
         'cliente_id'         => $visitasClienteId,
-        'vendedor_id'        => (int)$stVend->fetchColumn(),
+        'vendedor_id'        => $vendedorVisitasId,
         'renglones'          => renglonesDesdeDetalleErp($detalle),
         'folio_nuevo'        => $modoCorregir === 'corregir' ? folioCorreccionCotizacionErp((string)$cot['folio']) : $cot['folio'],
     ];
