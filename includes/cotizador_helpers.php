@@ -776,3 +776,37 @@ function descuentosAplicadosCotizacionErp(array $cot): array {
     }
     return $out;
 }
+
+/**
+ * Clientes REALES del ERP de este vendedor que todavía no están ligados a
+ * ningún registro de VISITAS (06-nov-2026). Es la lista de «Cliente ya
+ * ganado» al dar de alta: el vendedor elige cuál es y su registro de VISITAS
+ * nace ligado (clientes.id_cliente_erp), así sus cotizaciones van directo al
+ * cliente del ERP (destinoCotizacionErp) y Visitas y el ERP cuadran.
+ *
+ * $vend = fila de usuarios de VISITAS (vendedorQueCotiza): se cruza con el
+ * ERP por correo, igual que obtenerOCrearVendedorErp(). Sin usuario en el ERP
+ * o sin clientes, devuelve [] (no crea nada).
+ */
+function clientesErpSinVisitas(PDO $db, array $vend): array {
+    $dbErp = getDBErp();
+    $st = $dbErp->prepare('SELECT id FROM usuarios WHERE LOWER(email) = LOWER(?) LIMIT 1');
+    $st->execute([(string)$vend['email']]);
+    $idErp = (int)$st->fetchColumn();
+    if (!$idErp) return [];
+
+    $st = $dbErp->prepare('SELECT id, razon_social, cinterno, rfc FROM clientes
+                            WHERE id_agente = ? AND estatus = 1 ORDER BY razon_social');
+    $st->execute([$idErp]);
+    $lista = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!$lista) return [];
+
+    // Ya ligados en VISITAS (de cualquier vendedor, salvo descartados).
+    $ligados = array_map('intval', $db->query(
+        "SELECT id_cliente_erp FROM clientes
+          WHERE id_cliente_erp IS NOT NULL AND estado_revision IS DISTINCT FROM 'descartado'"
+    )->fetchAll(PDO::FETCH_COLUMN));
+    $ligados = array_flip($ligados);
+
+    return array_values(array_filter($lista, fn($c) => !isset($ligados[(int)$c['id']])));
+}

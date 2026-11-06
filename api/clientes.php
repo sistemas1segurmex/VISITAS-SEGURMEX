@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/coincidencias.php';
+require_once __DIR__ . '/../includes/cotizador_helpers.php';
 
 // 'muestras' solo consulta: los clientes del vendedor que eligió en Nueva
 // cotización (?vendedor_id=). Dar de alta sigue siendo solo del vendedor.
@@ -56,10 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $lng           = $_POST['lng'] ?? null;
     $telefono      = trim($_POST['telefono'] ?? '');
     $nombreContacto = trim($_POST['nombre_contacto'] ?? '');
-    // Si ya es un cliente conocido (no un prospecto nuevo) se registra
-    // directo como "convertido", para no forzarlo a pasar por todo el
-    // embudo de ventas.
-    $etapaInicial  = ($_POST['ya_es_cliente'] ?? '') === '1' ? 'convertido' : 'prospecto_agregado';
+    // «Cliente ya ganado» (06-nov-2026): solo se acepta si el vendedor elige
+    // cuál de SUS clientes del ERP es (clientesErpSinVisitas); el registro
+    // nace «convertido» y ligado (id_cliente_erp). Si no está en el ERP se da
+    // de alta como prospecto y se hace cliente desde el ERP con el enlace.
+    $yaEsCliente   = ($_POST['ya_es_cliente'] ?? '') === '1';
+    $idClienteErp  = null;
+    $clienteErp    = null;
+    $etapaInicial  = $yaEsCliente ? 'convertido' : 'prospecto_agregado';
     $tipoCliente   = ($_POST['tipo_cliente'] ?? '') === 'persona' ? 'persona' : 'organizacion';
 
     if ($nombre === '' || $calleNumero === '') {
@@ -69,6 +74,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // verificar el check-in por distancia ni ordenar la cartera por cercanía.
     if ($lat === null || $lat === '' || $lng === null || $lng === '') {
         jsonResponse(['ok' => false, 'error' => 'Marca la ubicación del cliente en el mapa antes de guardar'], 400);
+    }
+    if ($yaEsCliente) {
+        $idElegido = (int)($_POST['id_cliente_erp'] ?? 0);
+        if (!$idElegido) {
+            jsonResponse(['ok' => false, 'error' => 'Elige de la lista cuál de tus clientes es. Si no aparece, regístralo como «Prospecto nuevo» y después usa «Hacer cliente» en Prospectos.'], 400);
+        }
+        $vend = vendedorQueCotiza($db, $u, 0);
+        $disponibles = $vend ? array_column(clientesErpSinVisitas($db, $vend), null, 'id') : [];
+        if (!isset($disponibles[$idElegido])) {
+            jsonResponse(['ok' => false, 'error' => 'Ese cliente no es tuyo o ya está en tu cartera. Revisa la lista o avisa a Sistemas.'], 400);
+        }
+        $idClienteErp = $idElegido;
+        $clienteErp   = $disponibles[$idElegido];
     }
     // El teléfono es opcional, pero si viene se guarda siempre a 10 dígitos
     // (lo usan Llamar y WhatsApp en la cartera y en las cotizaciones).
@@ -88,8 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     [$ubicacionConfirmada, $ubicacionFuente] = ubicacionDesdeFormulario('registro');
     $stmt = $db->prepare(
         'INSERT INTO clientes (vendedor_id, nombre, direccion, calle_numero, lat, lng, telefono, codigo_postal, estado, municipio, colonia, etapa, etapa_inicial, etapa_actualizada_en, tipo_cliente, nombre_contacto,
-                               ubicacion_confirmada, ubicacion_fuente, ubicacion_confirmada_en)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,' . ($ubicacionConfirmada ? 'CURRENT_TIMESTAMP' : 'NULL') . ')'
+                               ubicacion_confirmada, ubicacion_fuente, ubicacion_confirmada_en, id_cliente_erp)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,' . ($ubicacionConfirmada ? 'CURRENT_TIMESTAMP' : 'NULL') . ',?)'
     );
     $stmt->execute([
         $u['id'], $nombre, $direccion, $calleNumero,
@@ -98,11 +116,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $codigoPostal ?: null, $estado ?: null, $municipio ?: null, $colonia ?: null,
         $etapaInicial, $etapaInicial, $tipoCliente, $nombreContacto ?: null,
         $ubicacionConfirmada ? 'true' : 'false', $ubicacionFuente,
+        $idClienteErp,
     ]);
     $nuevoId = (int)$db->lastInsertId();
-    registrarCambio($db, $u['id'], 'cliente', $nuevoId, 'alta', "Dio de alta al cliente {$nombre}", [
-        'Etapa inicial' => [null, etiquetaEtapa($etapaInicial)],
-    ]);
+    $diffAlta = ['Etapa inicial' => [null, etiquetaEtapa($etapaInicial)]];
+    if ($clienteErp) {
+        $diffAlta['Cliente ligado'] = [null, trim(($clienteErp['cinterno'] ? $clienteErp['cinterno'] . ' · ' : '') . $clienteErp['razon_social'])];
+    }
+    registrarCambio($db, $u['id'], 'cliente', $nuevoId, 'alta', "Dio de alta al cliente {$nombre}", $diffAlta);
     // ¿Coincide con el cliente de OTRO vendedor del mismo municipio? Se queda
     // guardado pero en revisión hasta que la responsable de muestras decida.
     $coincidencias = buscarCoincidenciasOtrosVendedores($db, (int)$u['id'], [
