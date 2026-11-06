@@ -1,15 +1,72 @@
 <?php
+// Solicitar muestra (vendedor externo). Guarda en api/muestra_solicitar.php.
+//
+// ?corregir=ID (06-nov-2026): la MISMA pantalla, ya llena, para que la
+// responsable de muestras (rol 'muestras') corrija una solicitud abierta con
+// el mismo folio. Cliente, contacto y entrega no se cambian. Guarda en
+// api/muestra_corregir.php. El vendedor ya no edita: pide el cambio desde
+// «Mis muestras» (api/muestra_pedir.php).
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
-$u = requireRole('vendedor');
+$corregir = null;
+if (isset($_GET['corregir'])) {
+    require_once __DIR__ . '/../includes/muestras.php';
+    $u = requireRole('muestras');
+    $db = getDB();
+    $sc = cargarSolicitudMuestra($db, (int)$_GET['corregir']);
+    $sinCorregir = !$sc ? 'No se encontró la solicitud.'
+        : (!sePuedeCorregirMuestra($sc) ? 'La muestra ' . $sc['folio'] . ' ya está «' . etiquetaEstadoMuestra($sc['estado']) . '»: ya no se puede corregir.' : null);
+    if ($sinCorregir) {
+        http_response_code($sc ? 409 : 404);
+        die('<div style="font-family:sans-serif;text-align:center;padding:80px;color:#6B7280"><h2>' . htmlspecialchars($sinCorregir) . '</h2><a href="../muestras/index.php">Volver a la bandeja</a></div>');
+    }
+    $estilosCorregir = [];
+    foreach ($sc['estilos'] as $est) {
+        $item = !empty($est['id_modelo_legacy']) ? 'm:' . (int)$est['id_modelo_legacy']
+              : (!empty($est['id_estilo_erp']) ? 'e:' . (int)$est['id_estilo_erp'] : '');
+        $estilosCorregir[] = [
+            'item'    => $item,
+            'nombre'  => $est['estilo_nombre'],
+            'color'   => (string)($est['color'] ?? ''),
+            'tipo'    => $est['tipo'] ?? 'identico',
+            'cambios' => $est['cambios'] ?? [],
+            'tallas'  => array_map(fn($t) => ['talla' => (string)($t['talla'] ?? ''), 'pares' => (int)$t['pares'], 'nota' => (string)($t['nota'] ?? '')], $est['tallas'] ?? []),
+        ];
+    }
+    $corregir = [
+        'id'              => (int)$sc['id'],
+        'folio'           => $sc['folio'],
+        'vendedor_nombre' => $sc['vendedor_nombre'],
+        'peticion_texto'  => $sc['peticion_texto'] ?? null,
+        'entregar_a'      => $sc['entregar_a'] ?? 'cliente',
+        // Una sola opción (fija) en «¿Para quién es?»; el cupo es el del mes en que se pidió, sin contarse a sí misma.
+        'cliente' => [
+            'id'                => (int)$sc['cliente_id'],
+            'nombre'            => $sc['cliente_nombre'],
+            'etapa'             => '',
+            'direccion'         => '',
+            'nombre_contacto'   => (string)($sc['cliente_contacto'] ?? ''),
+            'telefono'          => (string)($sc['cliente_telefono'] ?? ''),
+            'pares_muestra_mes' => paresMuestraDelMesSin($db, $sc),
+        ],
+        'motivo'             => (string)($sc['motivo'] ?? ''),
+        'notas_planta'       => (string)($sc['notas_planta'] ?? ''),
+        'fecha_promesa'      => (string)($sc['fecha_promesa'] ?? ''),
+        'tiempo_prueba_dias' => $sc['tiempo_prueba_dias'] !== null ? (string)$sc['tiempo_prueba_dias'] : '',
+        'destino_direccion'  => (string)$sc['destino_direccion'],
+        'estilos'            => $estilosCorregir,
+    ];
+} else {
+    $u = requireRole('vendedor');
+}
 ?>
 <!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solicitar muestra</title>
+<title><?= $corregir ? 'Corregir ' . htmlspecialchars($corregir['folio']) : 'Solicitar muestra' ?></title>
 <link rel="icon" type="image/png" href="../assets/img/Favv-Segu.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
@@ -21,11 +78,19 @@ $u = requireRole('vendedor');
   <div class="v26-header">
     <div class="v26-topbar">
       <div class="v26-topbar-left">
+        <?php if ($corregir): ?>
+        <a href="../muestras/ver.php?id=<?= (int)$corregir['id'] ?>" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a la solicitud" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
+        <div class="v26-greeting">
+          <div class="hi">Muestras</div>
+          <div class="name">Corregir <?= htmlspecialchars($corregir['folio']) ?></div>
+        </div>
+        <?php else: ?>
         <a href="muestras.php" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis muestras" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
           <div class="hi">Ventas</div>
           <div class="name">Solicitar muestra</div>
         </div>
+        <?php endif; ?>
       </div>
       <div class="v26-topbar-right">
         <img src="../logo.png" alt="Segurmex" class="v26-logo">
@@ -54,10 +119,16 @@ $u = requireRole('vendedor');
     <div id="pantalla-form">
       <section class="mu-hero mu-hero--sol">
         <div class="mu-hero-txt">
+          <?php if ($corregir): ?>
+          <div class="mu-hero-eyebrow"><i class="bi bi-pencil"></i> Corregir solicitud</div>
+          <h1 class="mu-hero-titulo">Corregir <?= htmlspecialchars($corregir['folio']) ?></h1>
+          <p class="mu-hero-sub">Cambia lo que haga falta y guarda. Se queda con el mismo folio y a <?= htmlspecialchars($corregir['vendedor_nombre']) ?> le llega un aviso con lo que cambió.</p>
+          <?php else: ?>
           <div class="mu-hero-eyebrow"><i class="bi bi-box-seam"></i> Nueva solicitud</div>
           <h1 class="mu-hero-titulo">¿Qué muestra necesita tu cliente?</h1>
           <p class="mu-hero-sub">Llena los 3 pasos. Puedes pedir varios estilos y tallas en la misma solicitud. La recibe el equipo de Segurmex y te avisamos cuando esté en preparación y cuando se embarque.</p>
-          <button type="button" class="mu-btn-tour" id="btn-tour-guiado"><i class="bi bi-signpost-split"></i> Tour guiado</button>
+          <?php endif; ?>
+          <button type="button" class="mu-btn-tour<?= $corregir ? ' d-none' : '' ?>" id="btn-tour-guiado"><i class="bi bi-signpost-split"></i> Tour guiado</button>
         </div>
         <div class="mu-cupo" data-tour="sol-cupo">
           <div class="mu-cupo-txt"><span id="cupo-n">6</span> de <span id="cupo-tope">6</span><small id="cupo-sub">pares por cliente al mes</small></div>
@@ -65,6 +136,16 @@ $u = requireRole('vendedor');
         </div>
       </section>
 
+      <?php if ($corregir): ?>
+      <div class="mi-corrigiendo">
+        <?php if (!empty($corregir['peticion_texto'])): ?>
+          <b><i class="bi bi-chat-left-text-fill"></i> <?= htmlspecialchars($corregir['vendedor_nombre']) ?> pide:</b> «<?= nl2br(htmlspecialchars($corregir['peticion_texto'])) ?>»
+        <?php else: ?>
+          <b><i class="bi bi-info-circle"></i> Estás corrigiendo la solicitud de <?= htmlspecialchars($corregir['vendedor_nombre']) ?>.</b>
+        <?php endif; ?>
+        El cliente, el contacto y la entrega no se cambian aquí. Si ya imprimiste etiquetas de esta muestra y cambias estilos o tallas, vuelve a imprimirlas.
+      </div>
+      <?php endif; ?>
       <div id="msg-muestra"></div>
       <div id="aviso-tope" class="d-none"></div>
 
@@ -150,7 +231,8 @@ $u = requireRole('vendedor');
           <!-- Lista de lo que falta (o el error del servidor) junto al botón -->
           <div id="mu-faltan" class="mu-faltan d-none" role="alert" aria-live="polite"></div>
           <div class="mu-sol-enviar">
-            <button type="submit" class="v26-btn v26-btn-primary v26-btn-block" id="btn-enviar-muestra">Enviar solicitud</button>
+            <button type="submit" class="v26-btn v26-btn-primary v26-btn-block" id="btn-enviar-muestra"><?= $corregir ? 'Guardar corrección' : 'Enviar solicitud' ?></button>
+            <?php if ($corregir): ?><a href="../muestras/ver.php?id=<?= (int)$corregir['id'] ?>" class="v26-btn v26-btn-ghost v26-btn-block mt-2">Salir sin cambiar</a><?php endif; ?>
             <div class="mu-contador" id="mu-contador"></div>
           </div>
         </form>
@@ -168,7 +250,7 @@ $u = requireRole('vendedor');
             <dt>Entregar a</dt><dd id="r-entrega">Al cliente</dd>
             <dt>Dirección</dt><dd id="r-dir">—</dd>
           </dl>
-          <p class="mu-nota mb-0"><i class="bi bi-info-circle"></i> Al enviarla le llega al equipo de Segurmex.</p>
+          <p class="mu-nota mb-0"><i class="bi bi-info-circle"></i> <?= $corregir ? 'Al guardar le llega un aviso al vendedor con lo que cambió.' : 'Al enviarla le llega al equipo de Segurmex.' ?></p>
         </aside>
       </div>
     </div>
@@ -180,6 +262,8 @@ $u = requireRole('vendedor');
 <?php include __DIR__ . '/../includes/foto_zoom.php'; ?>
 <script>
 const CATEGORIAS_ADENDUM = { casco: 'Casco', suela: 'Suela', piel: 'Piel', forro: 'Forro' };
+// Modo «Corregir» de la responsable de muestras (null al pedir una nueva).
+const CORREGIR = <?= json_encode($corregir, JSON_UNESCAPED_UNICODE) ?>;
 function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function paresTxt(n) { return n + (n === 1 ? ' par' : ' pares'); }
 
@@ -352,7 +436,7 @@ document.querySelectorAll('#seg-entrega .v26-seg-btn').forEach(btn => {
     pintarResumen();
   });
 });
-document.getElementById('fecha_promesa').min = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+if (!CORREGIR) document.getElementById('fecha_promesa').min = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
 
 // ---- Tarjetas de estilo ----
 const FOTOS_URL = '/erp/assets/img/cotizador/';
@@ -639,12 +723,50 @@ async function cargarCatalogos() {
       return;
     }
     estilosCat = data.estilos;
+    if (CORREGIR) llenarCorreccion();
     pintarLineas();
   } catch (e) {
     selCliente.innerHTML = '<option value="">Error al cargar</option>';
     document.getElementById('mu-estilos').innerHTML = '<div class="mu-est-sin">Error al cargar</div>';
   }
 }
+// Corregir: cliente, contacto y entrega fijos; el formulario lleno con lo que tiene la solicitud.
+function llenarCorreccion() {
+  const sel = document.getElementById('id_cliente');
+  clientesCat = [CORREGIR.cliente];
+  sel.innerHTML = `<option value="${CORREGIR.cliente.id}">${escHtml(CORREGIR.cliente.nombre)}</option>`;
+  sel.value = String(CORREGIR.cliente.id);
+  sel.disabled = true;
+  pintarContacto();
+  ['contacto_nombre', 'contacto_telefono'].forEach(id => { document.getElementById(id).disabled = true; });
+  document.getElementById('contacto-nota').classList.add('d-none');
+  document.getElementById('contacto-aviso').classList.add('d-none');
+  // Entrega: se queda la que eligió el vendedor.
+  document.querySelectorAll('#seg-entrega .v26-seg-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.entrega === CORREGIR.entregar_a);
+    b.disabled = b.dataset.entrega !== CORREGIR.entregar_a;
+  });
+  ['motivo', 'notas_planta', 'fecha_promesa', 'tiempo_prueba_dias', 'destino_direccion'].forEach(id => { document.getElementById(id).value = CORREGIR[id] || ''; });
+  const yaNoEstan = [];
+  lineas = CORREGIR.estilos.map(est => {
+    const l = nuevaLinea();
+    l.item = estilosCat.some(e => String(e.id) === est.item) ? est.item : '';
+    if (!l.item) yaNoEstan.push(est.nombre);
+    l.color = est.color || '';
+    l.tipo = est.tipo === 'variante' ? 'variante' : 'identico';
+    (est.cambios || []).forEach(c => {
+      if (c.categoria === 'otro') l.otros.push({ nombre: c.categoria_otro || '', txt: c.descripcion || '' });
+      else if (l.cambios[c.categoria]) l.cambios[c.categoria] = { on: true, txt: c.descripcion || '' };
+    });
+    l.tallas = est.tallas.length ? est.tallas.map(t => ({ talla: t.talla, pares: t.pares, nota: t.nota || '' })) : [{ talla: '', pares: 1, nota: '' }];
+    return l;
+  });
+  if (!lineas.length) lineas = [nuevaLinea()];
+  if (yaNoEstan.length) {
+    document.getElementById('msg-muestra').innerHTML = `<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> Ya no está en el catálogo: <strong>${yaNoEstan.map(escHtml).join(', ')}</strong>. Elige el modelo otra vez en su tarjeta.</div>`;
+  }
+}
+
 lineas = [nuevaLinea()];
 pintarLineas();
 
@@ -676,7 +798,7 @@ document.getElementById('btn-tour-ayuda').addEventListener('click', abrirTourSol
 document.getElementById('btn-tour-guiado').addEventListener('click', abrirTourSolicitarMuestra);
 
 // La primera vez, el tour arranca ya con clientes y catálogo cargados.
-cargarCatalogos().then(() => V26Tour.iniciar(pasosTourSolicitarMuestra(), OPCIONES_TOUR_SOLICITAR_MUESTRA));
+cargarCatalogos().then(() => { if (!CORREGIR) V26Tour.iniciar(pasosTourSolicitarMuestra(), OPCIONES_TOUR_SOLICITAR_MUESTRA); });
 
 // ---- Enviar ----
 // Errores del servidor (o del tope de pares): salen junto al botón.
@@ -732,7 +854,9 @@ function faltantes() {
   const f = [];
   const $ = (id) => document.getElementById(id);
   const c = clienteElegido();
-  if (!c) {
+  if (CORREGIR) {
+    // Al corregir, el cliente y su contacto no se cambian.
+  } else if (!c) {
     f.push({ paso: 1, campo: 'campo-cliente', lista: 'Cliente o prospecto', msg: 'Elige para quién es la muestra.', foco: () => $('id_cliente') });
   } else {
     if (!$('contacto_nombre').value.trim()) {
@@ -823,9 +947,10 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
   }
 
   btn.disabled = true;
-  btn.textContent = 'Enviando...';
+  btn.textContent = CORREGIR ? 'Guardando...' : 'Enviando...';
   try {
     const fd = new FormData();
+    if (CORREGIR) fd.append('id', CORREGIR.id);
     fd.append('cliente_id', document.getElementById('id_cliente').value);
     fd.append('contacto_nombre', document.getElementById('contacto_nombre').value);
     fd.append('contacto_telefono', document.getElementById('contacto_telefono').value);    fd.append('estilos', JSON.stringify(lineas.map(l => ({
@@ -839,8 +964,12 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     fd.append('entregar_a', entregaElegida());
     fd.append('destino_direccion', document.getElementById('destino_direccion').value);
 
-    const res = await fetch('../api/muestra_solicitar.php', { method: 'POST', body: fd });
+    const res = await fetch(CORREGIR ? '../api/muestra_corregir.php' : '../api/muestra_solicitar.php', { method: 'POST', body: fd });
     const data = await res.json();
+    if (data.ok && CORREGIR) {
+      window.location.href = '../muestras/ver.php?id=' + encodeURIComponent(CORREGIR.id) + '&corregida=1';
+      return;
+    }
     if (data.ok) {
       document.getElementById('pantalla-form').classList.add('d-none');
       window.scrollTo({ top: 0 });
@@ -855,12 +984,12 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     } else {
       errorEn(data.error || 'No se pudo enviar. Intenta de nuevo.');
       btn.disabled = false;
-      btn.textContent = 'Enviar solicitud';
+      btn.textContent = CORREGIR ? 'Guardar corrección' : 'Enviar solicitud';
     }
   } catch (err) {
     errorEn('No se pudo enviar. Intenta de nuevo.');
     btn.disabled = false;
-    btn.textContent = 'Enviar solicitud';
+    btn.textContent = CORREGIR ? 'Guardar corrección' : 'Enviar solicitud';
   }
 });
 </script>

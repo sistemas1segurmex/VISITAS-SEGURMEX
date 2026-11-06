@@ -49,6 +49,10 @@ const MUESTRA_PREPARACION = [
 
 const MUESTRA_CATEGORIAS_CAMBIO = ['casco' => 'Casco', 'suela' => 'Suela', 'piel' => 'Piel', 'forro' => 'Forro'];
 
+// Peticiones del vendedor (06-nov-2026): una vez enviada la solicitud ya no la
+// edita; le pide el cambio a la responsable y ella decide. Ver pedirCambioMuestra().
+const MUESTRA_PETICIONES = ['correccion' => 'Corrección', 'cancelacion' => 'Cancelación'];
+
 /**
  * Catálogo para el formulario de muestra: el MISMO que ofrece la Nueva
  * cotización (catalogoCotizableErp() en includes/cotizador_helpers.php) --
@@ -603,6 +607,8 @@ function cambiarEstadoSolicitudMuestra(PDO $db, int $id, int $usuarioId, string 
             $db->prepare('UPDATE muestras_solicitudes SET preparacion = ?, fecha_estimada_pt = ? WHERE id = ?')
                ->execute([$preparacion, $fechaEstimada, $id]);
         }
+        // Embarcada o cancelada: la petición del vendedor (si había) ya quedó atendida.
+        if (in_array($nuevo, ['embarcada', 'cancelada'], true)) limpiarPeticionMuestra($db, $id);
         $db->prepare('INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id, nota) VALUES (?,?,?,?)')
            ->execute([$id, $nuevo, $usuarioId, $nota]);
         // Los avisos de "nueva solicitud" de esta muestra ya no hacen falta.
@@ -656,7 +662,421 @@ function solicitudMuestraParaJson(array $s): array {
         'guia'               => $s['guia'],
         'guia_url'           => $s['guia_url'] ?? null,
         'motivo_cancelacion' => $s['motivo_cancelacion'],
+        'peticion_tipo'      => $s['peticion_tipo'] ?? null,
+        'peticion_texto'     => $s['peticion_texto'] ?? null,
+        'peticion_en'        => $s['peticion_en'] ?? null,
         'created_at'         => $s['created_at'],
         'actualizada_en'     => $s['actualizada_en'],
     ];
+}
+
+// ─── Validar y guardar estilos (alta y corrección) ───────────────────────────
+
+/**
+ * Valida los estilos que manda el formulario (JSON de solicitar_muestra.php)
+ * contra el catálogo de la Nueva cotización. La usan el alta
+ * (api/muestra_solicitar.php) y la corrección de la responsable
+ * (api/muestra_corregir.php). Si algo está mal contesta el error (JSON) y sale.
+ * Devuelve ['estilos', 'total', 'resumen', 'variante'].
+ */
+function validarEstilosMuestraOSalir(array $estilosEntrada): array {
+    require_once __DIR__ . '/db_erp.php';
+    if (!$estilosEntrada) {
+        jsonResponse(['ok' => false, 'error' => 'Agrega al menos un estilo'], 400);
+    }
+    if (count($estilosEntrada) > MUESTRAS_MAX_ESTILOS) {
+        jsonResponse(['ok' => false, 'error' => 'Puedes pedir hasta ' . MUESTRAS_MAX_ESTILOS . ' estilos en una solicitud'], 400);
+    }
+    // Cada estilo tiene que estar en el catálogo de la Nueva cotización (modelo
+    // del cotizador anterior o estilo del ERP); el nombre, los colores y las
+    // tallas válidas salen de ahí, no de lo que mande el navegador.
+    try {
+        $catalogo = [];
+        foreach (catalogoParaMuestraErp() as $it) $catalogo[$it['id']] = $it;
+    } catch (Throwable $e) {
+        error_log('[VISITAS] muestra_solicitar (estilos): ' . $e->getMessage());
+        jsonResponse(['ok' => false, 'error' => 'No se pudo validar el estilo. Intenta más tarde.'], 503);
+    }
+
+    $estilos   = [];   // ya validados
+    $totalPares = 0;
+    $vistos    = [];   // item|color repetidos
+    foreach (array_values($estilosEntrada) as $i => $en) {
+        $n = $i + 1;
+        $item = trim((string)($en['item'] ?? ''));
+        if (!preg_match('/^[me]:\d+$/', $item)) {
+            jsonResponse(['ok' => false, 'error' => "Elige el estilo $n"], 400);
+        }
+        $estilo = $catalogo[$item] ?? null;
+        if (!$estilo) {
+            jsonResponse(['ok' => false, 'error' => "El estilo $n ya no está disponible. Elige otro."], 400);
+        }
+        $nombre = $estilo['clave'];
+
+        // Color: igual que en la Nueva cotización -- si el modelo tiene varios
+        // hay que elegir uno de ellos; si tiene uno solo, va ese.
+        $colores = $estilo['colores'] ?? [];
+        $color   = trim((string)($en['color'] ?? ''));
+        if (count($colores) > 1) {
+            if (!in_array($color, $colores, true)) {
+                jsonResponse(['ok' => false, 'error' => "Elige el color del estilo $nombre"], 400);
+            }
+        } else {
+            $color = $colores[0] ?? '';
+        }
+        $llave = $item . '|' . $color;
+        if (isset($vistos[$llave])) {
+            jsonResponse(['ok' => false, 'error' => "El estilo $nombre" . ($color !== '' ? " en $color" : '') . ' está repetido. Pon todas sus tallas en una sola tarjeta.'], 400);
+        }
+        $vistos[$llave] = true;
+
+        // Tipo y cambios (por estilo).
+        $tipo = ($en['tipo'] ?? '') === 'variante' ? 'variante' : 'identico';
+        $cambios = [];
+        if ($tipo === 'variante') {
+            foreach (is_array($en['adendum'] ?? null) ? $en['adendum'] : [] as $c) {
+                $cat  = (string)($c['categoria'] ?? '');
+                $desc = mb_substr(trim((string)($c['descripcion_cliente'] ?? $c['descripcion'] ?? '')), 0, 500);
+                if ($desc === '') continue;
+                if ($cat === 'otro') {
+                    $nombreOtro = mb_substr(trim((string)($c['categoria_otro'] ?? '')), 0, 60);
+                    if ($nombreOtro === '') continue;
+                    $cambios[] = ['categoria' => 'otro', 'categoria_otro' => $nombreOtro, 'descripcion' => $desc];
+                } elseif (isset(MUESTRA_CATEGORIAS_CAMBIO[$cat])) {
+                    $cambios[] = ['categoria' => $cat, 'descripcion' => $desc];
+                }
+            }
+            if (!$cambios) {
+                jsonResponse(['ok' => false, 'error' => "Describe al menos un cambio de la variante del estilo $nombre"], 400);
+            }
+        }
+
+        // Tallas: de la lista del estilo (numeración del ERP o la fija de 20 a 35).
+        $tallasEntrada = is_array($en['tallas'] ?? null) ? array_values($en['tallas']) : [];
+        if (!$tallasEntrada) {
+            jsonResponse(['ok' => false, 'error' => "Agrega al menos una talla al estilo $nombre"], 400);
+        }
+        if (count($tallasEntrada) > MUESTRAS_MAX_TALLAS_POR_ESTILO) {
+            jsonResponse(['ok' => false, 'error' => "El estilo $nombre puede llevar hasta " . MUESTRAS_MAX_TALLAS_POR_ESTILO . ' tallas'], 400);
+        }
+        $tallas = [];
+        foreach ($tallasEntrada as $t) {
+            $talla = trim((string)($t['talla'] ?? ''));
+            if ($talla === '') {
+                jsonResponse(['ok' => false, 'error' => "Elige la talla en el estilo $nombre"], 400);
+            }
+            if (is_numeric($talla)) $talla = textoTallaMuestra($talla);
+            if (!in_array($talla, $estilo['tallas'], true)) {
+                jsonResponse(['ok' => false, 'error' => "La talla $talla no es válida para el estilo $nombre"], 400);
+            }
+            if (isset($tallas[$talla])) {
+                jsonResponse(['ok' => false, 'error' => "La talla $talla está repetida en el estilo $nombre"], 400);
+            }
+            $pares = $t['pares'] ?? null;
+            if (!is_numeric($pares) || (int)$pares != $pares || (int)$pares < 1) {
+                jsonResponse(['ok' => false, 'error' => "Pon cuántos pares de la talla $talla del estilo $nombre (al menos 1)"], 400);
+            }
+            $tallas[$talla] = [
+                'talla' => $talla,
+                'pares' => (int)$pares,
+                'nota'  => mb_substr(trim((string)($t['nota'] ?? '')), 0, 500),
+            ];
+            $totalPares += (int)$pares;
+        }
+
+        $estilos[] = [
+            'nombre'           => mb_substr($estilo['nombre'], 0, 200),
+            'id_estilo'        => $estilo['id_estilo'],
+            'id_modelo_legacy' => $estilo['id_modelo_legacy'],
+            'color'            => $color,
+            'tipo'             => $tipo,
+            'cambios'          => $cambios,
+            'tallas'           => array_values($tallas),
+        ];
+    }
+    if ($totalPares > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
+        jsonResponse(['ok' => false, 'error' => 'Son ' . $totalPares . ' pares y el máximo por cliente es de '
+            . MUESTRAS_TOPE_PARES_CLIENTE_MES . ' pares al mes. Quita ' . ($totalPares - MUESTRAS_TOPE_PARES_CLIENTE_MES)
+            . ($totalPares - MUESTRAS_TOPE_PARES_CLIENTE_MES === 1 ? ' par.' : ' pares.')], 400);
+    }
+
+    // Resumen que se guarda en la solicitud (bandeja, búsqueda): ver la
+    // migración 20261022120000_muestras_varios_estilos.sql.
+    $primero      = $estilos[0];
+    $unaTalla     = count($estilos) === 1 && count($primero['tallas']) === 1;
+    $resumenNombre = $primero['nombre'] . (count($estilos) > 1
+        ? ' y ' . (count($estilos) - 1) . (count($estilos) === 2 ? ' estilo más' : ' estilos más') : '');
+    $hayVariante  = false;
+    foreach ($estilos as $e) if ($e['tipo'] === 'variante') $hayVariante = true;
+    return ['estilos' => $estilos, 'total' => $totalPares, 'resumen' => $resumenNombre, 'variante' => $hayVariante];
+}
+
+/** Inserta los estilos (ya validados) y sus tallas de una solicitud. */
+function guardarEstilosMuestra(PDO $db, int $id, array $estilos): void {
+    $insE = $db->prepare(
+        'INSERT INTO muestras_solicitudes_estilos (solicitud_id, orden, id_estilo_erp, id_modelo_legacy, estilo_nombre, color, tipo, cambios)
+         VALUES (?,?,?,?,?,?,?,?::jsonb) RETURNING id'
+    );
+    $insT = $db->prepare('INSERT INTO muestras_solicitudes_tallas (estilo_id, orden, talla, pares, nota) VALUES (?,?,?,?,?)');
+    foreach ($estilos as $i => $e) {
+        $insE->execute([$id, $i + 1, $e['id_estilo'], $e['id_modelo_legacy'], $e['nombre'],
+                        $e['color'] !== '' ? mb_substr($e['color'], 0, 40) : null, $e['tipo'],
+                        json_encode($e['cambios'], JSON_UNESCAPED_UNICODE)]);
+        $estiloId = (int)$insE->fetchColumn();
+        foreach ($e['tallas'] as $j => $t) {
+            $insT->execute([$estiloId, $j + 1, $t['talla'], $t['pares'], $t['nota'] !== '' ? $t['nota'] : null]);
+        }
+    }
+}
+
+// ─── Peticiones del vendedor y corrección (06-nov-2026) ──────────────────────
+//
+// Una vez enviada, el vendedor ya NO edita su solicitud. Mientras esté abierta
+// (enviada o en preparación) le PIDE a la responsable una corrección o una
+// cancelación (una petición pendiente a la vez; api/muestra_pedir.php). Ella
+// decide en muestras/ver.php:
+//   - la corrige (vendedor/solicitar_muestra.php?corregir=ID, mismo folio),
+//   - contesta «No se puede cambiar» con el motivo, o
+//   - la cancela (estado «cancelada» de siempre).
+// Cada paso queda en el historial y le llega aviso + correo al otro.
+// Mismo flujo que el ERP para los vendedores internos.
+
+function limpiarPeticionMuestra(PDO $db, int $id): void {
+    $db->prepare('UPDATE muestras_solicitudes SET peticion_tipo = NULL, peticion_texto = NULL, peticion_en = NULL, peticion_usuario_id = NULL WHERE id = ?')
+       ->execute([$id]);
+}
+
+function sePuedeCorregirMuestra(array $s): bool {
+    return in_array($s['estado'], ['enviada', 'en_preparacion'], true);
+}
+
+/** El vendedor pide una corrección o una cancelación de SU solicitud. */
+function pedirCambioMuestra(PDO $db, int $vendedorId, int $id, string $tipo, string $texto): array {
+    if (!isset(MUESTRA_PETICIONES[$tipo])) return ['ok' => false, 'error' => 'Petición no válida'];
+    $texto = mb_substr(trim($texto), 0, 1000);
+    if ($texto === '') {
+        return ['ok' => false, 'error' => $tipo === 'correccion' ? 'Escribe qué hay que corregir.' : 'Escribe por qué hay que cancelarla.'];
+    }
+    try {
+        $db->beginTransaction();
+        $stmt = $db->prepare('SELECT vendedor_id, estado, peticion_tipo FROM muestras_solicitudes WHERE id = ? FOR UPDATE');
+        $stmt->execute([$id]);
+        $f = $stmt->fetch();
+        if (!$f || (int)$f['vendedor_id'] !== $vendedorId) { $db->rollBack(); return ['ok' => false, 'error' => 'No se encontró la muestra.']; }
+        if (!in_array($f['estado'], ['enviada', 'en_preparacion'], true)) {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'La muestra ya está "' . etiquetaEstadoMuestra($f['estado']) . '": ya no se puede cambiar. Recarga la página.'];
+        }
+        if (!empty($f['peticion_tipo'])) {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'Ya pediste un cambio para esta muestra. Espera la respuesta (te llega un aviso).'];
+        }
+        $db->prepare('UPDATE muestras_solicitudes SET peticion_tipo = ?, peticion_texto = ?, peticion_en = NOW(), peticion_usuario_id = ?, actualizada_en = NOW() WHERE id = ?')
+           ->execute([$tipo, $texto, $vendedorId, $id]);
+        $db->prepare('INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id, nota) VALUES (?,?,?,?)')
+           ->execute([$id, $tipo . '_pedida', $vendedorId, mb_substr($texto, 0, 500)]);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('[VISITAS] pedirCambioMuestra: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'No se pudo enviar. Intenta de nuevo.'];
+    }
+    $s = cargarSolicitudMuestra($db, $id);
+    if ($s) notificarPeticionMuestra($db, $s);
+    return ['ok' => true, 'solicitud' => $s];
+}
+
+/** La responsable contesta «No se puede cambiar» (la muestra sigue igual). */
+function rechazarPeticionMuestra(PDO $db, int $id, int $usuarioId, string $motivo): array {
+    $motivo = mb_substr(trim($motivo), 0, 500);
+    if ($motivo === '') return ['ok' => false, 'error' => 'Escribe por qué no se puede (le llega al vendedor).'];
+    try {
+        $db->beginTransaction();
+        $stmt = $db->prepare('SELECT peticion_tipo FROM muestras_solicitudes WHERE id = ? FOR UPDATE');
+        $stmt->execute([$id]);
+        $f = $stmt->fetch();
+        if (!$f) { $db->rollBack(); return ['ok' => false, 'error' => 'Solicitud no encontrada']; }
+        if (empty($f['peticion_tipo'])) { $db->rollBack(); return ['ok' => false, 'error' => 'Esta solicitud ya no tiene una petición pendiente. Recarga la página.']; }
+        limpiarPeticionMuestra($db, $id);
+        $db->prepare('UPDATE muestras_solicitudes SET actualizada_en = NOW() WHERE id = ?')->execute([$id]);
+        $db->prepare("INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id, nota) VALUES (?, 'peticion_rechazada', ?, ?)")
+           ->execute([$id, $usuarioId, $motivo]);
+        $db->commit();
+        $tipo = $f['peticion_tipo'];
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('[VISITAS] rechazarPeticionMuestra: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'No se pudo guardar. Intenta de nuevo.'];
+    }
+    $s = cargarSolicitudMuestra($db, $id);
+    if ($s) notificarRespuestaMuestra($db, $s, 'rechazada', $motivo, $tipo);
+    return ['ok' => true, 'solicitud' => $s];
+}
+
+/** Pares de las OTRAS solicitudes del mismo cliente en el mes (CDMX) en que se pidió ésta. */
+function paresMuestraDelMesSin(PDO $db, array $s): int {
+    $stmt = $db->prepare(
+        "SELECT COALESCE(SUM(cantidad), 0) FROM muestras_solicitudes
+         WHERE cliente_id = ? AND id <> ? AND estado <> 'cancelada'
+           AND date_trunc('month', (created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Mexico_City')
+             = date_trunc('month', (?::timestamp AT TIME ZONE 'UTC') AT TIME ZONE 'America/Mexico_City')"
+    );
+    $stmt->execute([(int)$s['cliente_id'], (int)$s['id'], $s['created_at']]);
+    return (int)$stmt->fetchColumn();
+}
+
+/** "Antes → ahora" de lo que cambió (para el historial, el aviso y el correo). */
+function textoCorreccionMuestra(array $antes, array $ahora): string {
+    $fecha = fn($v) => $v ? date('d/m/Y', strtotime($v)) : 'sin fecha';
+    $campos = [
+        'Muestras'          => [textoEstilosMuestra($antes), textoEstilosMuestra($ahora)],
+        'Total'             => [textoParesMuestra(totalParesSolicitudMuestra($antes)), textoParesMuestra(totalParesSolicitudMuestra($ahora))],
+        'Motivo'            => [(string)($antes['motivo'] ?? ''), (string)($ahora['motivo'] ?? '')],
+        'Notas para planta' => [(string)($antes['notas_planta'] ?? ''), (string)($ahora['notas_planta'] ?? '')],
+        'Fecha promesa'     => [$fecha($antes['fecha_promesa'] ?? null), $fecha($ahora['fecha_promesa'] ?? null)],
+        'Tiempo de prueba'  => [(string)textoTiempoPruebaMuestra($antes['tiempo_prueba_dias'] ?? null), (string)textoTiempoPruebaMuestra($ahora['tiempo_prueba_dias'] ?? null)],
+        'Dirección'         => [(string)$antes['destino_direccion'], (string)$ahora['destino_direccion']],
+    ];
+    $lineas = [];
+    foreach ($campos as $nombre => [$a, $b]) {
+        if (trim($a) === trim($b)) continue;
+        $lineas[] = $nombre === 'Muestras'
+            ? "Muestras antes:\n" . $a . "\nMuestras ahora:\n" . $b
+            : $nombre . ': ' . ($a !== '' ? $a : '(vacío)') . ' → ' . ($b !== '' ? $b : '(vacío)');
+    }
+    return $lineas ? implode("\n", $lineas) : 'Sin cambios en los datos';
+}
+
+/**
+ * La responsable corrige la solicitud (mismo folio). Cliente, contacto y
+ * entrega no se cambian. Se valida igual que el alta y con el tope del mes en
+ * que se pidió (sin contarse a sí misma). Atiende la petición pendiente.
+ * Contesta JSON y sale si algo está mal (validarEstilosMuestraOSalir).
+ */
+function corregirSolicitudMuestra(PDO $db, int $usuarioId, int $id, array $post): array {
+    $err = fn(string $m, int $c = 400) => ['ok' => false, 'error' => $m, 'codigo' => $c];
+    $antes = cargarSolicitudMuestra($db, $id);
+    if (!$antes) return $err('Solicitud no encontrada', 404);
+    if (!sePuedeCorregirMuestra($antes)) return $err('La muestra ya está "' . etiquetaEstadoMuestra($antes['estado']) . '": ya no se puede corregir.', 409);
+
+    $direccion    = trim((string)($post['destino_direccion'] ?? ''));
+    $fechaPromesa = trim((string)($post['fecha_promesa'] ?? ''));
+    $motivo       = mb_substr(trim((string)($post['motivo'] ?? '')), 0, 500);
+    $notasPlanta  = mb_substr(trim((string)($post['notas_planta'] ?? '')), 0, 2000);
+    $tiempoPrueba = trim((string)($post['tiempo_prueba_dias'] ?? ''));
+    $estilosEntrada = json_decode((string)($post['estilos'] ?? '[]'), true);
+    if (!is_array($estilosEntrada)) $estilosEntrada = [];
+    if ($motivo === '') return $err('Escribe el motivo de la muestra');
+    if ($tiempoPrueba !== '' && (!ctype_digit($tiempoPrueba) || (int)$tiempoPrueba < 1 || (int)$tiempoPrueba > 365)) {
+        return $err('El tiempo de prueba debe ser de 1 a 365 días');
+    }
+    $tiempoPrueba = $tiempoPrueba === '' ? null : (int)$tiempoPrueba;
+    if ($direccion === '') return $err('Indica la dirección de entrega');
+    if ($fechaPromesa !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaPromesa)) return $err('La fecha promesa no es válida');
+
+    $v = validarEstilosMuestraOSalir($estilosEntrada);
+    $estilos = $v['estilos'];
+    $primero = $estilos[0];
+    $unaTalla = count($estilos) === 1 && count($primero['tallas']) === 1;
+
+    try {
+        $db->beginTransaction();
+        $db->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')->execute(['muestras_cliente_' . (int)$antes['cliente_id']]);
+        $stmt = $db->prepare('SELECT estado FROM muestras_solicitudes WHERE id = ? FOR UPDATE');
+        $stmt->execute([$id]);
+        $estado = (string)$stmt->fetchColumn();
+        if (!in_array($estado, ['enviada', 'en_preparacion'], true)) {
+            $db->rollBack();
+            return $err('La muestra ya está "' . etiquetaEstadoMuestra($estado) . '": ya no se puede corregir. Recarga la página.', 409);
+        }
+        $otros = paresMuestraDelMesSin($db, $antes);
+        if ($otros + $v['total'] > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
+            $db->rollBack();
+            $quedan = max(0, MUESTRAS_TOPE_PARES_CLIENTE_MES - $otros);
+            return $err('Este cliente tiene otras solicitudes por ' . textoParesMuestra($otros) . ' en ese mes; con esta corrección serían '
+                . ($otros + $v['total']) . ' de ' . MUESTRAS_TOPE_PARES_CLIENTE_MES . '. Esta solicitud puede llevar hasta ' . textoParesMuestra($quedan) . '.', 409);
+        }
+        // Resumen igual que en el alta (ver la migración 20261022120000_muestras_varios_estilos.sql).
+        $db->prepare(
+            'UPDATE muestras_solicitudes
+                SET id_estilo_erp = ?, id_modelo_legacy = ?, estilo_nombre = ?, color = ?, talla = ?, tipo = ?, cambios = ?::jsonb,
+                    cantidad = ?, motivo = ?, notas_planta = ?, fecha_promesa = ?, tiempo_prueba_dias = ?, destino_direccion = ?,
+                    actualizada_en = NOW()
+              WHERE id = ?'
+        )->execute([
+            $primero['id_estilo'], $primero['id_modelo_legacy'], mb_substr($v['resumen'], 0, 200),
+            count($estilos) === 1 && $primero['color'] !== '' ? mb_substr($primero['color'], 0, 40) : null,
+            $unaTalla ? $primero['tallas'][0]['talla'] : null, $v['variante'] ? 'variante' : 'identico',
+            json_encode(count($estilos) === 1 ? $primero['cambios'] : [], JSON_UNESCAPED_UNICODE),
+            $v['total'], $motivo, $notasPlanta !== '' ? $notasPlanta : null, $fechaPromesa ?: null, $tiempoPrueba, $direccion, $id,
+        ]);
+        $db->prepare('DELETE FROM muestras_solicitudes_estilos WHERE solicitud_id = ?')->execute([$id]); // tallas: ON DELETE CASCADE
+        guardarEstilosMuestra($db, $id, $estilos);
+        limpiarPeticionMuestra($db, $id);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('[VISITAS] corregirSolicitudMuestra: ' . $e->getMessage());
+        return $err('No se pudo guardar la corrección. Intenta de nuevo.', 500);
+    }
+
+    $ahora = cargarSolicitudMuestra($db, $id);
+    $cambios = textoCorreccionMuestra($antes, $ahora);
+    try {
+        $db->prepare("INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id, nota) VALUES (?, 'corregida', ?, ?)")
+           ->execute([$id, $usuarioId, mb_substr($cambios, 0, 500)]);
+    } catch (Throwable $e) {
+        error_log('[VISITAS] corregirSolicitudMuestra (historial): ' . $e->getMessage());
+    }
+    notificarRespuestaMuestra($db, $ahora, 'corregida', $cambios, $antes['peticion_tipo'] ?? null);
+    return ['ok' => true, 'id' => $id, 'folio' => $ahora['folio'], 'cambios' => $cambios];
+}
+
+/** Aviso + correo a la(s) responsable(s): el vendedor pide corrección o cancelación. */
+function notificarPeticionMuestra(PDO $db, array $s): void {
+    $cancelar = ($s['peticion_tipo'] ?? '') === 'cancelacion';
+    $titulo  = ($cancelar ? 'Piden cancelar la muestra ' : 'Piden corregir la muestra ') . $s['folio'];
+    $mensaje = $s['vendedor_nombre'] . ': «' . mb_substr((string)$s['peticion_texto'], 0, 300) . '»';
+    $enlaceRel = 'muestras/ver.php?id=' . (int)$s['id'];
+    $cuerpo = correoMuestraHtml(
+        $titulo,
+        $s['vendedor_nombre'] . ($cancelar ? ' pide que se cancele' : ' pide una corrección en') . ' su solicitud de muestra. Tú decides: ábrela para '
+            . ($cancelar ? 'cancelarla' : 'corregirla') . ' o contestar que no se puede.',
+        [
+            'Lo que pide' => $s['peticion_texto'],
+            'Estado'      => etiquetaEstadoMuestra($s['estado']) . (textoPreparacionMuestra($s) ? ' · ' . textoPreparacionMuestra($s) : ''),
+            'Cliente'     => $s['cliente_nombre'],
+            'Muestras'    => textoEstilosMuestra($s),
+            'Total'       => textoParesMuestra(totalParesSolicitudMuestra($s)),
+        ],
+        urlBaseVisitas() . $enlaceRel,
+        'Abrir solicitud'
+    );
+    foreach (responsablesMuestras($db) as $r) {
+        crearAviso($db, (int)$r['id'], 'muestra_peticion', $titulo, $mensaje, $enlaceRel, (int)$s['id']);
+        if (!empty($r['email'])) enviarCorreoMuestra($r['email'], $titulo, $cuerpo);
+    }
+}
+
+/**
+ * Aviso + correo al vendedor: se corrigió su solicitud ($que = 'corregida',
+ * $detalle = lo que cambió) o no se pudo hacer lo que pidió ($que = 'rechazada',
+ * $detalle = por qué). Al externo no se le dice quién atiende: «el equipo de Segurmex».
+ */
+function notificarRespuestaMuestra(PDO $db, array $s, string $que, string $detalle, ?string $tipoPeticion): void {
+    $folio = $s['folio'];
+    if ($que === 'corregida') {
+        $titulo  = "Se corrigió tu muestra $folio";
+        $mensaje = 'El equipo de Segurmex corrigió tu solicitud para ' . $s['cliente_nombre'] . '. Sigue con el mismo folio.';
+        $renglones = ['Cliente' => $s['cliente_nombre'], 'Qué cambió' => $detalle, 'Total ahora' => textoParesMuestra(totalParesSolicitudMuestra($s))];
+    } else {
+        $titulo  = $tipoPeticion === 'cancelacion' ? "No se canceló tu muestra $folio" : "No se pudo corregir tu muestra $folio";
+        $mensaje = 'El equipo de Segurmex revisó lo que pediste y la muestra sigue igual. Motivo: ' . $detalle;
+        $renglones = ['Cliente' => $s['cliente_nombre'], 'Por qué' => $detalle, 'Muestras' => textoEstilosMuestra($s)];
+    }
+    $enlaceRel = 'vendedor/muestras.php';
+    crearAviso($db, (int)$s['vendedor_id'], $que === 'corregida' ? 'muestra_corregida' : 'muestra_peticion_rechazada', $titulo, $mensaje, $enlaceRel, (int)$s['id']);
+    if (!empty($s['vendedor_email'])) {
+        enviarCorreoMuestra($s['vendedor_email'], $titulo, correoMuestraHtml($titulo, $mensaje, $renglones, urlBaseVisitas() . $enlaceRel, 'Ver mis muestras'));
+    }
 }

@@ -98,127 +98,13 @@ if ($contactoTelefono === null) {
 if ($contactoTelefono !== $fichaTelefono) {
     $llenarFicha['telefono'] = [$fichaTelefono ?: null, $contactoTelefono];
 }
-// Cada estilo tiene que estar en el catálogo de la Nueva cotización (modelo
-// del cotizador anterior o estilo del ERP); el nombre, los colores y las
-// tallas válidas salen de ahí, no de lo que mande el navegador.
-try {
-    $catalogo = [];
-    foreach (catalogoParaMuestraErp() as $it) $catalogo[$it['id']] = $it;
-} catch (Throwable $e) {
-    error_log('[VISITAS] muestra_solicitar (estilos): ' . $e->getMessage());
-    jsonResponse(['ok' => false, 'error' => 'No se pudo validar el estilo. Intenta más tarde.'], 503);
-}
-
-$estilos   = [];   // ya validados
-$totalPares = 0;
-$vistos    = [];   // item|color repetidos
-foreach (array_values($estilosEntrada) as $i => $en) {
-    $n = $i + 1;
-    $item = trim((string)($en['item'] ?? ''));
-    if (!preg_match('/^[me]:\d+$/', $item)) {
-        jsonResponse(['ok' => false, 'error' => "Elige el estilo $n"], 400);
-    }
-    $estilo = $catalogo[$item] ?? null;
-    if (!$estilo) {
-        jsonResponse(['ok' => false, 'error' => "El estilo $n ya no está disponible. Elige otro."], 400);
-    }
-    $nombre = $estilo['clave'];
-
-    // Color: igual que en la Nueva cotización -- si el modelo tiene varios
-    // hay que elegir uno de ellos; si tiene uno solo, va ese.
-    $colores = $estilo['colores'] ?? [];
-    $color   = trim((string)($en['color'] ?? ''));
-    if (count($colores) > 1) {
-        if (!in_array($color, $colores, true)) {
-            jsonResponse(['ok' => false, 'error' => "Elige el color del estilo $nombre"], 400);
-        }
-    } else {
-        $color = $colores[0] ?? '';
-    }
-    $llave = $item . '|' . $color;
-    if (isset($vistos[$llave])) {
-        jsonResponse(['ok' => false, 'error' => "El estilo $nombre" . ($color !== '' ? " en $color" : '') . ' está repetido. Pon todas sus tallas en una sola tarjeta.'], 400);
-    }
-    $vistos[$llave] = true;
-
-    // Tipo y cambios (por estilo).
-    $tipo = ($en['tipo'] ?? '') === 'variante' ? 'variante' : 'identico';
-    $cambios = [];
-    if ($tipo === 'variante') {
-        foreach (is_array($en['adendum'] ?? null) ? $en['adendum'] : [] as $c) {
-            $cat  = (string)($c['categoria'] ?? '');
-            $desc = mb_substr(trim((string)($c['descripcion_cliente'] ?? $c['descripcion'] ?? '')), 0, 500);
-            if ($desc === '') continue;
-            if ($cat === 'otro') {
-                $nombreOtro = mb_substr(trim((string)($c['categoria_otro'] ?? '')), 0, 60);
-                if ($nombreOtro === '') continue;
-                $cambios[] = ['categoria' => 'otro', 'categoria_otro' => $nombreOtro, 'descripcion' => $desc];
-            } elseif (isset(MUESTRA_CATEGORIAS_CAMBIO[$cat])) {
-                $cambios[] = ['categoria' => $cat, 'descripcion' => $desc];
-            }
-        }
-        if (!$cambios) {
-            jsonResponse(['ok' => false, 'error' => "Describe al menos un cambio de la variante del estilo $nombre"], 400);
-        }
-    }
-
-    // Tallas: de la lista del estilo (numeración del ERP o la fija de 20 a 35).
-    $tallasEntrada = is_array($en['tallas'] ?? null) ? array_values($en['tallas']) : [];
-    if (!$tallasEntrada) {
-        jsonResponse(['ok' => false, 'error' => "Agrega al menos una talla al estilo $nombre"], 400);
-    }
-    if (count($tallasEntrada) > MUESTRAS_MAX_TALLAS_POR_ESTILO) {
-        jsonResponse(['ok' => false, 'error' => "El estilo $nombre puede llevar hasta " . MUESTRAS_MAX_TALLAS_POR_ESTILO . ' tallas'], 400);
-    }
-    $tallas = [];
-    foreach ($tallasEntrada as $t) {
-        $talla = trim((string)($t['talla'] ?? ''));
-        if ($talla === '') {
-            jsonResponse(['ok' => false, 'error' => "Elige la talla en el estilo $nombre"], 400);
-        }
-        if (is_numeric($talla)) $talla = textoTallaMuestra($talla);
-        if (!in_array($talla, $estilo['tallas'], true)) {
-            jsonResponse(['ok' => false, 'error' => "La talla $talla no es válida para el estilo $nombre"], 400);
-        }
-        if (isset($tallas[$talla])) {
-            jsonResponse(['ok' => false, 'error' => "La talla $talla está repetida en el estilo $nombre"], 400);
-        }
-        $pares = $t['pares'] ?? null;
-        if (!is_numeric($pares) || (int)$pares != $pares || (int)$pares < 1) {
-            jsonResponse(['ok' => false, 'error' => "Pon cuántos pares de la talla $talla del estilo $nombre (al menos 1)"], 400);
-        }
-        $tallas[$talla] = [
-            'talla' => $talla,
-            'pares' => (int)$pares,
-            'nota'  => mb_substr(trim((string)($t['nota'] ?? '')), 0, 500),
-        ];
-        $totalPares += (int)$pares;
-    }
-
-    $estilos[] = [
-        'nombre'           => mb_substr($estilo['nombre'], 0, 200),
-        'id_estilo'        => $estilo['id_estilo'],
-        'id_modelo_legacy' => $estilo['id_modelo_legacy'],
-        'color'            => $color,
-        'tipo'             => $tipo,
-        'cambios'          => $cambios,
-        'tallas'           => array_values($tallas),
-    ];
-}
-if ($totalPares > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
-    jsonResponse(['ok' => false, 'error' => 'Son ' . $totalPares . ' pares y el máximo por cliente es de '
-        . MUESTRAS_TOPE_PARES_CLIENTE_MES . ' pares al mes. Quita ' . ($totalPares - MUESTRAS_TOPE_PARES_CLIENTE_MES)
-        . ($totalPares - MUESTRAS_TOPE_PARES_CLIENTE_MES === 1 ? ' par.' : ' pares.')], 400);
-}
-
-// Resumen que se guarda en la solicitud (bandeja, búsqueda): ver la
-// migración 20261022120000_muestras_varios_estilos.sql.
-$primero      = $estilos[0];
-$unaTalla     = count($estilos) === 1 && count($primero['tallas']) === 1;
-$resumenNombre = $primero['nombre'] . (count($estilos) > 1
-    ? ' y ' . (count($estilos) - 1) . (count($estilos) === 2 ? ' estilo más' : ' estilos más') : '');
-$hayVariante  = false;
-foreach ($estilos as $e) if ($e['tipo'] === 'variante') $hayVariante = true;
+// Cada estilo tiene que estar en el catálogo de la Nueva cotización (ver
+// validarEstilosMuestraOSalir() en includes/muestras.php; la usa también la
+// corrección de la responsable). Si algo está mal, contesta el error y sale.
+['estilos' => $estilos, 'total' => $totalPares, 'resumen' => $resumenNombre, 'variante' => $hayVariante]
+    = validarEstilosMuestraOSalir($estilosEntrada);
+$primero  = $estilos[0];
+$unaTalla = count($estilos) === 1 && count($primero['tallas']) === 1;
 
 try {
     $db->beginTransaction();
@@ -254,20 +140,7 @@ try {
     $folio = sprintf('MV-%04d', $id);
     $db->prepare('UPDATE muestras_solicitudes SET folio = ? WHERE id = ?')->execute([$folio, $id]);
 
-    $insE = $db->prepare(
-        'INSERT INTO muestras_solicitudes_estilos (solicitud_id, orden, id_estilo_erp, id_modelo_legacy, estilo_nombre, color, tipo, cambios)
-         VALUES (?,?,?,?,?,?,?,?::jsonb) RETURNING id'
-    );
-    $insT = $db->prepare('INSERT INTO muestras_solicitudes_tallas (estilo_id, orden, talla, pares, nota) VALUES (?,?,?,?,?)');
-    foreach ($estilos as $i => $e) {
-        $insE->execute([$id, $i + 1, $e['id_estilo'], $e['id_modelo_legacy'], $e['nombre'],
-                        $e['color'] !== '' ? mb_substr($e['color'], 0, 40) : null, $e['tipo'],
-                        json_encode($e['cambios'], JSON_UNESCAPED_UNICODE)]);
-        $estiloId = (int)$insE->fetchColumn();
-        foreach ($e['tallas'] as $j => $t) {
-            $insT->execute([$estiloId, $j + 1, $t['talla'], $t['pares'], $t['nota'] !== '' ? $t['nota'] : null]);
-        }
-    }
+    guardarEstilosMuestra($db, $id, $estilos);
 
     $db->prepare("INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id) VALUES (?, 'enviada', ?)")
        ->execute([$id, (int)$u['id']]);

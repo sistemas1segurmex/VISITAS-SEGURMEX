@@ -96,6 +96,28 @@ $u = requireRole('vendedor');
     <button type="button" class="v26-btn v26-btn-ghost v26-btn-block mt-3" id="btn-tour-guiado"><i class="bi bi-signpost-split"></i> Tour guiado</button>
   </div>
 
+  <!-- Pedir corrección / cancelación (06-nov-2026): ya enviada, el vendedor no la edita; se lo pide al equipo de Segurmex. -->
+  <div class="modal fade" id="modal-pedir" tabindex="-1" aria-labelledby="modal-pedir-titulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form class="modal-content" id="form-pedir" novalidate>
+        <div class="modal-header">
+          <h5 class="modal-title" id="modal-pedir-titulo">Pedir corrección</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-2" id="modal-pedir-sub"></p>
+          <label for="pedir-texto" class="form-label fw-semibold" id="pedir-label">¿Qué hay que cambiar?</label>
+          <textarea id="pedir-texto" class="form-control" rows="3" maxlength="1000"></textarea>
+          <div class="text-danger small mt-2 d-none" id="pedir-error"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="v26-btn v26-btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="v26-btn v26-btn-primary" id="pedir-enviar">Enviar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/v26-tour.js<?= assetVer(__DIR__ . '/../assets/js/v26-tour.js') ?>"></script>
 <script src="../assets/js/vendedor.js<?= assetVer(__DIR__ . '/../assets/js/vendedor.js') ?>"></script>
@@ -214,6 +236,13 @@ function detalleMuestraHTML(m) {
     return `<div class="est"><div class="nom">${escHtml(e.estilo_nombre)}${e.color ? ' · ' + escHtml(e.color) : ''}${e.tipo === 'variante' ? ' · Variante' : ''}</div><ul>${tallas}</ul>${cambios}</div>`;
   }).join('') + '</div>');
   if (m.estado === 'embarcada') filas.push(`<div>Embarcada el <strong>${fechaCorta(m.actualizada_en)}</strong> · ${escHtml(textoEnvioMuestra(m))}</div>`);
+  // Ya enviada no se edita: se pide el cambio al equipo de Segurmex (06-nov-2026).
+  if ((m.estado === 'enviada' || m.estado === 'en_preparacion') && !m.peticion_tipo) {
+    filas.push(`<div class="v26-muestra-pedir">
+      <button type="button" class="v26-btn v26-btn-ghost" data-pedir="correccion" data-id="${m.id}"><i class="bi bi-chat-left-text"></i> Pedir corrección</button>
+      <button type="button" class="v26-btn v26-btn-ghost" data-pedir="cancelacion" data-id="${m.id}"><i class="bi bi-slash-circle"></i> Pedir cancelación</button>
+    </div>`);
+  }
   filas.push(`<div class="mt-2"><a href="../muestra_pdf.php?id=${encodeURIComponent(m.id)}" class="v26-btn v26-btn-ghost" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a></div>`);
   return `<div class="v26-muestra-detalle-inner">${filas.join('')}</div>`;
 }
@@ -235,6 +264,7 @@ function renderMuestraItem(m) {
         ? `<div class="v26-muestra-rechazo"><i class="bi bi-exclamation-triangle-fill"></i> Cancelada: ${escHtml(m.motivo_cancelacion || '')}</div>`
         : trackMuestraHTML(m)}
       ${estado ? `<div class="v26-muestra-estado">${estado}</div>` : ''}
+      ${m.peticion_tipo && !cancelada && m.estado !== 'embarcada' ? `<div class="v26-muestra-peticion"><i class="bi bi-hourglass-split"></i> Pediste ${m.peticion_tipo === 'cancelacion' ? 'cancelarla' : 'una corrección'}: «${escHtml(m.peticion_texto || '')}». Te avisamos cuando el equipo de Segurmex conteste.</div>` : ''}
       ${metaMuestraHTML(m)}
       <div class="v26-muestra-detalle">${detalleMuestraHTML(m)}</div>
     </div>`;
@@ -273,7 +303,7 @@ function pintarCupo(tope) {
 document.querySelectorAll('.mu-stat').forEach(b => b.addEventListener('click', () => { filtro = b.dataset.estado; renderLista(); }));
 document.getElementById('btn-todas').addEventListener('click', () => { filtro = 'todas'; renderLista(); });
 document.getElementById('lista-muestras').addEventListener('click', (e) => {
-  if (e.target.closest('a')) return; // "Ver PDF" y "Rastrear envío" no abren/cierran la tarjeta
+  if (e.target.closest('a, button')) return; // "Ver PDF", "Rastrear envío" y "Pedir…" no abren/cierran la tarjeta
   const card = e.target.closest('.v26-muestra-card');
   if (card) card.classList.toggle('abierta');
 });
@@ -293,6 +323,55 @@ async function cargarMuestras() {
       `<div class="alert alert-danger">${escHtml(e.message || 'No se pudieron cargar tus muestras. Revisa tu conexión e intenta de nuevo.')}</div>`;
   }
 }
+// ---- Pedir corrección / cancelación ----
+const modalPedir = new bootstrap.Modal(document.getElementById('modal-pedir'));
+let pedirActual = null; // { id, tipo }
+document.getElementById('lista-muestras').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-pedir]');
+  if (!b) return;
+  const m = muestrasData.find(x => String(x.id) === b.dataset.id);
+  if (!m) return;
+  pedirActual = { id: m.id, tipo: b.dataset.pedir };
+  const cancelar = pedirActual.tipo === 'cancelacion';
+  document.getElementById('modal-pedir-titulo').textContent = (cancelar ? 'Pedir cancelación · ' : 'Pedir corrección · ') + m.folio;
+  document.getElementById('modal-pedir-sub').textContent = 'Ya la enviaste, así que no se puede editar. El equipo de Segurmex revisa lo que pides y te avisa.';
+  document.getElementById('pedir-label').textContent = cancelar ? '¿Por qué hay que cancelarla?' : '¿Qué hay que cambiar?';
+  const t = document.getElementById('pedir-texto');
+  t.value = '';
+  t.placeholder = cancelar ? 'Ej. El cliente ya no la necesita' : 'Ej. La talla 27 es 28, el cliente se equivocó';
+  document.getElementById('pedir-error').classList.add('d-none');
+  modalPedir.show();
+  setTimeout(() => t.focus(), 300);
+});
+document.getElementById('form-pedir').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const texto = document.getElementById('pedir-texto').value.trim();
+  const err = document.getElementById('pedir-error');
+  const btn = document.getElementById('pedir-enviar');
+  if (!texto) {
+    err.textContent = pedirActual.tipo === 'cancelacion' ? 'Escribe por qué hay que cancelarla.' : 'Escribe qué hay que cambiar.';
+    err.classList.remove('d-none');
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  try {
+    const fd = new FormData();
+    fd.append('id', pedirActual.id);
+    fd.append('tipo', pedirActual.tipo);
+    fd.append('texto', texto);
+    const r = await fetch('../api/muestra_pedir.php', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'No se pudo enviar.');
+    modalPedir.hide();
+    await cargarMuestras();
+  } catch (ex) {
+    err.textContent = ex.message || 'No se pudo enviar. Intenta de nuevo.';
+    err.classList.remove('d-none');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enviar';
+  }
+});
+
 // Si llega un aviso nuevo mientras está abierta, se refresca la lista.
 let ultimosNoLeidos = null;
 document.addEventListener('v26:avisos', (e) => {

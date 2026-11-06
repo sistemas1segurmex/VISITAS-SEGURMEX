@@ -14,14 +14,20 @@ require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/muestras.php';
 require_once __DIR__ . '/../includes/db_erp.php';
 
-$u  = requireRole('vendedor');
+// La responsable de muestras también lo usa al corregir una solicitud
+// (06-nov-2026): solo el catálogo de estilos, sin clientes.
+$u  = requireAnyRole(['vendedor', 'muestras']);
 $db = getDB();
+$esVendedor = $u['rol'] === 'vendedor';
 
-$stmt = $db->prepare(
-    "SELECT id, nombre, etapa, direccion, nombre_contacto, telefono FROM clientes WHERE vendedor_id = ? AND estado_revision IS NULL ORDER BY nombre"
-);
-$stmt->execute([$u['id']]);
-$clientes = $stmt->fetchAll();
+$clientes = [];
+if ($esVendedor) {
+    $stmt = $db->prepare(
+        "SELECT id, nombre, etapa, direccion, nombre_contacto, telefono FROM clientes WHERE vendedor_id = ? AND estado_revision IS NULL ORDER BY nombre"
+    );
+    $stmt->execute([$u['id']]);
+    $clientes = $stmt->fetchAll();
+}
 
 // Estilos: el mismo catálogo que la Nueva cotización (modelos del cotizador
 // anterior + estilos del ERP con precio), leído directo del esquema "public"
@@ -37,7 +43,7 @@ try {
 $atributos = [];
 try { $atributos = atributosSeguridadErp(); } catch (Throwable $e) { /* solo informativo */ }
 // Tope por cliente: cuántos pares de muestra lleva cada uno este mes.
-$paresMes = paresMuestraDelMesPorCliente($db, (int)$u['id']);
+$paresMes = $esVendedor ? paresMuestraDelMesPorCliente($db, (int)$u['id']) : [];
 foreach ($clientes as &$c) $c['pares_muestra_mes'] = $paresMes[(int)$c['id']] ?? 0;
 unset($c);
 jsonResponse([

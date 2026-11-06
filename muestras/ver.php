@@ -2,6 +2,9 @@
 // Detalle de una solicitud de muestra. La responsable de muestras (rol
 // 'muestras') ve aquí los botones para marcar el avance; el admin la ve
 // igual pero solo para consultar. Ver includes/muestras.php.
+// Desde el 06-nov-2026, si el vendedor pide una corrección o una cancelación,
+// aquí la responsable decide: Corregir (vendedor/solicitar_muestra.php?corregir=ID),
+// «No se puede cambiar» o Cancelar.
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
@@ -19,6 +22,17 @@ $historial = historialSolicitudMuestra($db, (int)$s['id']);
 $siguientes = MUESTRA_TRANSICIONES[$s['estado']] ?? [];
 $conAcciones = $puedeCambiar && $siguientes;
 $abierta = in_array($s['estado'], ['enviada', 'en_preparacion'], true);
+// Petición del vendedor (corrección / cancelación) pendiente.
+$peticion = $abierta && !empty($s['peticion_tipo']) ? $s['peticion_tipo'] : null;
+// ¿Ya se imprimieron etiquetas de esta muestra en el ERP? (avisar que hay que reimprimir si se corrige)
+$etiquetasImpresas = false;
+if ($puedeCambiar && $abierta) {
+    try {
+        $st = $db->prepare("SELECT 1 FROM public.etiqueta_muestra_impresion WHERE origen = 'mv' AND id_muestra = ? LIMIT 1");
+        $st->execute([(int)$s['id']]);
+        $etiquetasImpresas = (bool)$st->fetchColumn();
+    } catch (Throwable $ex) { /* sin la tabla de etiquetas: no se avisa */ }
+}
 
 // Al abrirla, sus avisos de "nueva solicitud" quedan como leídos.
 if ($puedeCambiar) {
@@ -93,6 +107,7 @@ if ($s['estado'] === 'embarcada' && $cerrada) $chips[] = ['verde', 'bi-check2-ci
 if ($s['estado'] === 'cancelada' && $cerrada) $chips[] = ['', 'bi-x-circle', 'Cancelada el ' . mdFechaCorta($cerrada)];
 $chips[] = ['', 'bi-boxes', textoParesMuestra($totalPares) . (count($estilosVer) > 1 ? ' · ' . count($estilosVer) . ' estilos' : '')];
 if ($s['tipo'] === 'variante') $chips[] = ['', 'bi-shuffle', count($estilosVer) > 1 ? 'Con variantes' : 'Variante'];
+if ($peticion) array_unshift($chips, ['rojo', 'bi-chat-left-text', $peticion === 'cancelacion' ? 'Piden cancelarla' : 'Piden corrección']);
 
 $PILL = [
     'enviada'        => ['nueva', 'bi-inbox-fill', 'Nueva · sin atender'],
@@ -146,12 +161,20 @@ $TXT_HISTORIAL = [
     'en_preparacion' => 'En preparación',
     'embarcada'      => 'Embarcada',
     'cancelada'      => 'Cancelada',
+    'correccion_pedida'  => 'El vendedor pidió una corrección',
+    'cancelacion_pedida' => 'El vendedor pidió cancelarla',
+    'corregida'          => 'Corregida',
+    'peticion_rechazada' => 'No se pudo hacer el cambio',
 ];
 $ICONO_HISTORIAL = [
     'enviada'        => ['', 'bi-send-fill'],
     'en_preparacion' => ['p', 'bi-gear-fill'],
     'embarcada'      => ['e', 'bi-truck'],
     'cancelada'      => ['c', 'bi-x-lg'],
+    'correccion_pedida'  => ['', 'bi-chat-left-text'],
+    'cancelacion_pedida' => ['', 'bi-chat-left-text'],
+    'corregida'          => ['p', 'bi-pencil-fill'],
+    'peticion_rechazada' => ['', 'bi-reply-fill'],
 ];
 ?>
 <!doctype html>
@@ -185,7 +208,7 @@ $ICONO_HISTORIAL = [
   </div>
 
   <div class="v26-wrap md-wrap">
-    <div id="msg"></div>
+    <div id="msg"><?php if (isset($_GET['corregida']) && $puedeCambiar): ?><div class="alert alert-success py-2"><i class="bi bi-check-circle-fill"></i> Corrección guardada. Al vendedor le llegó un aviso con lo que cambió.</div><?php endif; ?></div>
 
     <!-- Encabezado: folio, estado, avisos y avance -->
     <section class="md-hero">
@@ -312,7 +335,7 @@ $ICONO_HISTORIAL = [
                 <div class="hd <?= $cls ?>"><i class="bi <?= $ico ?>"></i></div>
                 <div>
                   <div class="q"><?= $esPasoPt ? 'Ya está en Producto Terminado' : e($TXT_HISTORIAL[$h['estado']] ?? $h['estado']) ?><?= $h['usuario_nombre'] ? ' · ' . e($h['usuario_nombre']) : '' ?></div>
-                  <?php if ($h['nota'] && !$esPasoPt): ?><div class="n"><?= e($h['nota']) ?></div><?php endif; ?>
+                  <?php if ($h['nota'] && !$esPasoPt): ?><div class="n"><?= nl2br(e($h['nota'])) ?></div><?php endif; ?>
                   <div class="c fecha-utc" data-utc="<?= e($h['creado_en']) ?>"><?= e($h['creado_en']) ?></div>
                 </div>
               </li>
@@ -326,6 +349,32 @@ $ICONO_HISTORIAL = [
         <?php if ($conAcciones): ?>
         <div class="md-card md-acc">
           <div class="md-sec"><i class="bi bi-lightning-charge-fill"></i> ¿Qué sigue?</div>
+
+          <?php if ($peticion): ?>
+            <div class="mi-peticion">
+              <b><i class="bi bi-chat-left-text-fill"></i> <?= e($s['vendedor_nombre']) ?> pide <?= $peticion === 'cancelacion' ? 'cancelarla' : 'una corrección' ?></b>
+              <span class="mi-peticion-txt">«<?= nl2br(e($s['peticion_texto'])) ?>»</span>
+              <?php if (!empty($s['peticion_en'])): ?><small class="fecha-utc" data-utc="<?= e($s['peticion_en']) ?>"><?= e($s['peticion_en']) ?></small><?php endif; ?>
+            </div>
+            <p class="md-next">Tú decides. Lo que elijas le llega al vendedor (aviso y correo).</p>
+            <?php if ($peticion === 'correccion'): ?>
+              <a class="md-btn md-btn--pri" href="../vendedor/solicitar_muestra.php?corregir=<?= (int)$s['id'] ?>"><i class="bi bi-pencil"></i> Corregir la solicitud</a>
+            <?php else: ?>
+              <button type="button" class="md-btn md-btn--rojo" data-panel="panel-cancelar"><i class="bi bi-slash-circle"></i> Cancelar la muestra</button>
+            <?php endif; ?>
+            <button type="button" class="md-btn" data-panel="panel-rechazar"><i class="bi bi-reply"></i> No se puede <?= $peticion === 'cancelacion' ? 'cancelar' : 'cambiar' ?></button>
+            <form id="panel-rechazar" class="md-panel"><div class="md-panel-in">
+              <label class="md-lbl md-lbl--top" for="motivo_rechazo">¿Por qué no se puede?</label>
+              <textarea id="motivo_rechazo" class="md-inp" rows="2" maxlength="500" placeholder="Ej. Ya está cortada en esa talla"></textarea>
+              <p class="md-hint">Le llega a <?= e($s['vendedor_nombre']) ?>. La muestra sigue igual.</p>
+              <button type="submit" class="md-btn md-btn--pri">Enviar respuesta</button>
+            </div></form>
+            <?php if ($etiquetasImpresas): ?>
+              <p class="md-hint mi-aviso-etiquetas"><i class="bi bi-tag"></i> Ya se imprimieron etiquetas de esta muestra. Si cambias estilos o tallas, vuelve a imprimirlas.</p>
+            <?php endif; ?>
+            <hr class="mi-sep">
+            <p class="md-next mb-1">Avance de la muestra:</p>
+          <?php endif; ?>
 
           <?php if ($s['estado'] === 'enviada'): ?>
             <p class="md-next">Revisa si hay en almacén y márcala en preparación.</p>
@@ -370,10 +419,15 @@ $ICONO_HISTORIAL = [
             <button type="submit" class="md-btn md-btn--pri">Guardar como embarcada</button>
           </div></form>
 
+          <?php if (!$peticion || $peticion === 'cancelacion'): ?>
+            <a class="md-cancel mi-corregir-link" href="../vendedor/solicitar_muestra.php?corregir=<?= (int)$s['id'] ?>"><i class="bi bi-pencil"></i> Corregir la solicitud</a>
+          <?php endif; ?>
+          <?php if ($peticion !== 'cancelacion'): ?>
           <button type="button" class="md-cancel" data-panel="panel-cancelar"><i class="bi bi-x-circle"></i> Cancelar solicitud</button>
+          <?php endif; ?>
           <form id="panel-cancelar" class="md-panel"><div class="md-panel-in">
             <label class="md-lbl md-lbl--top" for="motivo">Motivo de la cancelación</label>
-            <textarea id="motivo" class="md-inp" rows="2" maxlength="500" placeholder="Ej. No hay ese estilo en esa talla"></textarea>
+            <textarea id="motivo" class="md-inp" rows="2" maxlength="500" placeholder="Ej. No hay ese estilo en esa talla"><?= $peticion === 'cancelacion' ? e(mb_substr('A petición del vendedor: ' . $s['peticion_texto'], 0, 500)) : '' ?></textarea>
             <p class="md-hint">El vendedor verá este motivo. Una solicitud cancelada ya no se puede reabrir.</p>
             <button type="submit" class="md-btn md-btn--rojo">Cancelar solicitud</button>
           </div></form>
@@ -389,6 +443,9 @@ $ICONO_HISTORIAL = [
             <div class="md-box md-box--can"><i class="bi bi-x-circle-fill"></i> <span><b>Cancelada</b><?= !empty($s['motivo_cancelacion']) ? e($s['motivo_cancelacion']) : '' ?></span></div>
           <?php else: ?>
             <div class="md-box"><i class="bi <?= $PILL[1] ?>"></i> <span><b><?= e($PILL[2]) ?></b><?= $detallePrep ? e($detallePrep) : 'La atiende la responsable de muestras.' ?></span></div>
+          <?php endif; ?>
+          <?php if ($peticion): ?>
+            <div class="mi-peticion mt-2"><b><i class="bi bi-chat-left-text-fill"></i> El vendedor pide <?= $peticion === 'cancelacion' ? 'cancelarla' : 'una corrección' ?></b><span class="mi-peticion-txt">«<?= nl2br(e($s['peticion_texto'])) ?>»</span><small>Lo decide la responsable de muestras.</small></div>
           <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -478,8 +535,30 @@ async function cambiarEstado(estado, extra, boton) {
 document.querySelectorAll('[data-panel]').forEach(b => b.addEventListener('click', () => {
   const p = document.getElementById(b.dataset.panel), abrir = !p.classList.contains('open');
   document.querySelectorAll('.md-panel').forEach(x => x.classList.remove('open'));
-  if (abrir) p.classList.add('open');
+  if (abrir) { p.classList.add('open'); const t = p.querySelector('textarea'); if (t) t.focus(); }
 }));
+
+// «No se puede cambiar»: contesta la petición del vendedor (la muestra sigue igual).
+const formRechazo = document.getElementById('panel-rechazar');
+if (formRechazo) formRechazo.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const motivo = document.getElementById('motivo_rechazo').value.trim();
+  if (!motivo) { mostrarError('Escribe por qué no se puede (le llega al vendedor).'); return; }
+  const boton = e.submitter, original = boton ? boton.innerHTML : '';
+  if (boton) { boton.disabled = true; boton.textContent = 'Enviando...'; }
+  try {
+    const fd = new FormData();
+    fd.append('id', ID_SOLICITUD);
+    fd.append('motivo', motivo);
+    const r = await fetch('../api/muestra_peticion_rechazar.php', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'No se pudo guardar.');
+    window.location.reload();
+  } catch (err) {
+    mostrarError(err.message);
+    if (boton) { boton.disabled = false; boton.innerHTML = original; }
+  }
+});
 
 // Grupos de opciones (de dónde sale / cómo se envió).
 function grupoOpciones(id, alCambiar) {
