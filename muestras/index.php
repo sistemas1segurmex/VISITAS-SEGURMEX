@@ -92,6 +92,7 @@ $esAdmin = $u['rol'] === 'admin';
 
     <div class="mu-toolbar">
       <div class="v26-funnel-filtro mb-0" id="filtro-grupo">
+        <div class="v26-funnel-chip d-none" data-grupo="peticiones" id="chip-peticiones"><i class="bi bi-chat-left-text-fill"></i> Piden cambio <span class="n" id="n-peticiones">0</span></div>
         <div class="v26-funnel-chip active" data-grupo="nuevas">Nuevas <span class="n" id="n-nuevas">0</span></div>
         <div class="v26-funnel-chip" data-grupo="en_preparacion">En preparación <span class="n" id="n-en_preparacion">0</span></div>
         <div class="v26-funnel-chip" data-grupo="vencidas">Vencidas <span class="n" id="n-vencidas">0</span></div>
@@ -121,6 +122,7 @@ let busqueda = '';
 const ES_ADMIN = <?= $esAdmin ? 'true' : 'false' ?>;
 const NOMBRE = <?= json_encode(strtok($u['nombre'], ' ')) ?>;
 const VACIO = {
+  peticiones: ['bi-chat-left-text', 'Sin peticiones', 'Ningún vendedor está pidiendo corregir o cancelar una muestra.'],
   nuevas: ['bi-inbox', 'Todo al día', 'No hay solicitudes nuevas. Cuando un vendedor pida una muestra te llegará un aviso.'],
   en_preparacion: ['bi-box-seam', 'Nada en preparación', 'Las muestras que marques "En preparación" aparecen aquí.'],
   vencidas: ['bi-emoji-smile', 'Sin promesas vencidas', 'Ninguna muestra abierta ha pasado su fecha promesa.'],
@@ -184,11 +186,12 @@ function tarjeta(m, i) {
           <span class="mu-card-cli"><i class="bi bi-building"></i> ${escHtml(m.cliente_nombre)}</span>
         </div>
       </div>
+      ${m.peticion_tipo && (m.estado === 'enviada' || m.estado === 'en_preparacion') ? `<div class="mu-card-peticion"><i class="bi bi-chat-left-text-fill"></i> ${m.peticion_tipo === 'cancelacion' ? 'Pide cancelarla' : 'Pide corrección'}: «${escHtml(m.peticion_texto || '')}»</div>` : ''}
       ${m.estado === 'embarcada' ? `<div class="mu-card-envio"><i class="bi bi-truck"></i> ${escHtml(textoEnvio(m))}</div>` : ''}
       ${m.estado === 'cancelada' ? `<div class="mu-card-envio mu-card-envio--cancel"><i class="bi bi-x-circle"></i> ${escHtml(m.motivo_cancelacion || '')}</div>` : ''}
       <div class="mu-card-pie">
         <div class="mu-badges">${badgePreparacion(m)}${badgeEspera(m)}${badgePromesa(m)}</div>
-        <span class="mu-abrir">${ES_ADMIN || m.estado === 'embarcada' || m.estado === 'cancelada' ? 'Ver' : 'Atender'} <i class="bi bi-arrow-right"></i></span>
+        <span class="mu-abrir">${ES_ADMIN || m.estado === 'embarcada' || m.estado === 'cancelada' ? 'Ver' : (m.peticion_tipo ? 'Decidir' : 'Atender')} <i class="bi bi-arrow-right"></i></span>
       </div>
     </a>`;
 }
@@ -196,9 +199,10 @@ function tarjeta(m, i) {
 function pintarHero(c) {
   const t = document.getElementById('hero-titulo');
   if (ES_ADMIN) { t.textContent = `${c.todas} solicitud${c.todas === 1 ? '' : 'es'} en total`; return; }
-  t.innerHTML = c.nuevas === 0
+  t.innerHTML = (c.nuevas === 0
     ? `Hola, ${escHtml(NOMBRE)}. No tienes solicitudes nuevas`
-    : `Hola, ${escHtml(NOMBRE)}. Tienes <span class="mu-hero-n">${c.nuevas}</span> solicitud${c.nuevas === 1 ? '' : 'es'} nueva${c.nuevas === 1 ? '' : 's'}`;
+    : `Hola, ${escHtml(NOMBRE)}. Tienes <span class="mu-hero-n">${c.nuevas}</span> solicitud${c.nuevas === 1 ? '' : 'es'} nueva${c.nuevas === 1 ? '' : 's'}`)
+    + (c.peticiones ? `<br><small>y ${c.peticiones === 1 ? '1 vendedor te pide' : c.peticiones + ' vendedores te piden'} un cambio</small>` : '');
 }
 
 function activarGrupo(g) {
@@ -220,6 +224,8 @@ async function cargar() {
       const s = document.getElementById('s-' + k); if (s) s.textContent = v;
     });
     document.querySelector('.mu-stat--vencidas').classList.toggle('alerta', c.vencidas > 0);
+    // «Piden cambio»: solo se ve si hay peticiones (o si está elegida).
+    document.getElementById('chip-peticiones').classList.toggle('d-none', !c.peticiones && grupo !== 'peticiones');
     pintarHero(c);
     if (data.solicitudes.length) {
       lista.innerHTML = data.solicitudes.map(tarjeta).join('');

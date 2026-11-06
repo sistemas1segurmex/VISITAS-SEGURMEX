@@ -1,7 +1,8 @@
 <?php
 // Bandeja de solicitudes de muestra -- responsable de muestras (rol
 // 'muestras') y admin (solo consulta). Ver muestras/index.php.
-//   GET ?grupo=nuevas|en_preparacion|vencidas|cerradas|todas&q=texto
+//   GET ?grupo=peticiones|nuevas|en_preparacion|vencidas|cerradas|todas&q=texto
+// "peticiones" = abiertas en las que el vendedor pide corregir o cancelar (06-nov-2026).
 //   -> {solicitudes:[...], conteos:{nuevas, en_preparacion, vencidas,
 //       cerradas, todas, embarcadas_mes}}
 // "vencidas" = abiertas (nuevas o en preparación) con fecha promesa ya
@@ -15,6 +16,7 @@ requireAnyRole(['muestras', 'admin']);
 $db = getDB();
 
 const GRUPOS_BANDEJA_MUESTRAS = [
+    'peticiones'     => "s.peticion_tipo IS NOT NULL AND s.estado IN ('enviada', 'en_preparacion')",
     'nuevas'         => "s.estado = 'enviada'",
     'en_preparacion' => "s.estado = 'en_preparacion'",
     'vencidas'       => "s.estado IN ('enviada', 'en_preparacion') AND s.fecha_promesa < (now() AT TIME ZONE 'America/Mexico_City')::date",
@@ -37,8 +39,9 @@ if ($q !== '') {
 
 // Nuevas y en preparación: lo más viejo primero (lo que lleva más tiempo
 // esperando). Cerradas y todas: lo más reciente primero.
-$orden = $grupo === 'vencidas' ? 's.fecha_promesa ASC'
-       : (in_array($grupo, ['nuevas', 'en_preparacion'], true) ? 's.created_at ASC' : 's.actualizada_en DESC');
+$orden = $grupo === 'peticiones' ? 's.peticion_en ASC'
+       : ($grupo === 'vencidas' ? 's.fecha_promesa ASC'
+       : (in_array($grupo, ['nuevas', 'en_preparacion'], true) ? 's.created_at ASC' : 's.actualizada_en DESC'));
 
 $stmt = $db->prepare(
     'SELECT s.*, u.nombre AS vendedor_nombre, u.email AS vendedor_email, u.telefono AS vendedor_telefono
@@ -52,7 +55,8 @@ $stmt->execute($params);
 $solicitudes = array_map('solicitudMuestraParaJson', adjuntarEstilosSolicitudesMuestra($db, $stmt->fetchAll()));
 
 $conteos = $db->query(
-    "SELECT COUNT(*) FILTER (WHERE estado = 'enviada') AS nuevas,
+    "SELECT COUNT(*) FILTER (WHERE peticion_tipo IS NOT NULL AND estado IN ('enviada', 'en_preparacion')) AS peticiones,
+            COUNT(*) FILTER (WHERE estado = 'enviada') AS nuevas,
             COUNT(*) FILTER (WHERE estado = 'en_preparacion') AS en_preparacion,
             COUNT(*) FILTER (WHERE estado IN ('enviada', 'en_preparacion')
                              AND fecha_promesa < (now() AT TIME ZONE 'America/Mexico_City')::date) AS vencidas,
