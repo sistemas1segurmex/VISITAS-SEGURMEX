@@ -15,6 +15,13 @@ require_once __DIR__ . '/../includes/muestras.php';
 requireAnyRole(['muestras', 'admin']);
 $db = getDB();
 
+// Sin la migración 20261106120000_muestras_peticiones.sql la bandeja no carga: avisarlo claro.
+try {
+    $db->query('SELECT peticion_tipo FROM muestras_solicitudes LIMIT 1');
+} catch (Throwable $e) {
+    jsonResponse(['ok' => false, 'error' => 'Falta correr en la base de datos la migración 20261106120000_muestras_peticiones.sql (pedir corrección de muestras). Avisa a Sistemas.'], 503);
+}
+
 const GRUPOS_BANDEJA_MUESTRAS = [
     'peticiones'     => "s.peticion_tipo IS NOT NULL AND s.estado IN ('enviada', 'en_preparacion')",
     'nuevas'         => "s.estado = 'enviada'",

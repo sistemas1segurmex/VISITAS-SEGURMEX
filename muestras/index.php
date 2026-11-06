@@ -234,7 +234,7 @@ async function cargar() {
       lista.innerHTML = `<div class="mu-vacio"><div class="mu-vacio-ico"><i class="bi ${ico}"></i></div><strong>${tit}</strong><p>${txt}</p></div>`;
     }
   } catch (e) {
-    lista.innerHTML = '<div class="alert alert-danger">No se pudieron cargar las solicitudes. Revisa tu conexión e intenta de nuevo.</div>';
+    lista.innerHTML = `<div class="alert alert-danger">${escHtml(e.message && e.message !== 'Error' ? e.message : 'No se pudieron cargar las solicitudes. Revisa tu conexión e intenta de nuevo.')}</div>`;
   }
 }
 
