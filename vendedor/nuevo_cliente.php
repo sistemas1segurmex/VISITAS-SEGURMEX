@@ -44,6 +44,8 @@ $u = requireRole('vendedor');
   .v26-ubicacion-badge.lista { color: var(--v26-green); }
   #seg-tipo-registro, #seg-tipo-cliente { display: flex; width: 100%; }
   #seg-tipo-registro .v26-seg-btn, #seg-tipo-cliente .v26-seg-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+  .v26-nota-erp { margin-top: 8px; padding: 9px 11px; border-radius: var(--v26-r-md); background: #FFF7E6; border: 1px solid #F5D08A; font-size: .78rem; color: #6B4E00; line-height: 1.35; }
+  .v26-ayuda-erp { margin-top: 4px; font-size: .7rem; color: var(--v26-muted, #6B7280); }
 </style>
 </head>
 <body class="v26 v26-compacto">
@@ -73,6 +75,15 @@ $u = requireRole('vendedor');
             <button type="button" class="v26-seg-btn" data-tipo="cliente"><i class="bi bi-trophy"></i> Cliente ya ganado</button>
           </div>
           <input type="hidden" name="ya_es_cliente" id="ya-es-cliente" value="0">
+          <div class="v26-nota-erp d-none" id="nota-cliente-erp"></div>
+        </div>
+
+        <div class="v26-field d-none" id="campo-cliente-erp">
+          <label>¿Cuál de tus clientes es?</label>
+          <select name="id_cliente_erp" id="sel-cliente-erp" class="v26-select">
+            <option value="">Elige el cliente…</option>
+          </select>
+          <div class="v26-ayuda-erp">Aparecen tus clientes que todavía no tienes en tu cartera.</div>
         </div>
 
         <div class="v26-field">
@@ -122,12 +133,73 @@ const campoTelefono = activarCampoTelefono(document.querySelector('input[name="t
 iniciarTrackingPeriodico();
 DireccionCliente.init();
 
+// «Cliente ya ganado» (06-nov-2026): se elige de SUS clientes del ERP que
+// todavía no están en Visitas; así el registro nace ligado al ERP. Si no hay
+// ninguno, se explica que se registre como prospecto y se haga cliente desde
+// el ERP (Prospectos › Hacer cliente).
+const selClienteErp = document.getElementById('sel-cliente-erp');
+const notaClienteErp = document.getElementById('nota-cliente-erp');
+const inputNombre = document.querySelector('input[name="nombre"]');
+let nombreAutoErp = '';
+
+function elegirTipoRegistro(tipo) {
+  document.querySelectorAll('#seg-tipo-registro .v26-seg-btn').forEach(b => b.classList.toggle('active', b.dataset.tipo === tipo));
+  document.getElementById('ya-es-cliente').value = tipo === 'cliente' ? '1' : '0';
+  document.getElementById('campo-cliente-erp').classList.toggle('d-none', tipo !== 'cliente');
+  if (tipo !== 'cliente') {
+    selClienteErp.value = '';
+    if (nombreAutoErp && inputNombre.value === nombreAutoErp) inputNombre.value = '';
+    nombreAutoErp = '';
+  }
+}
+
+async function cargarClientesErp() {
+  try {
+    const res = await fetch('../api/clientes_erp_disponibles.php');
+    const data = await res.json();
+    return data.ok ? data.clientes : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 document.querySelectorAll('#seg-tipo-registro .v26-seg-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#seg-tipo-registro .v26-seg-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('ya-es-cliente').value = btn.dataset.tipo === 'cliente' ? '1' : '0';
+  btn.addEventListener('click', async () => {
+    notaClienteErp.classList.add('d-none');
+    if (btn.dataset.tipo !== 'cliente') { elegirTipoRegistro('prospecto'); return; }
+
+    const clientes = await cargarClientesErp();
+    if (clientes === null) {
+      elegirTipoRegistro('prospecto');
+      notaClienteErp.textContent = 'No se pudo cargar tu lista de clientes. Revisa tu conexión e intenta de nuevo.';
+      notaClienteErp.classList.remove('d-none');
+      return;
+    }
+    if (!clientes.length) {
+      elegirTipoRegistro('prospecto');
+      notaClienteErp.innerHTML = 'No tienes clientes pendientes por agregar.<br>Si ya te compra pero no aparece, regístralo como <strong>«Prospecto nuevo»</strong> y después usa <strong>«Hacer cliente»</strong> en Prospectos.';
+      notaClienteErp.classList.remove('d-none');
+      return;
+    }
+    selClienteErp.innerHTML = '<option value="">Elige el cliente…</option>' + clientes.map(c => {
+      const op = document.createElement('option');
+      op.value = c.id;
+      op.textContent = (c.clave ? c.clave + ' · ' : '') + c.razon_social;
+      op.dataset.nombre = c.razon_social;
+      return op.outerHTML;
+    }).join('');
+    elegirTipoRegistro('cliente');
   });
+});
+
+selClienteErp.addEventListener('change', () => {
+  const op = selClienteErp.selectedOptions[0];
+  const nombreErp = op && op.value ? op.dataset.nombre : '';
+  // Se llena el nombre solo si está vacío o si lo había puesto esta lista.
+  if (!inputNombre.value.trim() || inputNombre.value === nombreAutoErp) {
+    inputNombre.value = nombreErp;
+    nombreAutoErp = nombreErp;
+  }
 });
 
 document.querySelectorAll('#seg-tipo-cliente .v26-seg-btn').forEach(btn => {
@@ -163,6 +235,12 @@ document.getElementById('form-cliente').addEventListener('submit', async (e) => 
   e.preventDefault();
   const msg = document.getElementById('msg-cliente');
   msg.innerHTML = '';
+
+  if (document.getElementById('ya-es-cliente').value === '1' && !selClienteErp.value) {
+    msg.innerHTML = '<div class="alert alert-danger py-2">Elige de la lista cuál de tus clientes es.</div>';
+    selClienteErp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
 
   // Mismo orden que el formulario: el teléfono va antes que la dirección.
   if (!campoTelefono.validar()) {
