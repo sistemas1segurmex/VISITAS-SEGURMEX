@@ -874,6 +874,7 @@ html:has(body.v26), body.v26 { overflow-x: clip; }
   transition: all .2s var(--v26-ease);
 }
 .v26-muestra-track .txt { font-size: .6rem; font-weight: 700; color: var(--v26-ink-soft); line-height: 1.2; }
+.v26-muestra-track .fecha-paso { font-size: .6rem; font-weight: 500; color: var(--v26-ink-soft); line-height: 1.2; margin-top: 1px; }
 .v26-muestra-track .paso.hecho .dot { background: var(--v26-green); border-color: var(--v26-green); color: #fff; }
 .v26-muestra-track .paso.hecho .linea { background: var(--v26-green); }
 .v26-muestra-track .paso.actual .dot { background: var(--v26-brand-grad); border-color: transparent; color: #fff; box-shadow: var(--v26-shadow-brand); }

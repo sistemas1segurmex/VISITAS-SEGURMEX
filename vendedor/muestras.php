@@ -181,8 +181,18 @@ function trackMuestraHTML(m) {
   return `<div class="v26-muestra-track">` + PASOS_MUESTRA.map((p, i) => {
     const clase = i < idxActual ? 'hecho' : (i === idxActual ? 'actual' : '');
     const icono = i < idxActual ? 'bi-check' : p.icono;
-    return `<div class="paso ${clase}"><div class="linea"></div><div class="dot"><i class="bi ${icono}"></i></div><div class="txt">${p.txt}</div></div>`;
+    const fecha = i <= idxActual ? fechaPasoMuestra(m, i) : '';
+    return `<div class="paso ${clase}"><div class="linea"></div><div class="dot"><i class="bi ${icono}"></i></div><div class="txt">${p.txt}</div>${fecha ? `<div class="fecha-paso">${fecha}</div>` : ''}</div>`;
   }).join('') + `</div>`;
+}
+
+// Fecha corta (sin año) debajo de cada paso ya hecho (09-nov-2026). Salen del
+// historial; las canceladas se quedan sin fechas en la barra.
+function fechaPasoMuestra(m, i) {
+  if (m.estado === 'cancelada') return '';
+  const iso = i === 0 ? m.created_at : (i === 1 ? m.preparacion_en : (m.embarcada_en || m.actualizada_en));
+  const f = fechaCorta(iso);
+  return f ? f.replace(/\s+(de\s+)?\d{4}$/, '') : '';
 }
 
 function textoEstadoMuestra(m) {
@@ -235,7 +245,8 @@ function detalleMuestraHTML(m) {
     }).join('');
     return `<div class="est"><div class="nom">${escHtml(e.estilo_nombre)}${e.color ? ' · ' + escHtml(e.color) : ''}${e.tipo === 'variante' ? ' · Variante' : ''}</div><ul>${tallas}</ul>${cambios}</div>`;
   }).join('') + '</div>');
-  if (m.estado === 'embarcada') filas.push(`<div>Embarcada el <strong>${fechaCorta(m.actualizada_en)}</strong> · ${escHtml(textoEnvioMuestra(m))}</div>`);
+  if (m.preparacion_en && (m.estado === 'en_preparacion' || m.estado === 'embarcada')) filas.push(`<div>En preparación desde el <strong>${fechaCorta(m.preparacion_en)}</strong></div>`);
+  if (m.estado === 'embarcada') filas.push(`<div>Embarcada el <strong>${fechaCorta(m.embarcada_en || m.actualizada_en)}</strong> · ${escHtml(textoEnvioMuestra(m))}</div>`);
   // Ya enviada no se edita: se pide el cambio al equipo de Segurmex (06-nov-2026).
   if ((m.estado === 'enviada' || m.estado === 'en_preparacion') && !m.peticion_tipo) {
     filas.push(`<div class="v26-muestra-pedir">
