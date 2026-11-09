@@ -129,7 +129,7 @@ $esAdmin = $u['rol'] === 'admin';
           <input type="date" id="f-hasta" class="v26-input" aria-label="Hasta">
         </div>
       </div>
-      <div class="mu-filtro">
+      <div class="mu-filtro mu-filtro--campo">
         <span class="mu-filtro-lbl">Contar por fecha de</span>
         <div class="mu-seg" id="f-campo" role="group" aria-label="Fecha que se usa para el periodo">
           <button type="button" data-campo="solicitud" class="activa">Solicitud</button>
