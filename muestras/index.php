@@ -180,7 +180,9 @@ function diasParaPromesa(m) {
 
 function badgeEspera(m) {
   if (m.estado !== 'enviada' && m.estado !== 'en_preparacion') {
-    return `<span class="mu-badge"><i class="bi bi-check2-circle"></i> ${m.estado === 'embarcada' ? 'Embarcada' : 'Cancelada'} ${fechaMx(m.actualizada_en)}</span>`;
+    // Embarcada: fecha del historial (las de antes sin historial: actualizada_en).
+    if (m.estado === 'embarcada') return `<span class="mu-badge mu-badge--verde"><i class="bi bi-check2-circle"></i> Embarcada ${fechaMx(m.embarcada_en || m.actualizada_en)}</span>`;
+    return `<span class="mu-badge"><i class="bi bi-check2-circle"></i> Cancelada ${fechaMx(m.actualizada_en)}</span>`;
   }
   const d = diasDesde(m.created_at);
   const clase = d >= 3 ? 'mu-badge--rojo' : (d >= 1 ? 'mu-badge--ambar' : 'mu-badge--verde');
@@ -193,6 +195,13 @@ function badgePromesa(m) {
   if (abierta && d < 0) return `<span class="mu-badge mu-badge--rojo"><i class="bi bi-alarm"></i> Promesa vencida (${fechaMx(m.fecha_promesa)})</span>`;
   if (abierta && d <= 2) return `<span class="mu-badge mu-badge--ambar"><i class="bi bi-alarm"></i> Promesa ${d === 0 ? 'hoy' : (d === 1 ? 'mañana' : 'en ' + d + ' días')}</span>`;
   return `<span class="mu-badge"><i class="bi bi-calendar-event"></i> Promesa ${fechaMx(m.fecha_promesa)}</span>`;
+}
+
+// Cuándo se marcó "En preparación" (la primera vez, del historial). Se ve en
+// las que siguen en preparación y en las ya embarcadas.
+function badgePreparacionDesde(m) {
+  if (!m.preparacion_en || (m.estado !== 'en_preparacion' && m.estado !== 'embarcada')) return '';
+  return `<span class="mu-badge"><i class="bi bi-box-seam"></i> En preparación desde ${fechaMx(m.preparacion_en)}</span>`;
 }
 
 // De dónde sale la que está en preparación: En PT / Por programar (+ fecha estimada).
@@ -229,7 +238,7 @@ function tarjeta(m, i) {
       ${m.estado === 'embarcada' ? `<div class="mu-card-envio"><i class="bi bi-truck"></i> ${escHtml(textoEnvio(m))}</div>` : ''}
       ${m.estado === 'cancelada' ? `<div class="mu-card-envio mu-card-envio--cancel"><i class="bi bi-x-circle"></i> ${escHtml(m.motivo_cancelacion || '')}</div>` : ''}
       <div class="mu-card-pie">
-        <div class="mu-badges"><span class="mu-badge"><i class="bi bi-inbox"></i> Solicitada ${fechaMx(m.created_at)}</span>${badgePreparacion(m)}${badgeEspera(m)}${badgePromesa(m)}</div>
+        <div class="mu-badges"><span class="mu-badge"><i class="bi bi-inbox"></i> Solicitada ${fechaMx(m.created_at)}</span>${badgePreparacionDesde(m)}${badgePreparacion(m)}${badgeEspera(m)}${badgePromesa(m)}</div>
         <span class="mu-abrir">${ES_ADMIN || m.estado === 'embarcada' || m.estado === 'cancelada' ? 'Ver' : (m.peticion_tipo ? 'Decidir' : 'Atender')} <i class="bi bi-arrow-right"></i></span>
       </div>
     </a>`;

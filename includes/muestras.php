@@ -667,6 +667,9 @@ function solicitudMuestraParaJson(array $s): array {
         'peticion_en'        => $s['peticion_en'] ?? null,
         'created_at'         => $s['created_at'],
         'actualizada_en'     => $s['actualizada_en'],
+        // Del historial; solo los trae la bandeja (api/muestras_bandeja.php).
+        'preparacion_en'     => $s['preparacion_en'] ?? null,
+        'embarcada_en'       => $s['embarcada_en'] ?? null,
     ];
 }
 
