@@ -120,9 +120,12 @@ body.v26 { overflow-x: clip; }
 .mu-seg { display: inline-flex; border: 1px solid var(--v26-border); border-radius: var(--v26-r-pill); padding: 3px; background: rgba(20,23,31,.03); }
 .mu-seg button {
   border: 0; background: transparent; font: inherit; font-size: .78rem; font-weight: 700; color: var(--v26-ink-soft);
-  padding: 5px 12px; border-radius: var(--v26-r-pill); cursor: pointer;
+  padding: 5px 12px; border-radius: var(--v26-r-pill); cursor: pointer; white-space: nowrap;
 }
 .mu-seg button.activa { background: #FDF2D8; color: #92600A; }
+/* "Contar por fecha de": que quepan los 3 botones (Embarque se salía del recuadro). */
+.mu-filtro--campo { flex: 0 0 auto; }
+@media (max-width: 760px) { .mu-filtro--campo .mu-seg { display: flex; } .mu-filtro--campo .mu-seg button { flex: 1; } }
 @media (max-width: 760px) { .mu-filtro, .mu-filtro--rango { flex: 1 1 100%; } }
 
 .mu-filtros-activos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 14px; min-height: 26px; }
