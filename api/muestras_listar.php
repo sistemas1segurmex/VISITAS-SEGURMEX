@@ -11,7 +11,12 @@ $u  = requireRole('vendedor');
 $db = getDB();
 
 $stmt = $db->prepare(
-    "SELECT s.*, NULL AS vendedor_nombre
+    "SELECT s.*, NULL AS vendedor_nombre,
+            -- Fechas de cada paso, del historial (09-nov-2026); igual que la bandeja.
+            (SELECT MIN(h.creado_en) FROM muestras_solicitudes_historial h
+              WHERE h.solicitud_id = s.id AND h.estado = 'en_preparacion') AS preparacion_en,
+            (SELECT MAX(h.creado_en) FROM muestras_solicitudes_historial h
+              WHERE h.solicitud_id = s.id AND h.estado = 'embarcada') AS embarcada_en
      FROM muestras_solicitudes s
      WHERE s.vendedor_id = ?
      ORDER BY s.created_at DESC
