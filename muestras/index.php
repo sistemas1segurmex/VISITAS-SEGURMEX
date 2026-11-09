@@ -105,6 +105,41 @@ $esAdmin = $u['rol'] === 'admin';
       </div>
     </div>
 
+    <div class="mu-filtros">
+      <label class="mu-filtro">
+        <span class="mu-filtro-lbl"><i class="bi bi-person"></i> Vendedor</span>
+        <select id="f-vendedor" class="v26-select"><option value="">Todos</option></select>
+      </label>
+      <label class="mu-filtro">
+        <span class="mu-filtro-lbl"><i class="bi bi-calendar3"></i> Periodo</span>
+        <select id="f-periodo" class="v26-select">
+          <option value="">Cualquier fecha</option>
+          <option value="hoy">Hoy</option>
+          <option value="semana">Esta semana</option>
+          <option value="mes">Este mes</option>
+          <option value="mes_pasado">Mes pasado</option>
+          <option value="30">Últimos 30 días</option>
+          <option value="rango">Rango…</option>
+        </select>
+      </label>
+      <div class="mu-filtro mu-filtro--rango d-none" id="f-rango">
+        <span class="mu-filtro-lbl">Del · al</span>
+        <div class="mu-filtro-fechas">
+          <input type="date" id="f-desde" class="v26-input" aria-label="Desde">
+          <input type="date" id="f-hasta" class="v26-input" aria-label="Hasta">
+        </div>
+      </div>
+      <div class="mu-filtro">
+        <span class="mu-filtro-lbl">Contar por fecha de</span>
+        <div class="mu-seg" id="f-campo" role="group" aria-label="Fecha que se usa para el periodo">
+          <button type="button" data-campo="solicitud" class="activa">Solicitud</button>
+          <button type="button" data-campo="promesa">Promesa</button>
+          <button type="button" data-campo="embarque">Embarque</button>
+        </div>
+      </div>
+    </div>
+    <div class="mu-filtros-activos" id="filtros-activos"></div>
+
     <div id="lista" class="mu-grid">
       <div class="v26-skel"></div>
       <div class="v26-skel"></div>
@@ -119,6 +154,10 @@ $esAdmin = $u['rol'] === 'admin';
 <script>
 let grupo = 'nuevas';
 let busqueda = '';
+// Filtros de vendedor y periodo (se guardan en la URL para poder compartir la vista).
+const filtro = { vendedor: '', periodo: '', desde: '', hasta: '', campo: 'solicitud' };
+const NOMBRE_PERIODO = { hoy: 'Hoy', semana: 'Esta semana', mes: 'Este mes', mes_pasado: 'Mes pasado', 30: 'Últimos 30 días', rango: 'Rango' };
+const NOMBRE_CAMPO = { solicitud: 'solicitud', promesa: 'promesa', embarque: 'embarque' };
 const ES_ADMIN = <?= $esAdmin ? 'true' : 'false' ?>;
 const NOMBRE = <?= json_encode(strtok($u['nombre'], ' ')) ?>;
 const VACIO = {
@@ -182,7 +221,7 @@ function tarjeta(m, i) {
       <div class="mu-card-quien">
         <span class="mu-avatar">${escHtml(iniciales(m.vendedor_nombre))}</span>
         <div class="mu-card-quien-txt">
-          <span class="mu-card-vend">${escHtml(m.vendedor_nombre)}</span>
+          <span class="mu-card-vend" data-vendedor="${m.vendedor_id}" title="Ver solo las de este vendedor">${escHtml(m.vendedor_nombre)} <i class="bi bi-funnel"></i></span>
           <span class="mu-card-cli"><i class="bi bi-building"></i> ${escHtml(m.cliente_nombre)}</span>
         </div>
       </div>
@@ -190,7 +229,7 @@ function tarjeta(m, i) {
       ${m.estado === 'embarcada' ? `<div class="mu-card-envio"><i class="bi bi-truck"></i> ${escHtml(textoEnvio(m))}</div>` : ''}
       ${m.estado === 'cancelada' ? `<div class="mu-card-envio mu-card-envio--cancel"><i class="bi bi-x-circle"></i> ${escHtml(m.motivo_cancelacion || '')}</div>` : ''}
       <div class="mu-card-pie">
-        <div class="mu-badges">${badgePreparacion(m)}${badgeEspera(m)}${badgePromesa(m)}</div>
+        <div class="mu-badges"><span class="mu-badge"><i class="bi bi-inbox"></i> Solicitada ${fechaMx(m.created_at)}</span>${badgePreparacion(m)}${badgeEspera(m)}${badgePromesa(m)}</div>
         <span class="mu-abrir">${ES_ADMIN || m.estado === 'embarcada' || m.estado === 'cancelada' ? 'Ver' : (m.peticion_tipo ? 'Decidir' : 'Atender')} <i class="bi bi-arrow-right"></i></span>
       </div>
     </a>`;
@@ -212,25 +251,112 @@ function activarGrupo(g) {
   cargar();
 }
 
+// --- Filtros de vendedor y periodo ---
+// Fechas como 'AAAA-MM-DD' en hora de CDMX.
+function hoyMx() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' }); }
+function ymd(d) { return d.toISOString().slice(0, 10); }
+function rangoPeriodo(p) {
+  const h = hoyMx();
+  const d = new Date(h + 'T00:00:00Z');
+  if (p === 'hoy') return [h, h];
+  if (p === 'semana') { const lun = new Date(d); lun.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return [ymd(lun), h]; }
+  if (p === 'mes') return [h.slice(0, 8) + '01', h];
+  if (p === 'mes_pasado') {
+    const ini = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1));
+    const fin = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 0));
+    return [ymd(ini), ymd(fin)];
+  }
+  if (p === '30') { const ini = new Date(d); ini.setUTCDate(d.getUTCDate() - 29); return [ymd(ini), h]; }
+  if (p === 'rango') return [filtro.desde, filtro.hasta];
+  return ['', ''];
+}
+function hayFiltros() { return !!(filtro.vendedor || filtro.periodo); }
+
+function leerFiltrosDeUrl() {
+  const u = new URLSearchParams(location.search);
+  filtro.vendedor = u.get('vendedor') || '';
+  filtro.periodo = NOMBRE_PERIODO[u.get('periodo')] ? u.get('periodo') : '';
+  filtro.desde = u.get('desde') || '';
+  filtro.hasta = u.get('hasta') || '';
+  filtro.campo = NOMBRE_CAMPO[u.get('campo')] ? u.get('campo') : 'solicitud';
+  if (u.get('grupo')) grupo = u.get('grupo');
+}
+function guardarFiltrosEnUrl() {
+  const u = new URLSearchParams();
+  if (grupo !== 'nuevas') u.set('grupo', grupo);
+  if (filtro.vendedor) u.set('vendedor', filtro.vendedor);
+  if (filtro.periodo) {
+    u.set('periodo', filtro.periodo);
+    if (filtro.periodo === 'rango') { if (filtro.desde) u.set('desde', filtro.desde); if (filtro.hasta) u.set('hasta', filtro.hasta); }
+  }
+  if (filtro.campo !== 'solicitud') u.set('campo', filtro.campo);
+  const qs = u.toString();
+  history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
+}
+
+function pintarControlesFiltro() {
+  document.getElementById('f-vendedor').value = filtro.vendedor;
+  document.getElementById('f-periodo').value = filtro.periodo;
+  document.getElementById('f-desde').value = filtro.desde;
+  document.getElementById('f-hasta').value = filtro.hasta;
+  document.getElementById('f-rango').classList.toggle('d-none', filtro.periodo !== 'rango');
+  document.querySelectorAll('#f-campo button').forEach(b => b.classList.toggle('activa', b.dataset.campo === filtro.campo));
+}
+
+function pintarVendedores(vendedores) {
+  const sel = document.getElementById('f-vendedor');
+  const html = '<option value="">Todos</option>' + vendedores.map(v => `<option value="${v.id}">${escHtml(v.nombre)} (${v.n})</option>`).join('');
+  if (sel.dataset.html !== html) { sel.innerHTML = html; sel.dataset.html = html; }
+  sel.value = filtro.vendedor;
+}
+
+function pintarFiltrosActivos(solicitudes, vendedores) {
+  const cont = document.getElementById('filtros-activos');
+  let html = '';
+  if (filtro.vendedor) {
+    const v = vendedores.find(x => String(x.id) === String(filtro.vendedor));
+    html += `<span class="mu-filtro-tag"><i class="bi bi-person"></i> ${escHtml(v ? v.nombre : 'Vendedor')}
+      <button type="button" data-quitar="vendedor" aria-label="Quitar filtro de vendedor"><i class="bi bi-x"></i></button></span>`;
+  }
+  if (filtro.periodo) {
+    let txt = NOMBRE_PERIODO[filtro.periodo];
+    if (filtro.periodo === 'rango') txt = [filtro.desde && 'del ' + fechaMx(filtro.desde), filtro.hasta && 'al ' + fechaMx(filtro.hasta)].filter(Boolean).join(' ') || 'Rango sin fechas';
+    html += `<span class="mu-filtro-tag"><i class="bi bi-calendar3"></i> ${escHtml(txt)} · por ${NOMBRE_CAMPO[filtro.campo]}
+      <button type="button" data-quitar="periodo" aria-label="Quitar filtro de periodo"><i class="bi bi-x"></i></button></span>`;
+  }
+  if (hayFiltros()) html += '<button type="button" class="mu-filtro-limpiar" data-quitar="todo">Limpiar filtros</button>';
+  const pares = solicitudes.reduce((s, m) => s + (m.cantidad || 1), 0);
+  html += `<span class="mu-filtro-total">${solicitudes.length} solicitud${solicitudes.length === 1 ? '' : 'es'} · ${pares} par${pares === 1 ? '' : 'es'}</span>`;
+  cont.innerHTML = html;
+}
+
 async function cargar() {
   const lista = document.getElementById('lista');
+  guardarFiltrosEnUrl();
   try {
-    const r = await fetch(`../api/muestras_bandeja.php?grupo=${grupo}&q=${encodeURIComponent(busqueda)}`, { cache: 'no-store' });
+    const [desde, hasta] = rangoPeriodo(filtro.periodo);
+    const qs = new URLSearchParams({ grupo, q: busqueda });
+    if (filtro.vendedor) qs.set('vendedor', filtro.vendedor);
+    if (filtro.periodo) { if (desde) qs.set('desde', desde); if (hasta) qs.set('hasta', hasta); qs.set('campo', filtro.campo); }
+    const r = await fetch(`../api/muestras_bandeja.php?${qs}`, { cache: 'no-store' });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || 'Error');
     const c = data.conteos;
-    Object.entries(c).forEach(([k, v]) => {
-      const n = document.getElementById('n-' + k); if (n) n.textContent = v;
-      const s = document.getElementById('s-' + k); if (s) s.textContent = v;
-    });
+    const cf = data.conteos_filtro || c;
+    // Chips: con los filtros aplicados. Tarjetas de arriba y saludo: siempre el total.
+    Object.entries(cf).forEach(([k, v]) => { const n = document.getElementById('n-' + k); if (n) n.textContent = v; });
+    Object.entries(c).forEach(([k, v]) => { const s = document.getElementById('s-' + k); if (s) s.textContent = v; });
     document.querySelector('.mu-stat--vencidas').classList.toggle('alerta', c.vencidas > 0);
     // «Piden cambio»: solo se ve si hay peticiones (o si está elegida).
-    document.getElementById('chip-peticiones').classList.toggle('d-none', !c.peticiones && grupo !== 'peticiones');
+    document.getElementById('chip-peticiones').classList.toggle('d-none', !cf.peticiones && grupo !== 'peticiones');
     pintarHero(c);
+    pintarVendedores(data.vendedores || []);
+    pintarFiltrosActivos(data.solicitudes, data.vendedores || []);
     if (data.solicitudes.length) {
       lista.innerHTML = data.solicitudes.map(tarjeta).join('');
     } else {
-      const [ico, tit, txt] = busqueda ? ['bi-search', 'Sin resultados', 'Nada coincide con la búsqueda.'] : VACIO[grupo];
+      const [ico, tit, txt] = busqueda ? ['bi-search', 'Sin resultados', 'Nada coincide con la búsqueda.']
+        : (hayFiltros() ? ['bi-funnel', 'Sin resultados', 'Nada coincide con los filtros. Prueba otro vendedor o periodo.'] : VACIO[grupo]);
       lista.innerHTML = `<div class="mu-vacio"><div class="mu-vacio-ico"><i class="bi ${ico}"></i></div><strong>${tit}</strong><p>${txt}</p></div>`;
     }
   } catch (e) {
@@ -257,7 +383,43 @@ document.addEventListener('v26:avisos', (e) => {
   ultimosNoLeidos = n;
 });
 setInterval(() => { if (!document.hidden) cargar(); }, 60000);
-activarGrupo('nuevas');
+
+// Eventos de los filtros.
+document.getElementById('f-vendedor').addEventListener('change', (e) => { filtro.vendedor = e.target.value; cargar(); });
+document.getElementById('f-periodo').addEventListener('change', (e) => {
+  filtro.periodo = e.target.value;
+  if (filtro.periodo === 'rango' && !filtro.desde && !filtro.hasta) {
+    const [d, h] = rangoPeriodo('mes'); filtro.desde = d; filtro.hasta = h;
+  }
+  pintarControlesFiltro(); cargar();
+});
+['f-desde', 'f-hasta'].forEach(id => document.getElementById(id).addEventListener('change', () => {
+  filtro.desde = document.getElementById('f-desde').value;
+  filtro.hasta = document.getElementById('f-hasta').value;
+  cargar();
+}));
+document.getElementById('f-campo').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  filtro.campo = b.dataset.campo; pintarControlesFiltro(); cargar();
+});
+document.getElementById('filtros-activos').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-quitar]'); if (!b) return;
+  const q = b.dataset.quitar;
+  if (q === 'vendedor' || q === 'todo') filtro.vendedor = '';
+  if (q === 'periodo' || q === 'todo') { filtro.periodo = ''; filtro.desde = ''; filtro.hasta = ''; }
+  pintarControlesFiltro(); cargar();
+});
+// Clic en el nombre del vendedor de una tarjeta: filtra por él (sin abrir la tarjeta).
+document.getElementById('lista').addEventListener('click', (e) => {
+  const v = e.target.closest('[data-vendedor]'); if (!v) return;
+  e.preventDefault(); e.stopPropagation();
+  filtro.vendedor = v.dataset.vendedor; pintarControlesFiltro(); cargar();
+  window.scrollTo({ top: document.querySelector('.mu-filtros').offsetTop - 80, behavior: 'smooth' });
+});
+
+leerFiltrosDeUrl();
+pintarControlesFiltro();
+activarGrupo(VACIO[grupo] ? grupo : 'nuevas');
 </script>
 </body>
 </html>

@@ -106,6 +106,40 @@ body.v26 { overflow-x: clip; }
 .mu-toolbar .v26-search { flex: 0 1 340px; min-width: 240px; }
 @media (max-width: 760px) { .mu-toolbar .v26-search { flex: 1 1 100%; } }
 
+/* Filtros de vendedor y periodo de la bandeja (09-nov-2026). */
+.mu-filtros {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; margin-bottom: 10px;
+  background: var(--v26-surface-solid); border: 1px solid var(--v26-border); border-radius: 16px; padding: 12px 14px;
+}
+.mu-filtro { display: flex; flex-direction: column; gap: 4px; margin: 0; flex: 0 1 220px; min-width: 160px; }
+.mu-filtro--rango { flex-basis: 300px; }
+.mu-filtro-lbl { font-size: .7rem; font-weight: 700; color: var(--v26-ink-soft); text-transform: uppercase; letter-spacing: .03em; }
+.mu-filtros .v26-select, .mu-filtros .v26-input { padding: 8px 12px; font-size: .85rem; }
+.mu-filtros .v26-select { padding-right: 30px; }
+.mu-filtro-fechas { display: flex; gap: 6px; }
+.mu-seg { display: inline-flex; border: 1px solid var(--v26-border); border-radius: var(--v26-r-pill); padding: 3px; background: rgba(20,23,31,.03); }
+.mu-seg button {
+  border: 0; background: transparent; font: inherit; font-size: .78rem; font-weight: 700; color: var(--v26-ink-soft);
+  padding: 5px 12px; border-radius: var(--v26-r-pill); cursor: pointer;
+}
+.mu-seg button.activa { background: #FDF2D8; color: #92600A; }
+@media (max-width: 760px) { .mu-filtro, .mu-filtro--rango { flex: 1 1 100%; } }
+
+.mu-filtros-activos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 14px; min-height: 26px; }
+.mu-filtro-tag {
+  display: inline-flex; align-items: center; gap: 5px; font-size: .76rem; font-weight: 700;
+  padding: 3px 4px 3px 10px; border-radius: var(--v26-r-pill); background: rgba(232,164,0,.16); color: #92600A;
+}
+.mu-filtro-tag button { border: 0; background: transparent; color: inherit; padding: 0 4px; line-height: 1; cursor: pointer; }
+.mu-filtro-limpiar { border: 0; background: transparent; font-size: .76rem; font-weight: 700; color: var(--v26-ink-soft); text-decoration: underline; cursor: pointer; }
+.mu-filtro-total { margin-left: auto; font-size: .8rem; color: var(--v26-ink-soft); }
+
+/* Nombre del vendedor en la tarjeta: clic = filtrar por él. */
+.mu-card-vend[data-vendedor] { cursor: pointer; }
+.mu-card-vend[data-vendedor] i { font-size: .7rem; opacity: .45; }
+.mu-card-vend[data-vendedor]:hover { text-decoration: underline; }
+.mu-card-vend[data-vendedor]:hover i { opacity: 1; }
+
 .mu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 @media (max-width: 860px) { .mu-grid { grid-template-columns: 1fr; } }
 .mu-grid > .v26-skel, .mu-grid > .alert { margin: 0; }
