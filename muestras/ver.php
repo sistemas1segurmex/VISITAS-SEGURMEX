@@ -103,7 +103,15 @@ if ($promesa) {
     elseif ($abierta && $dp <= 2)  $chips[] = ['ambar', 'bi-alarm', 'Promesa ' . ($dp === 0 ? 'hoy' : ($dp === 1 ? 'mañana' : 'en ' . $dp . ' días')) . ' · ' . mdFechaCorta($promesa)];
     elseif ($abierta)              $chips[] = ['', 'bi-calendar-event', 'Promesa ' . mdFechaCorta($promesa)];
 }
-if ($s['estado'] === 'embarcada' && $cerrada) $chips[] = ['verde', 'bi-check2-circle', 'Embarcada el ' . mdFechaCorta($cerrada)];
+// Fechas de cada estado, del historial (09-nov-2026). En preparación: la
+// primera vez; embarcada: la del historial (las de antes: actualizada_en).
+$fechaPrep = null; $fechaEmb = null;
+foreach ($historial as $h) {
+    if ($h['estado'] === 'en_preparacion' && !$fechaPrep) $fechaPrep = mdDesdeUtc($h['creado_en'], $tzMx);
+    if ($h['estado'] === 'embarcada') $fechaEmb = mdDesdeUtc($h['creado_en'], $tzMx);
+}
+if (in_array($s['estado'], ['en_preparacion', 'embarcada'], true) && $fechaPrep) $chips[] = ['', 'bi-box-seam', 'En preparación desde ' . mdFechaCorta($fechaPrep)];
+if ($s['estado'] === 'embarcada' && ($fechaEmb ?: $cerrada)) $chips[] = ['verde', 'bi-check2-circle', 'Embarcada el ' . mdFechaCorta($fechaEmb ?: $cerrada)];
 if ($s['estado'] === 'cancelada' && $cerrada) $chips[] = ['', 'bi-x-circle', 'Cancelada el ' . mdFechaCorta($cerrada)];
 $chips[] = ['', 'bi-boxes', textoParesMuestra($totalPares) . (count($estilosVer) > 1 ? ' · ' . count($estilosVer) . ' estilos' : '')];
 if ($s['tipo'] === 'variante') $chips[] = ['', 'bi-shuffle', count($estilosVer) > 1 ? 'Con variantes' : 'Variante'];

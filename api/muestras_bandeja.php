@@ -88,12 +88,18 @@ $orden = $grupo === 'peticiones' ? 's.peticion_en ASC'
        : (in_array($grupo, ['nuevas', 'en_preparacion'], true) ? 's.created_at ASC' : 's.actualizada_en DESC'));
 
 $stmt = $db->prepare(
-    'SELECT s.*, u.nombre AS vendedor_nombre, u.email AS vendedor_email, u.telefono AS vendedor_telefono
+    "SELECT s.*, u.nombre AS vendedor_nombre, u.email AS vendedor_email, u.telefono AS vendedor_telefono,
+            -- Fechas de cada estado, del historial (09-nov-2026). En preparación:
+            -- la primera vez (Por programar -> Ya está en PT agrega otra línea).
+            (SELECT MIN(h.creado_en) FROM muestras_solicitudes_historial h
+              WHERE h.solicitud_id = s.id AND h.estado = 'en_preparacion') AS preparacion_en,
+            (SELECT MAX(h.creado_en) FROM muestras_solicitudes_historial h
+              WHERE h.solicitud_id = s.id AND h.estado = 'embarcada') AS embarcada_en
      FROM muestras_solicitudes s
      JOIN usuarios u ON u.id = s.vendedor_id
-     WHERE ' . implode(' AND ', $where) . '
-     ORDER BY ' . $orden . '
-     LIMIT 200'
+     WHERE " . implode(' AND ', $where) . "
+     ORDER BY " . $orden . "
+     LIMIT 200"
 );
 $stmt->execute($params);
 $solicitudes = array_map('solicitudMuestraParaJson', adjuntarEstilosSolicitudesMuestra($db, $stmt->fetchAll()));
