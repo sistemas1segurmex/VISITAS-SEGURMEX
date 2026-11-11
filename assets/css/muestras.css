@@ -711,10 +711,25 @@ body.v26 { overflow-x: clip; }
 .mu-chip-sinact { border-style: dashed; }
 .mu-chip-sinact.active { border-style: solid; }
 .mu-orden { flex: 0 0 auto; }
-.mu-cli--abre { cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s; }
+.mu-cli--abre { position: relative; cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s; }
 .mu-cli--abre:hover { border-color: rgba(232,164,0,.45); background: #fff; }
 .mu-cli--abre:focus-visible { outline: 2px solid var(--v26-brand-1); outline-offset: 2px; }
-.mu-cli--abre.sel { border-color: var(--v26-brand-1); background: #fff; box-shadow: 0 0 0 3px rgba(232,164,0,.15); }
+/* Tarjeta con la ficha abierta (12-nov-2026): borde de 2 px, fondo amarillo
+   claro, barra naranja a la izquierda y etiqueta «Viendo ficha». */
+.mu-cli--abre.sel { border: 2px solid var(--v26-brand-1); background: #FFF8E6; padding: 9px 11px 9px 15px;
+  box-shadow: 0 10px 24px -12px rgba(201,136,0,.55); }
+.mu-cli--abre.sel::before { content: ""; position: absolute; left: -2px; top: -2px; bottom: -2px; width: 5px;
+  border-radius: 12px 0 0 12px; background: linear-gradient(180deg, var(--v26-brand-1), var(--v26-brand-2)); }
+.mu-cli-viendo { display: none; position: absolute; top: -10px; right: 12px; z-index: 1; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 999px; background: var(--v26-ink); color: #FFD23F; font-size: .68rem; font-weight: 800;
+  box-shadow: 0 4px 10px -4px rgba(0,0,0,.4); pointer-events: none; }
+.mu-cli--abre.sel .mu-cli-viendo { display: inline-flex; }
+/* En computadora la ficha va a un lado: velo más claro y el bloque del vendedor
+   con la tarjeta abierta queda por encima del velo para que no se apague. */
+@media (min-width: 761px) {
+  .mf-velo { background: rgba(20,23,31,.12); }
+  .mu-vend.mu-vend--ficha { position: relative; z-index: 1041; }
+}
 .mu-cli-fechas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .mu-ftag { display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 700; border-radius: 8px; padding: 3px 8px; background: #F2F0EB; color: #4B5563; max-width: 100%; }
 .mu-ftag small { font-weight: 500; color: var(--v26-ink-soft); }

@@ -237,6 +237,7 @@ function fila(c) {
   const sel = String(c.id) === String(fichaId);
   return `
     <div class="mu-cli mu-cli--abre${sel ? ' sel' : ''}" data-cliente="${c.id}" role="button" tabindex="0" aria-label="Ver ficha de ${escHtml(c.nombre)}">
+      <span class="mu-cli-viendo"><i class="bi bi-eye-fill"></i> Viendo ficha</span>
       <div class="mu-cli-top">
         <span class="mu-cli-nom">${escHtml(c.nombre)}</span>
         <span class="v26-pill v26-pill--etapa-${escHtml(etapa)}">${escHtml(ETAPAS[etapa] || etapa)}</span>
@@ -259,8 +260,9 @@ function bloqueVendedor(v, lista, i) {
   const suyos = clientes.filter(c => String(c.vendedor_id) === String(v.id));
   const cuenta = g => suyos.filter(c => grupoDe(c) === g).length;
   const abierto = !cerrados.has(String(v.id));
+  const conFicha = fichaId != null && lista.some(c => String(c.id) === String(fichaId));
   return `
-    <details class="mu-vend" data-id="${v.id}" ${abierto ? 'open' : ''} style="animation-delay:${Math.min(i, 10) * 0.04}s">
+    <details class="mu-vend${conFicha ? ' mu-vend--ficha' : ''}" data-id="${v.id}" ${abierto ? 'open' : ''} style="animation-delay:${Math.min(i, 10) * 0.04}s">
       <summary class="mu-vend-cab">
         <span class="mu-avatar">${escHtml(iniciales(v.nombre))}</span>
         <span class="mu-vend-txt">
@@ -418,7 +420,10 @@ async function abrirFicha(id) {
   const estabaCerrada = !fichaEl.classList.contains('open');
   fichaId = id;
   document.querySelectorAll('.mu-cli.sel').forEach(e => e.classList.remove('sel'));
-  document.querySelector(`.mu-cli[data-cliente="${CSS.escape(String(id))}"]`)?.classList.add('sel');
+  document.querySelectorAll('.mu-vend--ficha').forEach(e => e.classList.remove('mu-vend--ficha'));
+  const tarjeta = document.querySelector(`.mu-cli[data-cliente="${CSS.escape(String(id))}"]`);
+  tarjeta?.classList.add('sel');
+  tarjeta?.closest('.mu-vend')?.classList.add('mu-vend--ficha');
   const c = clientes.find(x => String(x.id) === String(id));
   document.getElementById('ficha-vendedor').textContent = '';
   document.getElementById('ficha-nombre').textContent = c ? c.nombre : '';
@@ -447,6 +452,7 @@ function cerrarFicha(desdeHistorial = false) {
   fichaEl.classList.remove('open'); veloEl.classList.remove('open');
   document.body.classList.remove('mf-abierta');
   document.querySelectorAll('.mu-cli.sel').forEach(e => e.classList.remove('sel'));
+  document.querySelectorAll('.mu-vend--ficha').forEach(e => e.classList.remove('mu-vend--ficha'));
   setTimeout(() => { if (!fichaId) { fichaEl.hidden = true; veloEl.hidden = true; } }, 250);
   if (!desdeHistorial && history.state && history.state.ficha) history.back();
 }
