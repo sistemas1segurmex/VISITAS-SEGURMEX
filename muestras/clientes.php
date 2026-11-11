@@ -78,8 +78,17 @@ $u = requireRole('muestras');
         <div class="v26-funnel-chip" data-grupo="clientes">Clientes <span class="n" id="n-clientes">0</span></div>
         <div class="v26-funnel-chip" data-grupo="prospectos">Prospectos <span class="n" id="n-prospectos">0</span></div>
         <div class="v26-funnel-chip" data-grupo="perdidos">Perdidos <span class="n" id="n-perdidos">0</span></div>
+        <div class="v26-funnel-chip mu-chip-sinact" id="chip-sinact" role="button" tabindex="0" aria-pressed="false"
+             title="Sin visita hecha, cotización ni muestra en los últimos 30 días"><i class="bi bi-hourglass-split"></i> Sin actividad 30 días <span class="n" id="n-sinact">0</span></div>
       </div>
       <div class="mu-cot-buscar">
+        <select id="orden" class="v26-select mu-orden" aria-label="Ordenar">
+          <option value="nombre">Ordenar: Nombre (A-Z)</option>
+          <option value="recientes">Ordenar: Registrados más recientes</option>
+          <option value="antiguos">Ordenar: Registrados más antiguos</option>
+          <option value="actividad">Ordenar: Actividad más reciente</option>
+          <option value="sinact">Ordenar: Más tiempo sin actividad</option>
+        </select>
         <select id="filtro-vendedor" class="v26-select" aria-label="Filtrar por vendedor">
           <option value="">Todos los vendedores</option>
         </select>
@@ -96,16 +105,33 @@ $u = requireRole('muestras');
     </div>
   </div>
 
+  <!-- Ficha del cliente: vive fuera de #lista para que la recarga automática no la cierre. -->
+  <div class="mf-velo" id="ficha-velo" hidden></div>
+  <aside class="mf-ficha" id="ficha" role="dialog" aria-modal="true" aria-labelledby="ficha-nombre" hidden>
+    <div class="mf-asa" aria-hidden="true"></div>
+    <div class="mf-cab">
+      <div class="mf-cab-txt">
+        <small id="ficha-vendedor"></small>
+        <h2 id="ficha-nombre"></h2>
+        <span id="ficha-etapa"></span>
+      </div>
+      <button type="button" class="mf-cerrar" id="ficha-cerrar" aria-label="Cerrar"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div id="ficha-cuerpo"></div>
+  </aside>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/avisos.js<?= assetVer(__DIR__ . '/../assets/js/avisos.js') ?>"></script>
 <script src="../assets/js/muestras.js<?= assetVer(__DIR__ . '/../assets/js/muestras.js') ?>"></script>
 <script>
 const NOMBRE = <?= json_encode(strtok($u['nombre'], ' ')) ?>;
-// Mismas etiquetas que ETAPAS_CLIENTE en vendedor.js / etiquetaEtapa() en helpers.php.
+// Mismas etiquetas que ETAPAS_CLIENTE en vendedor.js / etiquetaEtapa() en helpers.php,
+// salvo «Convertido», que en esta pantalla se lee «Cliente» (igual que las pestañas).
 const ETAPAS = {
   prospecto_agregado: 'Prospecto', contacto_establecido: 'Contacto establecido', reunion_presentacion: 'Reunión de presentación',
-  propuesta_enviada: 'Propuesta enviada', convertido: 'Convertido', perdido: 'Perdido',
+  propuesta_enviada: 'Propuesta enviada', convertido: 'Cliente', perdido: 'Perdido',
 };
+const DIAS_SIN_ACTIVIDAD = 30;
 // "Cliente" es el convertido; todo lo que sigue en el embudo cuenta como prospecto.
 function grupoDe(c) {
   const e = c.etapa || 'prospecto_agregado';
@@ -116,14 +142,86 @@ let clientes = [];
 let grupo = 'todos';
 let busqueda = '';
 let vendedorFiltro = '';
+let soloSinActividad = false;
+let orden = 'nombre';
+let fichaId = null;
 const cerrados = new Set(); // vendedores que Dulce colapsó, se respeta al recargar
 
 function iniciales(n) { return String(n || '?').trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase(); }
 function norm(s) { return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+// Acepta lo que manda Postgres: sin zona (se guarda en UTC), con zona corta
+// ("+00") o completa ("-06:00"), y con microsegundos.
+function aFecha(valor) {
+  if (!valor) return null;
+  if (valor instanceof Date) return isNaN(valor) ? null : valor;
+  let t = String(valor).trim().replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1');
+  if (/[+-]\d{2}$/.test(t)) t += ':00';
+  else if (/[+-]\d{4}$/.test(t)) t = t.slice(0, -2) + ':' + t.slice(-2);
+  else if (!/[zZ]|[+-]\d{2}:\d{2}$/.test(t)) t += 'Z';
+  const d = new Date(t);
+  return isNaN(d) ? null : d;
+}
 function fechaMx(valor) {
-  if (!valor) return '';
-  const d = new Date(String(valor).replace(' ', 'T') + (/[zZ]|[+-]\d{2}:?\d{2}$/.test(valor) ? '' : 'Z'));
-  return isNaN(d) ? '' : d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Mexico_City' });
+  const d = aFecha(valor);
+  return d ? d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Mexico_City' }) : '';
+}
+function diasDesde(d) { return Math.floor((Date.now() - d.getTime()) / 86400000); }
+function haceTexto(d) {
+  const n = diasDesde(d);
+  return n <= 0 ? 'hoy' : n === 1 ? 'ayer' : `hace ${n} días`;
+}
+
+// Lo más reciente entre visita hecha, cotización y muestra.
+function ultimaActividad(c) {
+  let ult = null;
+  [['ultima_visita', 'Visita'], ['ultima_cotizacion', 'Cotización'], ['ultima_muestra', 'Muestra']].forEach(([k, tipo]) => {
+    const d = aFecha(c[k]);
+    if (d && (!ult || d > ult.fecha)) ult = { fecha: d, tipo };
+  });
+  return ult;
+}
+// Sin visita hecha, cotización ni muestra en 30 días (contando desde que se
+// registró si nunca ha tenido actividad). Los perdidos no cuentan.
+function sinActividad(c) {
+  if (grupoDe(c) === 'perdidos') return false;
+  const ult = ultimaActividad(c);
+  const desde = ult ? ult.fecha : aFecha(c.created_at);
+  return !!desde && diasDesde(desde) >= DIAS_SIN_ACTIVIDAD;
+}
+// Para ordenar por actividad: sin actividad nunca = fecha de registro.
+function fechaActividad(c) {
+  const ult = ultimaActividad(c);
+  return (ult ? ult.fecha : aFecha(c.created_at))?.getTime() || 0;
+}
+
+function etiquetasFecha(c) {
+  const g = grupoDe(c);
+  const out = [];
+  if (g === 'perdidos') {
+    const f = fechaMx(c.etapa_actualizada_en);
+    out.push(`<span class="mu-ftag mu-ftag--perdido"><i class="bi bi-x-circle"></i> Perdido${f ? ' el ' + f : ''}${c.etapa_perdido_motivo ? ' · «' + escHtml(c.etapa_perdido_motivo) + '»' : ''}</span>`);
+    return out.join('');
+  }
+  if (g === 'clientes') {
+    if (c.cliente_desde) {
+      out.push(`<span class="mu-ftag"><i class="bi bi-trophy"></i> Cliente desde ${fechaMx(c.cliente_desde)}${c.cliente_desde_fuente === 'alta' ? ' <small>(alta en el sistema)</small>' : ''}</span>`);
+    } else {
+      out.push('<span class="mu-ftag"><i class="bi bi-trophy"></i> Cliente desde: pendiente de registro</span>');
+    }
+  } else {
+    out.push(`<span class="mu-ftag"><i class="bi bi-calendar-plus"></i> Prospecto desde ${fechaMx(c.created_at)}</span>`);
+  }
+  const ult = ultimaActividad(c);
+  if (sinActividad(c)) {
+    out.push(ult
+      ? `<span class="mu-ftag mu-ftag--sin"><i class="bi bi-hourglass-split"></i> Sin actividad ${haceTexto(ult.fecha)}</span>`
+      : '<span class="mu-ftag mu-ftag--sin"><i class="bi bi-hourglass-split"></i> Sin actividad desde que se registró</span>');
+  } else if (ult) {
+    out.push(`<span class="mu-ftag mu-ftag--act"><i class="bi bi-activity"></i> ${ult.tipo} · ${haceTexto(ult.fecha)}</span>`);
+  } else {
+    out.push('<span class="mu-ftag"><i class="bi bi-activity"></i> Sin actividad aún</span>');
+  }
+  return out.join('');
 }
 
 function fila(c) {
@@ -136,15 +234,25 @@ function fila(c) {
     lugar ? `<span><i class="bi bi-geo-alt"></i> ${escHtml(lugar)}</span>` : '',
     `<span><i class="bi bi-calendar-check"></i> ${visitas} ${visitas === 1 ? 'visita' : 'visitas'}${c.ultima_visita ? ' · última ' + fechaMx(c.ultima_visita) : ''}</span>`,
   ].filter(Boolean).join('');
+  const sel = String(c.id) === String(fichaId);
   return `
-    <div class="mu-cli">
+    <div class="mu-cli mu-cli--abre${sel ? ' sel' : ''}" data-cliente="${c.id}" role="button" tabindex="0" aria-label="Ver ficha de ${escHtml(c.nombre)}">
       <div class="mu-cli-top">
         <span class="mu-cli-nom">${escHtml(c.nombre)}</span>
         <span class="v26-pill v26-pill--etapa-${escHtml(etapa)}">${escHtml(ETAPAS[etapa] || etapa)}</span>
       </div>
       <div class="mu-cli-datos">${datos}</div>
+      <div class="mu-cli-fechas">${etiquetasFecha(c)}</div>
     </div>`;
 }
+
+const ORDENES = {
+  nombre:    (a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es', { sensitivity: 'base' }),
+  recientes: (a, b) => (aFecha(b.created_at)?.getTime() || 0) - (aFecha(a.created_at)?.getTime() || 0),
+  antiguos:  (a, b) => (aFecha(a.created_at)?.getTime() || 0) - (aFecha(b.created_at)?.getTime() || 0),
+  actividad: (a, b) => fechaActividad(b) - fechaActividad(a),
+  sinact:    (a, b) => fechaActividad(a) - fechaActividad(b),
+};
 
 // Los totales del encabezado son de toda la cartera del vendedor, no del filtro.
 function bloqueVendedor(v, lista, i) {
@@ -187,6 +295,9 @@ function pintar() {
     const n = document.getElementById('n-' + k); if (n) n.textContent = v;
     const s = document.getElementById('s-' + k); if (s) s.textContent = v;
   });
+  // El chip cuenta los sin actividad de la pestaña elegida (Todos / Clientes / Prospectos).
+  document.getElementById('n-sinact').textContent =
+    base.filter(c => (grupo === 'todos' || grupoDe(c) === grupo) && sinActividad(c)).length;
   const vendVisibles = vendedores.filter(v => !vendedorFiltro || String(v.id) === vendedorFiltro);
   document.getElementById('s-vendedores').textContent = vendVisibles.length;
   document.getElementById('hero-titulo').innerHTML =
@@ -194,29 +305,150 @@ function pintar() {
 
   const q = norm(busqueda);
   const filtrados = base.filter(c => (grupo === 'todos' || grupoDe(c) === grupo)
-    && (!q || norm(`${c.nombre} ${c.nombre_contacto} ${c.telefono} ${c.municipio} ${c.estado}`).includes(q)));
+    && (!soloSinActividad || sinActividad(c))
+    && (!q || norm(`${c.nombre} ${c.nombre_contacto} ${c.telefono} ${c.municipio} ${c.estado}`).includes(q)))
+    .sort(ORDENES[orden] || ORDENES.nombre);
   const porVendedor = new Map();
   filtrados.forEach(c => {
     const k = String(c.vendedor_id);
     if (!porVendedor.has(k)) porVendedor.set(k, []);
     porVendedor.get(k).push(c);
   });
-  // Con búsqueda o filtro de etapa se ocultan los vendedores sin coincidencias.
-  const mostrar = vendVisibles.filter(v => (!q && grupo === 'todos') || porVendedor.has(String(v.id)));
+  // Con búsqueda o filtro se ocultan los vendedores sin coincidencias.
+  const mostrar = vendVisibles.filter(v => (!q && grupo === 'todos' && !soloSinActividad) || porVendedor.has(String(v.id)));
   const cont = document.getElementById('lista');
   if (mostrar.length) {
     cont.innerHTML = mostrar.map((v, i) => bloqueVendedor(v, porVendedor.get(String(v.id)) || [], i)).join('');
   } else {
-    const [ico, tit, txt] = q ? ['bi-search', 'Sin resultados', 'Nada coincide con la búsqueda.'] : ['bi-people', 'Sin clientes', 'No hay clientes en este filtro.'];
+    const [ico, tit, txt] = q ? ['bi-search', 'Sin resultados', 'Nada coincide con la búsqueda.']
+      : soloSinActividad ? ['bi-check2-circle', 'Todos con actividad', `Nadie lleva ${DIAS_SIN_ACTIVIDAD} días o más sin actividad en este filtro.`]
+      : ['bi-people', 'Sin clientes', 'No hay clientes en este filtro.'];
     cont.innerHTML = `<div class="mu-vacio"><div class="mu-vacio-ico"><i class="bi ${ico}"></i></div><strong>${tit}</strong><p>${txt}</p></div>`;
   }
 }
 
 function activarGrupo(g) {
   grupo = g;
-  document.querySelectorAll('#filtro-grupo .v26-funnel-chip').forEach(c => c.classList.toggle('active', c.dataset.grupo === g));
+  document.querySelectorAll('#filtro-grupo .v26-funnel-chip[data-grupo]').forEach(c => c.classList.toggle('active', c.dataset.grupo === g));
   document.querySelectorAll('.mu-stat[data-grupo]').forEach(c => c.classList.toggle('activa', c.dataset.grupo === g));
   pintar();
+}
+function alternarSinActividad() {
+  soloSinActividad = !soloSinActividad;
+  const chip = document.getElementById('chip-sinact');
+  chip.classList.toggle('active', soloSinActividad);
+  chip.setAttribute('aria-pressed', String(soloSinActividad));
+  pintar();
+}
+
+// ── Ficha ────────────────────────────────────────────────────────────────
+const fichaEl = document.getElementById('ficha');
+const veloEl = document.getElementById('ficha-velo');
+let fichaPeticion = 0;
+
+function kpi(n, lbl, cls = '') { return `<div class="mf-kpi ${cls}"><b>${Number(n) || 0}</b><span>${lbl}</span></div>`; }
+function filaFecha(lbl, valor, nota = '') {
+  return `<div class="mf-fila"><span>${lbl}</span><b>${valor}${nota ? ` <small>${nota}</small>` : ''}</b></div>`;
+}
+
+function pintarFicha(d) {
+  const c = d.cliente, v = d.visitas, co = d.cotizaciones, m = d.muestras;
+  const etapa = c.etapa || 'prospecto_agregado';
+  document.getElementById('ficha-vendedor').textContent = c.vendedor_nombre || '';
+  document.getElementById('ficha-nombre').textContent = c.nombre;
+  document.getElementById('ficha-etapa').innerHTML = `<span class="v26-pill v26-pill--etapa-${escHtml(etapa)}">${escHtml(ETAPAS[etapa] || etapa)}</span>`;
+
+  let clienteDesde;
+  if (etapa !== 'convertido') clienteDesde = filaFecha('Cliente desde', '—', 'aún no es cliente');
+  else if (c.cliente_desde) clienteDesde = filaFecha('Cliente desde', fechaMx(c.cliente_desde), c.cliente_desde_fuente === 'alta' ? 'alta en el sistema' : '')
+    + (c.cliente_desde_fuente === 'aprobado' ? '<div class="mf-nota"><i class="bi bi-info-circle"></i> Fecha en que Cuentas por Cobrar aprobó su registro.</div>'
+      : '<div class="mf-nota"><i class="bi bi-info-circle"></i> Se cargó directo como cliente; es la fecha en que se dio de alta en el sistema.</div>');
+  else clienteDesde = filaFecha('Cliente desde', 'Pendiente de registro');
+
+  const ult = ultimaActividad({ ultima_visita: v.ultima, ultima_cotizacion: co.ultima, ultima_muestra: m.ultima });
+  const perdido = etapa === 'perdido'
+    ? filaFecha('Perdido', fechaMx(c.etapa_actualizada_en) || '—', c.etapa_perdido_motivo ? '· ' + escHtml(c.etapa_perdido_motivo) : '') : '';
+
+  const tope = Number(m.tope_mes) || 0, pares = Number(m.pares_mes) || 0;
+  const pct = tope ? Math.min(100, Math.round(pares / tope * 100)) : 0;
+
+  const cambios = d.recorrido.filter(r => r.tipo === 'cambio').length;
+  const pasos = d.recorrido.map(r => {
+    const txt = r.tipo === 'alta'
+      ? (r.etapa === 'Convertido' ? 'Registrado como cliente' : 'Registrado como prospecto')
+      : (r.etapa === 'Convertido' ? 'Cliente' : escHtml(r.etapa || '—'));
+    return `<li class="${r.etapa === 'Perdido' ? 'mal' : 'ok'}">${txt}<small>${fechaMx(r.fecha)}${r.motivo ? ' · «' + escHtml(r.motivo) + '»' : ''}</small></li>`;
+  }).join('');
+
+  document.getElementById('ficha-cuerpo').innerHTML = `
+    <section class="mf-sec">
+      <h3><i class="bi bi-calendar3"></i> Fechas</h3>
+      ${filaFecha(c.etapa_inicial === 'convertido' ? 'Registrado' : 'Prospecto desde', fechaMx(c.created_at) || '—')}
+      ${clienteDesde}
+      ${perdido}
+      ${filaFecha('Última actividad', ult ? fechaMx(ult.fecha) : 'Sin actividad', ult ? '· ' + ult.tipo.toLowerCase() : '')}
+    </section>
+    <section class="mf-sec">
+      <h3><i class="bi bi-calendar-check"></i> Visitas</h3>
+      <div class="mf-kpis">${kpi(v.hechas, 'Hechas', 'ok')}${kpi(v.proximas, 'Próximas')}${kpi(v.no_realizadas, 'No realizadas', 'warn')}${kpi(v.canceladas, 'Canceladas', 'bad')}</div>
+      <div class="mf-mini"><span>Última: <b>${fechaMx(v.ultima) || '—'}</b></span><span>Próxima: <b>${fechaMx(v.proxima) || '—'}</b></span></div>
+    </section>
+    <section class="mf-sec">
+      <h3><i class="bi bi-file-earmark-text"></i> Cotizaciones</h3>
+      <div class="mf-kpis">${kpi(co.total, 'Total')}${kpi(co.abiertas, 'Abiertas', 'warn')}${kpi(co.aceptadas, 'Aceptadas', 'ok')}${kpi(co.canceladas, 'Canceladas', 'bad')}</div>
+      <div class="mf-mini"><span>Primera: <b>${fechaMx(co.primera) || '—'}</b></span><span>Última: <b>${fechaMx(co.ultima) || '—'}</b></span></div>
+    </section>
+    <section class="mf-sec">
+      <h3><i class="bi bi-box-seam"></i> Muestras</h3>
+      <div class="mf-kpis">${kpi(m.total, 'Total')}${kpi(m.en_proceso, 'En proceso', 'warn')}${kpi(m.embarcadas, 'Embarcadas', 'ok')}${kpi(m.canceladas, 'Canceladas', 'bad')}</div>
+      <div class="mf-mini"><span>Pares este mes: <b>${pares} de ${tope}</b></span><span>Última: <b>${fechaMx(m.ultima) || '—'}</b></span></div>
+      <div class="mf-barra"><i style="width:${pct}%"></i></div>
+    </section>
+    <section class="mf-sec">
+      <details class="mf-reco">
+        <summary><span><i class="bi bi-signpost-split"></i> Recorrido · ${cambios ? `${cambios} ${cambios === 1 ? 'cambio' : 'cambios'} de etapa` : 'sin cambios de etapa'}</span><i class="bi bi-chevron-down"></i></summary>
+        <ul class="mf-recorrido">${pasos}</ul>
+        ${cambios ? '' : '<p class="mf-nota">Sin cambios de etapa registrados.</p>'}
+        <p class="mf-nota">Los cambios de etapa los marca el vendedor; se guardan desde el 14 de septiembre de 2026.</p>
+      </details>
+    </section>`;
+}
+
+async function abrirFicha(id) {
+  const estabaCerrada = !fichaEl.classList.contains('open');
+  fichaId = id;
+  document.querySelectorAll('.mu-cli.sel').forEach(e => e.classList.remove('sel'));
+  document.querySelector(`.mu-cli[data-cliente="${CSS.escape(String(id))}"]`)?.classList.add('sel');
+  const c = clientes.find(x => String(x.id) === String(id));
+  document.getElementById('ficha-vendedor').textContent = '';
+  document.getElementById('ficha-nombre').textContent = c ? c.nombre : '';
+  document.getElementById('ficha-etapa').innerHTML = '';
+  document.getElementById('ficha-cuerpo').innerHTML = '<div class="v26-skel"></div><div class="v26-skel"></div>';
+  fichaEl.hidden = false; veloEl.hidden = false;
+  document.body.classList.add('mf-abierta');
+  requestAnimationFrame(() => { fichaEl.classList.add('open'); veloEl.classList.add('open'); });
+  // Botón «atrás» del celular / APK cierra la ficha en lugar de salir de la página.
+  if (estabaCerrada) history.pushState({ ficha: true }, '');
+  const yo = ++fichaPeticion;
+  try {
+    const r = await fetch('../api/muestras_cliente_ficha.php?id=' + encodeURIComponent(id), { cache: 'no-store' });
+    const data = await r.json();
+    if (yo !== fichaPeticion) return;
+    if (!data.ok) throw new Error(data.error || 'Error');
+    pintarFicha(data);
+  } catch (e) {
+    if (yo !== fichaPeticion) return;
+    document.getElementById('ficha-cuerpo').innerHTML = '<div class="alert alert-danger mt-3">No se pudo cargar la ficha. Revisa tu conexión e intenta de nuevo.</div>';
+  }
+}
+function cerrarFicha(desdeHistorial = false) {
+  if (!fichaEl.classList.contains('open')) return;
+  fichaId = null; fichaPeticion++;
+  fichaEl.classList.remove('open'); veloEl.classList.remove('open');
+  document.body.classList.remove('mf-abierta');
+  document.querySelectorAll('.mu-cli.sel').forEach(e => e.classList.remove('sel'));
+  setTimeout(() => { if (!fichaId) { fichaEl.hidden = true; veloEl.hidden = true; } }, 250);
+  if (!desdeHistorial && history.state && history.state.ficha) history.back();
 }
 
 async function cargar() {
@@ -234,16 +466,35 @@ async function cargar() {
 }
 
 document.getElementById('filtro-grupo').addEventListener('click', (e) => {
-  const chip = e.target.closest('.v26-funnel-chip');
+  const chip = e.target.closest('.v26-funnel-chip[data-grupo]');
   if (chip) activarGrupo(chip.dataset.grupo);
 });
+const chipSinAct = document.getElementById('chip-sinact');
+chipSinAct.addEventListener('click', alternarSinActividad);
+chipSinAct.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarSinActividad(); } });
 document.querySelectorAll('.mu-stat[data-grupo]').forEach(b => b.addEventListener('click', () => activarGrupo(grupo === b.dataset.grupo ? 'todos' : b.dataset.grupo)));
 document.getElementById('buscar').addEventListener('input', (e) => { busqueda = e.target.value.trim(); pintar(); });
 document.getElementById('filtro-vendedor').addEventListener('change', (e) => { vendedorFiltro = e.target.value; pintar(); });
-document.getElementById('lista').addEventListener('toggle', (e) => {
+document.getElementById('orden').addEventListener('change', (e) => { orden = e.target.value; pintar(); });
+const lista = document.getElementById('lista');
+lista.addEventListener('toggle', (e) => {
   const d = e.target.closest('.mu-vend');
   if (d) d.open ? cerrados.delete(d.dataset.id) : cerrados.add(d.dataset.id);
 }, true);
+lista.addEventListener('click', (e) => {
+  if (e.target.closest('a')) return; // el teléfono sigue marcando
+  const card = e.target.closest('.mu-cli[data-cliente]');
+  if (card) abrirFicha(card.dataset.cliente);
+});
+lista.addEventListener('keydown', (e) => {
+  const card = e.target.closest('.mu-cli[data-cliente]');
+  if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrirFicha(card.dataset.cliente); }
+});
+document.getElementById('ficha-cerrar').addEventListener('click', () => cerrarFicha());
+veloEl.addEventListener('click', () => cerrarFicha());
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarFicha(); });
+window.addEventListener('popstate', () => cerrarFicha(true));
+// La recarga solo repinta la lista; la ficha queda abierta (vive fuera de #lista).
 setInterval(() => { if (!document.hidden) cargar(); }, 120000);
 cargar();
 </script>
