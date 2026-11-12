@@ -8,6 +8,7 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/coincidencias.php';
+require_once __DIR__ . '/../includes/erp_prospectos_sync.php';
 
 $u  = requireRole('vendedor');
 $db = getDB();
@@ -102,6 +103,10 @@ foreach ($campos as $etiqueta => [$antesValor, $despuesValor]) {
 }
 if ($diff) {
     registrarCambio($db, $u['id'], 'cliente', $id, 'edicion', "Editó al cliente {$nombre}", $diff);
+}
+// Mismo nombre, teléfono y contacto en ERP › Prospectos (si ya está ahí y aún no es cliente).
+if (isset($diff['Nombre']) || isset($diff['Teléfono']) || isset($diff['Contacto'])) {
+    sincronizarProspectoErpEdicion($id, $nombre, $telefono ?: null, $nombreContacto ?: null);
 }
 
 // Si con la edición ahora coincide con el cliente de otro vendedor (p. ej.

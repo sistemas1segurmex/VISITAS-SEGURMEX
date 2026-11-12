@@ -9,7 +9,7 @@ $u = requireRole('vendedor');
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nuevo cliente</title>
+<title>Agregar a mi cartera</title>
 <link rel="icon" type="image/png" href="../assets/img/Favv-Segu.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
@@ -55,7 +55,7 @@ $u = requireRole('vendedor');
         <a href="clientes.php" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis clientes" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
           <div class="hi">Cartera</div>
-          <div class="name">Nuevo cliente</div>
+          <div class="name">Agregar a mi cartera</div>
         </div>
       </div>
       <div class="v26-topbar-right">
@@ -72,9 +72,10 @@ $u = requireRole('vendedor');
           <label>¿Qué estás registrando?</label>
           <div class="v26-seg" id="seg-tipo-registro">
             <button type="button" class="v26-seg-btn active" data-tipo="prospecto"><i class="bi bi-person-plus"></i> Prospecto nuevo</button>
-            <button type="button" class="v26-seg-btn" data-tipo="cliente"><i class="bi bi-trophy"></i> Cliente ya ganado</button>
+            <button type="button" class="v26-seg-btn" data-tipo="cliente"><i class="bi bi-trophy"></i> Ya es mi cliente</button>
           </div>
           <input type="hidden" name="ya_es_cliente" id="ya-es-cliente" value="0">
+          <div class="v26-nota-erp" id="aviso-hacer-cliente">Para hacerlo cliente, entra al <strong>ERP › Ventas › Prospectos</strong> y usa <strong>Hacer cliente</strong>.</div>
           <div class="v26-nota-erp d-none" id="nota-cliente-erp"></div>
         </div>
 
@@ -83,7 +84,7 @@ $u = requireRole('vendedor');
           <select name="id_cliente_erp" id="sel-cliente-erp" class="v26-select">
             <option value="">Elige el cliente…</option>
           </select>
-          <div class="v26-ayuda-erp">Aparecen tus clientes que todavía no tienes en tu cartera.</div>
+          <div class="v26-ayuda-erp">Aparecen tus clientes que todavía no tienes en tu cartera. Si no aparece, regístralo como «Prospecto nuevo».</div>
         </div>
 
         <div class="v26-field">
@@ -114,7 +115,7 @@ $u = requireRole('vendedor');
         <?php include __DIR__ . '/../includes/form_direccion_cliente.php'; ?>
 
         <div id="msg-cliente"></div>
-        <button type="submit" class="v26-btn v26-btn-primary v26-btn-block mt-1">Guardar cliente</button>
+        <button type="submit" class="v26-btn v26-btn-primary v26-btn-block mt-1" id="btn-guardar">Guardar prospecto</button>
       </form>
     </div>
   </div>
@@ -133,7 +134,7 @@ const campoTelefono = activarCampoTelefono(document.querySelector('input[name="t
 iniciarTrackingPeriodico();
 DireccionCliente.init();
 
-// «Cliente ya ganado» (06-nov-2026): se elige de SUS clientes del ERP que
+// «Ya es mi cliente» (antes «Cliente ya ganado», 06-nov-2026): se elige de SUS clientes del ERP que
 // todavía no están en Visitas; así el registro nace ligado al ERP. Si no hay
 // ninguno, se explica que se registre como prospecto y se haga cliente desde
 // el ERP (Prospectos › Hacer cliente).
@@ -146,6 +147,10 @@ function elegirTipoRegistro(tipo) {
   document.querySelectorAll('#seg-tipo-registro .v26-seg-btn').forEach(b => b.classList.toggle('active', b.dataset.tipo === tipo));
   document.getElementById('ya-es-cliente').value = tipo === 'cliente' ? '1' : '0';
   document.getElementById('campo-cliente-erp').classList.toggle('d-none', tipo !== 'cliente');
+  // 12-nov-2026: el botón dice lo que de verdad se guarda, y el aviso de cómo
+  // hacerlo cliente solo se ve con «Prospecto nuevo».
+  document.getElementById('aviso-hacer-cliente').classList.toggle('d-none', tipo === 'cliente');
+  document.getElementById('btn-guardar').textContent = tipo === 'cliente' ? 'Agregar cliente' : 'Guardar prospecto';
   if (tipo !== 'cliente') {
     selClienteErp.value = '';
     if (nombreAutoErp && inputNombre.value === nombreAutoErp) inputNombre.value = '';
@@ -177,7 +182,7 @@ document.querySelectorAll('#seg-tipo-registro .v26-seg-btn').forEach(btn => {
     }
     if (!clientes.length) {
       elegirTipoRegistro('prospecto');
-      notaClienteErp.innerHTML = 'No tienes clientes pendientes por agregar.<br>Si ya te compra pero no aparece, regístralo como <strong>«Prospecto nuevo»</strong> y después usa <strong>«Hacer cliente»</strong> en Prospectos.';
+      notaClienteErp.innerHTML = 'No tienes clientes pendientes por agregar.<br>Si ya te compra pero no aparece, regístralo como <strong>«Prospecto nuevo»</strong>. Para hacerlo cliente, entra al <strong>ERP › Ventas › Prospectos</strong> y usa <strong>Hacer cliente</strong>.';
       notaClienteErp.classList.remove('d-none');
       return;
     }

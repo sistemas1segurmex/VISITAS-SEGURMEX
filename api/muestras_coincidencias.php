@@ -1,6 +1,6 @@
 <?php
 // Coincidencias de clientes entre vendedores, para la responsable de
-// muestras (muestras/coincidencias.php). Ver includes/coincidencias.php.
+// muestras y Sistemas (muestras/coincidencias.php). Ver includes/coincidencias.php.
 //   GET  ?estado=pendientes|resueltas  -> {grupos: [{nuevo, coincidencias: [...]}]}
 //   POST cliente_nuevo_id, decision (distintos|se_queda_existente|pasa_a_nuevo),
 //        existente_id (si no es "distintos"), nota?
@@ -9,7 +9,8 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/coincidencias.php';
 
-$u  = requireRole('muestras');
+// La responsable de muestras y, desde el 12-nov-2026, Sistemas/Dirección (admin).
+$u  = requireAnyRole(['muestras', 'admin']);
 $db = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {

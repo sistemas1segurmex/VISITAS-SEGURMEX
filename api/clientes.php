@@ -4,6 +4,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/coincidencias.php';
 require_once __DIR__ . '/../includes/cotizador_helpers.php';
+require_once __DIR__ . '/../includes/erp_prospectos_sync.php';
 
 // 'muestras' solo consulta: los clientes del vendedor que eligió en Nueva
 // cotización (?vendedor_id=). Dar de alta sigue siendo solo del vendedor.
@@ -78,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($yaEsCliente) {
         $idElegido = (int)($_POST['id_cliente_erp'] ?? 0);
         if (!$idElegido) {
-            jsonResponse(['ok' => false, 'error' => 'Elige de la lista cuál de tus clientes es. Si no aparece, regístralo como «Prospecto nuevo» y después usa «Hacer cliente» en Prospectos.'], 400);
+            jsonResponse(['ok' => false, 'error' => 'Elige de la lista cuál de tus clientes es. Si no aparece, regístralo como «Prospecto nuevo». Para hacerlo cliente, entra al ERP › Ventas › Prospectos y usa Hacer cliente.'], 400);
         }
         $vend = vendedorQueCotiza($db, $u, 0);
         $disponibles = $vend ? array_column(clientesErpSinVisitas($db, $vend), null, 'id') : [];
@@ -135,6 +136,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         jsonResponse(['ok' => true, 'id' => $nuevoId, 'en_revision' => true,
             'mensaje' => 'Se guardó, pero quedó en revisión: coincide con un cliente que ya atiende otro vendedor. La responsable de muestras lo va a validar y te avisaremos.']);
     }
+    // 12-nov-2026: el prospecto aparece en ERP › Ventas › Prospectos desde el
+    // alta (en revisión se crea hasta que se libera; ver resolverCoincidencia).
+    if (!$yaEsCliente) crearProspectoErpDeAlta($db, $nuevoId);
     jsonResponse(['ok' => true, 'id' => $nuevoId]);
 }
 

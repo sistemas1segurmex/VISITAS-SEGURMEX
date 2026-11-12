@@ -45,7 +45,7 @@ exigirClienteTrabajable($db, $clienteId); // en revisión / descartado
 // aprueba su registro en el ERP (erp/includes/prospectos.php,
 // trasladarProspectoACliente). Así el embudo y las métricas son reales.
 if ($etapa === 'convertido' && $cliente['etapa'] !== 'convertido') {
-    jsonResponse(['ok' => false, 'error' => '«Convertido» se marca solo cuando CxC aprueba su registro en el ERP. Para hacerlo cliente entra al ERP › Prospectos › Hacer cliente.'], 400);
+    jsonResponse(['ok' => false, 'error' => '«Convertido» se marca solo cuando CxC aprueba su registro en el ERP. Para hacerlo cliente, entra al ERP › Ventas › Prospectos y usa Hacer cliente.'], 400);
 }
 if ($cliente['etapa'] === 'convertido' && !empty($cliente['id_cliente_erp']) && $etapa !== 'convertido') {
     jsonResponse(['ok' => false, 'error' => 'Ya es cliente en el ERP, así que se queda como «Convertido». Si hay un error, avisa a Sistemas.'], 400);

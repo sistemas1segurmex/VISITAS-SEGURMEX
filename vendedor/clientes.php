@@ -47,8 +47,8 @@ $u = requireRole('vendedor');
     <a href="nuevo_cliente.php" class="v26-cta" data-tour="cta-cliente">
       <span class="v26-cta-icon"><i class="bi bi-person-plus"></i></span>
       <span class="v26-cta-text">
-        <strong>Nuevo cliente</strong>
-        <small>Agrega un cliente a tu cartera</small>
+        <strong>Agregar a mi cartera</strong>
+        <small>Un prospecto nuevo o un cliente que ya te compra</small>
       </span>
       <i class="bi bi-chevron-right chev"></i>
     </a>
@@ -85,7 +85,7 @@ iniciarTrackingPeriodico();
 let todosLosClientes = [];
 
 const PASOS_TOUR_CLIENTES = [
-  { selector: '[data-tour="cta-cliente"]', texto: 'Agrega un cliente o prospecto nuevo a tu cartera aquí.' },
+  { selector: '[data-tour="cta-cliente"]', texto: 'Agrega aquí un prospecto nuevo o un cliente que ya te compra.' },
   { selector: '[data-tour="buscar"]', texto: 'Busca por nombre o dirección en cualquier momento.' },
   { selector: '[data-tour="cerca"]', texto: 'Ordena tu cartera por cercanía a ti para planear tu ruta.' },
   { selector: '#lista-clientes .v26-cliente-card', texto: 'Desde cada cliente puedes llamar, mandar WhatsApp, cotizar o ver su historial.' },
@@ -284,7 +284,7 @@ async function cargarClientes() {
     document.getElementById('lista-clientes').innerHTML = `
       <div class="v26-empty">
         <div class="icon"><i class="bi bi-person-plus"></i></div>
-        <p>Aún no tienes clientes registrados.<br>Usa "Nuevo cliente" arriba para agregar el primero.</p>
+        <p>Aún no tienes clientes registrados.<br>Usa "Agregar a mi cartera" arriba para agregar el primero.</p>
       </div>`;
     return;
   }

@@ -668,7 +668,7 @@ function v26SheetEtapa(cliente) {
         <p class="text-muted small mt-2 mb-0" style="width:100%">
           ${yaEsClienteErp
             ? '<i class="bi bi-trophy"></i> Ya es cliente en el ERP.'
-            : '<i class="bi bi-info-circle"></i> «Convertido» se marca solo cuando CxC aprueba su registro en el ERP (Prospectos › Hacer cliente).'}
+            : '<i class="bi bi-info-circle"></i> «Convertido» se marca solo cuando CxC aprueba su registro. Para hacerlo cliente, entra al <strong>ERP › Ventas › Prospectos</strong> y usa <strong>Hacer cliente</strong>.'}
         </p>`;
       wrapMotivo.classList.toggle('d-none', etapaSel !== 'perdido');
       contEtapas.querySelectorAll('[data-etapa]:not([disabled])').forEach(b => b.addEventListener('click', () => { etapaSel = b.dataset.etapa; pintar(); }));

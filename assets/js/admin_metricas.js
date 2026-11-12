@@ -164,7 +164,7 @@ function pintarKpis() {
   // Clientes: lo que el vendedor dio de alta, separado por cómo lo registró.
   kpis.push(
     { ico: 'bi-trophy', l: 'Prospectos ganados', v: num(t.prospectos_ganados), d: delta(t.prospectos_ganados, ta.prospectos_ganados), s: 'prospectos que pasaron a «Convertido»', tip: 'Prospectos que el vendedor movió a la etapa «Convertido» en el periodo. Son clientes nuevos de verdad.' },
-    { ico: 'bi-building-check', l: 'Clientes existentes capturados', v: num(t.clientes_capturados), d: delta(t.clientes_capturados, ta.clientes_capturados), s: 'ya eran clientes; se dieron de alta en la app', tip: 'Registrados como «Cliente ya ganado»: clientes que Segurmex ya tenía y que el vendedor apenas capturó en la app. No son clientes nuevos.' },
+    { ico: 'bi-building-check', l: 'Clientes existentes capturados', v: num(t.clientes_capturados), d: delta(t.clientes_capturados, ta.clientes_capturados), s: 'ya eran clientes; se dieron de alta en la app', tip: 'Registrados como «Ya es mi cliente» (antes «Cliente ya ganado»): clientes que Segurmex ya tenía y que el vendedor apenas capturó en la app. No son clientes nuevos.' },
   );
   const grupos = [
     { cls: 'visitas',  ico: 'bi-geo-alt-fill',        t: 'Visitas',  ks: [0, 1, 2, 3] },

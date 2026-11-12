@@ -272,6 +272,17 @@ function resolverCoincidencia(PDO $db, array $responsable, int $clienteNuevoId, 
         return ['ok' => false, 'error' => 'No se pudo guardar la decisión'];
     }
 
+    // ERP (12-nov-2026). «Son distintos» en un alta: ahora sí aparece en
+    // ERP › Prospectos. «Pasa al nuevo vendedor»: el ERP queda igual que VISITAS.
+    require_once __DIR__ . '/erp_prospectos_sync.php';
+    $enErp = null;
+    if ($decision === 'distintos' && ($f0['origen'] ?? '') === 'alta') {
+        crearProspectoErpDeAlta($db, $clienteNuevoId);
+    } elseif ($decision === 'pasa_a_nuevo') {
+        $enErp = reasignarEnErp($db, (int)$elegida['cliente_existente_id'], (int)$elegida['vendedor_nuevo_id'],
+                                (string)($responsable['nombre'] ?? 'Sistemas'));
+    }
+
     $etiqueta = COINC_DECISIONES[$decision];
     registrarCambio($db, $rid, 'cliente', $clienteNuevoId, 'revision',
         "Coincidencia de {$f0['nuevo_nombre']} ({$f0['vendedor_nuevo_nombre']}): {$etiqueta}",
@@ -283,15 +294,21 @@ function resolverCoincidencia(PDO $db, array $responsable, int $clienteNuevoId, 
     if ($decision === 'pasa_a_nuevo') {
         registrarCambio($db, $rid, 'cliente', (int)$f0['cliente_existente_id'], 'reasignacion',
             "Reasignó a {$f0['existente_nombre']} de {$f0['vendedor_existente_nombre']} a {$f0['vendedor_nuevo_nombre']}",
-            ['Vendedor' => [$f0['vendedor_existente_nombre'], $f0['vendedor_nuevo_nombre']]]);
+            array_filter([
+                'Vendedor' => [$f0['vendedor_existente_nombre'], $f0['vendedor_nuevo_nombre']],
+                'Enlace de registro' => !empty($enErp['enlaces_cancelados']) ? [null, 'Cancelado (sin llenar)'] : null,
+                'Registro recibido' => !empty($enErp['enlaces_movidos']) ? [null, 'Pasa a ' . $f0['vendedor_nuevo_nombre']] : null,
+                'Cliente formal' => !empty($enErp['cliente_erp']) ? [null, 'Cambió de agente a ' . $f0['vendedor_nuevo_nombre']] : null,
+            ]));
     }
 
     // Aviso al vendedor que lo registró.
     $vid = (int)$f0['vendedor_nuevo_id'];
     $msgs = [
-        'distintos'          => ['Cliente liberado: ' . $f0['nuevo_nombre'], 'La responsable de muestras validó que es un cliente distinto. Ya puedes trabajarlo.'],
-        'se_queda_existente' => ['Cliente descartado: ' . $f0['nuevo_nombre'], 'La responsable de muestras determinó que este cliente ya lo atiende otro vendedor. Tu registro quedó descartado.'],
-        'pasa_a_nuevo'       => ['Cliente asignado: ' . $f0['existente_nombre'], 'La responsable de muestras te asignó este cliente. Ya aparece en tu cartera; tu registro duplicado quedó descartado.'],
+        'distintos'          => ['Cliente liberado: ' . $f0['nuevo_nombre'], 'Se validó que es un cliente distinto. Ya puedes trabajarlo.'],
+        'se_queda_existente' => ['Cliente descartado: ' . $f0['nuevo_nombre'], 'Se determinó que este cliente ya lo atiende otro vendedor. Tu registro quedó descartado.'],
+        'pasa_a_nuevo'       => ['Cliente asignado: ' . $f0['existente_nombre'], 'Se te asignó este cliente. Ya aparece en tu cartera; tu registro duplicado quedó descartado.'
+                                 . (!empty($enErp['enlaces_cancelados']) ? ' El enlace de registro que tenía se canceló: si lo quieres hacer cliente, envíale uno nuevo desde el ERP › Ventas › Prospectos.' : '')],
     ];
     [$t, $m] = $msgs[$decision];
     if ($nota) $m .= ' Nota: ' . $nota;

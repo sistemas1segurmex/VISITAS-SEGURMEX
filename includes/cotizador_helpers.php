@@ -466,18 +466,22 @@ function obtenerOCrearVendedorErp(string $email, string $nombreCompleto): int {
  * vendedor puede cotizarle seleccionando directamente al cliente real desde
  * el buscador del ERP -- fuera del alcance de esta primera versión.
  */
-function obtenerOCrearProspectoErp(int $visitasClienteId, string $nombre, ?string $telefono, string $creadoPor): array {
+function obtenerOCrearProspectoErp(int $visitasClienteId, string $nombre, ?string $telefono, string $creadoPor, ?string $contacto = null): array {
     $db = getDBErp();
     $stmt = $db->prepare('SELECT id FROM cotizador_prospectos WHERE visitas_cliente_id = ? AND convertido_a_cliente_id IS NULL');
     $stmt->execute([$visitasClienteId]);
     $id = $stmt->fetchColumn();
     if ($id) return [(int)$id, false];
 
+    // empresa = nombre, igual que el alta del ERP (cotizacion/prospectos.php),
+    // y el contacto (12-nov-2026) para que la lista del ERP no salga con «—».
+    $nombre = mb_substr($nombre, 0, 150);
     $ins = $db->prepare(
-        "INSERT INTO cotizador_prospectos (nombre, telefono, creado_por, visitas_cliente_id)
-         VALUES (?,?,?,?)"
+        "INSERT INTO cotizador_prospectos (nombre, empresa, contacto, telefono, creado_por, visitas_cliente_id)
+         VALUES (?,?,?,?,?,?)"
     );
-    $ins->execute([$nombre, $telefono ?: null, $creadoPor, $visitasClienteId]);
+    $ins->execute([$nombre, $nombre, $contacto ? mb_substr($contacto, 0, 150) : null,
+                   $telefono ? mb_substr($telefono, 0, 30) : null, mb_substr($creadoPor, 0, 80), $visitasClienteId]);
     return [(int)$db->lastInsertId(), true];
 }
 
