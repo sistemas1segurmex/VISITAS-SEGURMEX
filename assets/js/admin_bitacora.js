@@ -54,11 +54,13 @@ const ENTIDAD_INFO = {
   cotizacion: { icono: 'bi-file-earmark-text', label: 'Cotización' },
   muestra:    { icono: 'bi-box-seam',          label: 'Muestra' },
   prospeccion:{ icono: 'bi-signpost-2-fill',   label: 'Prospección' },
+  cartera:    { icono: 'bi-file-earmark-excel', label: 'Cartera (Excel)' },
 };
 const ACCION_INFO = {
   alta:    { clase: 'alta',    icono: 'bi-plus-lg' },
   edicion: { clase: 'edicion', icono: 'bi-pencil-fill' },
   baja:    { clase: 'baja',    icono: 'bi-x-lg' },
+  descarga:{ clase: 'edicion', icono: 'bi-download' },
 };
 
 // ---------------------------------------------------------------------

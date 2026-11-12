@@ -786,3 +786,17 @@ body.mf-abierta { overflow: hidden; }
   .mf-kpi span { font-size: .64rem; }
 }
 @media (prefers-reduced-motion: reduce) { .mf-ficha, .mf-velo { transition: none; } }
+
+/* ---- Exportar cartera a Excel (12-nov-2026) ----
+   «Exportar todo» en el encabezado de Clientes y «Exportar» en cada
+   vendedor. Verde Excel para que se reconozca de un vistazo. */
+.mu-btn-excel {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; text-decoration: none;
+  background: #1D6F42; border: 1px solid #1D6F42; color: #fff; font-weight: 700; font-size: .8rem;
+  border-radius: var(--v26-r-pill); padding: 7px 14px; line-height: 1.2;
+}
+.mu-btn-excel:hover, .mu-btn-excel:focus-visible { background: #185C37; border-color: #185C37; color: #fff; }
+.mu-btn-excel--o { background: #F0F8F3; border-color: #9CC9AE; color: #1D6F42; padding: 5px 11px; font-size: .76rem; }
+.mu-btn-excel--o:hover, .mu-btn-excel--o:focus-visible { background: #DFF0E6; border-color: #1D6F42; color: #185C37; }
+.mu-btn-excel--hero { position: relative; z-index: 1; padding: 9px 16px; box-shadow: 0 6px 16px -8px rgba(0,0,0,.45); }
+@media (max-width: 560px) { .mu-vend-cab .mu-btn-excel--o { order: 5; } }

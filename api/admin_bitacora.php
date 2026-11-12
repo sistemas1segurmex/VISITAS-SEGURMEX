@@ -83,7 +83,7 @@ if ($accion === 'cambios') {
     $params = [];
 
     if ($vendedorId) { $where[] = 'bc.vendedor_id = ?'; $params[] = $vendedorId; }
-    if (in_array($tipoAccion, ['alta', 'edicion', 'baja'], true)) { $where[] = 'bc.accion = ?'; $params[] = $tipoAccion; }
+    if (in_array($tipoAccion, ['alta', 'edicion', 'baja', 'descarga'], true)) { $where[] = 'bc.accion = ?'; $params[] = $tipoAccion; }
     // Filtros especiales de citas (ver sqlReprogramaciones() y
     // marcarCitasVencidas() en helpers.php): se reconocen por lo que guardan
     // en "cambios", no por una columna propia.
@@ -98,7 +98,7 @@ if ($accion === 'cambios') {
         $where[] = "bc.entidad = 'cita' AND bc.accion = 'baja' AND bc.cambios->'" . LLAVE_TIPO_CANCELACION . "'->>1 = ?";
         $params[] = CANCELACION_CLIENTE;
     }
-    if (in_array($entidad, ['cliente', 'cita', 'cotizacion', 'muestra', 'prospeccion'], true)) { $where[] = 'bc.entidad = ?'; $params[] = $entidad; }
+    if (in_array($entidad, ['cliente', 'cita', 'cotizacion', 'muestra', 'prospeccion', 'cartera'], true)) { $where[] = 'bc.entidad = ?'; $params[] = $entidad; }
     if ($q !== '') { $where[] = '(bc.resumen ILIKE ? OR u.nombre ILIKE ?)'; $params[] = "%$q%"; $params[] = "%$q%"; }
     if ($dias = filtroDias()) { $where[] = "bc.creado_en >= NOW() - $dias"; }
 
