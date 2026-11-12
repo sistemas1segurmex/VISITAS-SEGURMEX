@@ -41,6 +41,10 @@ $lat           = $_POST['lat'] ?? null;
 $lng           = $_POST['lng'] ?? null;
 $telefono      = trim($_POST['telefono'] ?? '');
 $tipoCliente   = ($_POST['tipo_cliente'] ?? '') === 'persona' ? 'persona' : 'organizacion';
+// Ya es cliente (12-nov-2026): persona/organización no se cambia desde aquí.
+if (($antes['etapa'] ?? '') === 'convertido') {
+    $tipoCliente = ($antes['tipo_cliente'] ?? 'organizacion') === 'persona' ? 'persona' : 'organizacion';
+}
 $nombreContacto = trim($_POST['nombre_contacto'] ?? '');
 
 if ($nombre === '' || $calleNumero === '') {

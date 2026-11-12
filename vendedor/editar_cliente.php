@@ -19,13 +19,42 @@ if (!empty($cliente['estado_revision'])) {
         ? 'Este cliente está en revisión por coincidir con el de otro vendedor. Podrás editarlo cuando la responsable de muestras lo valide.'
         : 'Este cliente fue descartado por duplicado.');
 }
+// 12-nov-2026: si todavía no es cliente, la pantalla dice «prospecto».
+$esCliente    = ($cliente['etapa'] ?? '') === 'convertido';
+$tituloEditar = $esCliente ? 'Editar cliente' : 'Editar prospecto';
+$tipoActual   = ($cliente['tipo_cliente'] ?? 'organizacion') === 'persona' ? 'persona' : 'organizacion';
+
+// Ya es cliente: el nombre registrado viene del ERP y no se edita aquí; el
+// vendedor solo pone su «nombre en tu cartera» y los datos de su visita.
+$razonRegistrada = '';
+if ($esCliente) {
+    try {
+        require_once __DIR__ . '/../includes/db_erp.php';
+        $dbErp = getDBErp();
+        $idErp = (int)($cliente['id_cliente_erp'] ?? 0);
+        if (!$idErp) {
+            $st = $dbErp->prepare('SELECT convertido_a_cliente_id FROM cotizador_prospectos
+                                    WHERE visitas_cliente_id = ? AND convertido_a_cliente_id IS NOT NULL
+                                    ORDER BY convertido_en DESC NULLS LAST LIMIT 1');
+            $st->execute([$clienteId]);
+            $idErp = (int)$st->fetchColumn();
+        }
+        if ($idErp) {
+            $st = $dbErp->prepare('SELECT razon_social FROM clientes WHERE id = ?');
+            $st->execute([$idErp]);
+            $razonRegistrada = trim((string)$st->fetchColumn());
+        }
+    } catch (Throwable $e) {
+        error_log('[VISITAS] editar_cliente razón social: ' . $e->getMessage());
+    }
+}
 ?>
 <!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Editar cliente</title>
+<title><?= $tituloEditar ?></title>
 <link rel="icon" type="image/png" href="../assets/img/Favv-Segu.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
@@ -55,6 +84,11 @@ if (!empty($cliente['estado_revision'])) {
   }
   .v26-resultados-busqueda button:last-child { border-bottom: none; }
   .v26-resultados-busqueda button:hover { background: rgba(245,166,35,.08); }
+  .v26-candado { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: var(--v26-r-md); background: #F3F1EC; color: #4B5563; font-size: .87rem; }
+  .v26-ya-cliente { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 6px 10px; border-radius: 10px; background: #DCFCE7; color: #166534; font-size: .78rem; font-weight: 700; }
+  .v26-ayuda-campo { margin-top: 3px; font-size: .72rem; color: #6B7280; }
+  .v26-seccion-visita { margin: 4px 0 8px; font-size: .7rem; font-weight: 800; color: #B86A00; letter-spacing: .04em; }
+  .v26-nota-erp { margin: 4px 0 10px; padding: 9px 11px; border-radius: var(--v26-r-md); background: #FFF7E6; border: 1px solid #F5D08A; font-size: .78rem; color: #6B4E00; line-height: 1.35; }
   .v26-ubicacion-badge { font-size: .68rem; font-weight: 700; text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; gap: 3px; }
   .v26-ubicacion-badge.pendiente { color: var(--v26-red); }
   .v26-ubicacion-badge.lista { color: var(--v26-green); }
@@ -67,7 +101,7 @@ if (!empty($cliente['estado_revision'])) {
         <a href="clientes.php" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis clientes" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
           <div class="hi">Cartera</div>
-          <div class="name">Editar cliente</div>
+          <div class="name"><?= $tituloEditar ?></div>
         </div>
       </div>
       <div class="v26-topbar-right">
@@ -81,6 +115,36 @@ if (!empty($cliente['estado_revision'])) {
     <div class="v26-card">
       <form id="form-cliente">
         <input type="hidden" name="id" value="<?= (int)$cliente['id'] ?>">
+        <?php if ($esCliente): ?>
+        <div class="v26-ya-cliente"><i class="bi bi-check2-circle"></i> Ya es cliente</div>
+        <div class="v26-field">
+          <label>Nombre en tu cartera</label>
+          <input type="text" name="nombre" class="v26-input" value="<?= htmlspecialchars($cliente['nombre']) ?>" required>
+          <div class="v26-ayuda-campo">Es como tú lo identificas. Las cotizaciones salen con su nombre registrado.</div>
+        </div>
+        <?php if ($razonRegistrada !== ''): ?>
+        <div class="v26-field">
+          <label>Nombre registrado</label>
+          <div class="v26-candado"><i class="bi bi-lock"></i> <span><?= htmlspecialchars($razonRegistrada) ?></span></div>
+        </div>
+        <?php endif; ?>
+        <div class="v26-field">
+          <label>¿Es persona u organización?</label>
+          <div class="v26-candado"><i class="bi bi-lock"></i> <span><?= $tipoActual === 'persona' ? 'Persona' : 'Organización' ?></span></div>
+          <input type="hidden" name="tipo_cliente" id="tipo-cliente" value="<?= $tipoActual ?>">
+        </div>
+        <div class="v26-seccion-visita">DATOS DE TU VISITA</div>
+        <div class="v26-grid-2">
+          <div class="v26-field <?= $tipoActual === 'persona' ? 'd-none' : '' ?>" id="campo-contacto">
+            <label>Contacto (opcional)</label>
+            <input type="text" name="nombre_contacto" class="v26-input" placeholder="¿Con quién tratas ahí?" value="<?= htmlspecialchars($cliente['nombre_contacto'] ?? '') ?>">
+          </div>
+          <div class="v26-field">
+            <label>Teléfono (opcional)</label>
+            <input type="text" name="telefono" class="v26-input" value="<?= htmlspecialchars($cliente['telefono'] ?? '') ?>">
+          </div>
+        </div>
+        <?php else: ?>
         <div class="v26-field">
           <label>¿Es persona u organización?</label>
           <div class="v26-seg" id="seg-tipo-cliente" style="display:flex;width:100%;">
@@ -105,9 +169,13 @@ if (!empty($cliente['estado_revision'])) {
           <label>Persona de contacto (opcional)</label>
           <input type="text" name="nombre_contacto" class="v26-input" placeholder="¿Con quién tratas ahí?" value="<?= htmlspecialchars($cliente['nombre_contacto'] ?? '') ?>">
         </div>
+        <?php endif; ?>
 
         <?php $calleNumeroPrevio = $cliente['calle_numero'] ?? ''; include __DIR__ . '/../includes/form_direccion_cliente.php'; ?>
 
+        <?php if ($esCliente): ?>
+        <div class="v26-nota-erp">Los datos formales (razón social, RFC, dirección fiscal) se actualizan en el <strong>ERP › Clientes</strong> con <strong>Solicitar actualización</strong>.</div>
+        <?php endif; ?>
         <div id="msg-cliente"></div>
         <button type="submit" class="v26-btn v26-btn-primary v26-btn-block mt-1">Guardar cambios</button>
       </form>
