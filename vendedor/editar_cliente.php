@@ -19,13 +19,15 @@ if (!empty($cliente['estado_revision'])) {
         ? 'Este cliente está en revisión por coincidir con el de otro vendedor. Podrás editarlo cuando la responsable de muestras lo valide.'
         : 'Este cliente fue descartado por duplicado.');
 }
+// 12-nov-2026: si todavía no es cliente, la pantalla dice «prospecto».
+$tituloEditar = ($cliente['etapa'] ?? '') === 'convertido' ? 'Editar cliente' : 'Editar prospecto';
 ?>
 <!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Editar cliente</title>
+<title><?= $tituloEditar ?></title>
 <link rel="icon" type="image/png" href="../assets/img/Favv-Segu.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
@@ -67,7 +69,7 @@ if (!empty($cliente['estado_revision'])) {
         <a href="clientes.php" class="v26-back v26-tip v26-tip--bottom" data-tip="Volver a mis clientes" aria-label="Volver"><i class="bi bi-arrow-left"></i></a>
         <div class="v26-greeting">
           <div class="hi">Cartera</div>
-          <div class="name">Editar cliente</div>
+          <div class="name"><?= $tituloEditar ?></div>
         </div>
       </div>
       <div class="v26-topbar-right">
