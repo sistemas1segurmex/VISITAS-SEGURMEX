@@ -1,7 +1,7 @@
 // @ts-check
 // Formulario de dirección de "Nuevo cliente" (vendedor), en celular:
 // buscar la colonia por nombre y pegar un link de Google Maps que solo trae
-// la dirección. Solo lee: nunca se toca "Guardar cliente".
+// la dirección. Solo lee: nunca se toca "Guardar prospecto".
 //
 // Correr:  npx playwright test
 const { test, expect } = require('@playwright/test');

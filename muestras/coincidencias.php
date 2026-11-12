@@ -1,11 +1,13 @@
 <?php
 // Coincidencias de clientes entre vendedores, para la responsable de muestras
-// (rol 'muestras'): decide si son distintos, se queda con quien ya lo tenía o pasa
-// a quien lo registró. Datos: api/muestras_coincidencias.php; lógica: includes/coincidencias.php.
+// (rol 'muestras') y, desde el 12-nov-2026, Sistemas/Dirección (rol 'admin'):
+// decide si son distintos, se queda con quien ya lo tenía o pasa a quien lo
+// registró. Datos: api/muestras_coincidencias.php; lógica: includes/coincidencias.php.
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
-$u = requireRole('muestras');
+$u = requireAnyRole(['muestras', 'admin']);
+$esAdmin = $u['rol'] === 'admin';
 ?>
 <!doctype html>
 <html lang="es">
@@ -24,6 +26,9 @@ $u = requireRole('muestras');
   <div class="v26-header">
     <div class="v26-topbar">
       <div class="v26-topbar-left">
+        <?php if ($esAdmin): ?>
+        <a href="../admin/index.php" class="v26-back" aria-label="Volver al panel"><i class="bi bi-arrow-left"></i></a>
+        <?php endif; ?>
         <div class="v26-greeting">
           <div class="hi">Control de Visitas</div>
           <div class="name">Coincidencias de clientes</div>
@@ -40,8 +45,10 @@ $u = requireRole('muestras');
     <nav class="mu-tabs" aria-label="Secciones">
       <div class="mu-tabs-in">
         <a class="mu-tab" href="index.php"><i class="bi bi-box-seam"></i> Muestras</a>
+        <?php if (!$esAdmin): ?>
         <a class="mu-tab" href="cotizaciones.php"><i class="bi bi-file-earmark-text"></i> Cotizaciones</a>
         <a class="mu-tab" href="clientes.php"><i class="bi bi-people"></i> Clientes</a>
+        <?php endif; ?>
         <a class="mu-tab activa" href="coincidencias.php" aria-current="page"><i class="bi bi-intersect"></i> Coincidencias</a>
       </div>
     </nav>
@@ -187,7 +194,7 @@ async function cargar() {
 const TEXTOS = {
   distintos: (n) => ({ titulo: 'Son clientes distintos', desc: `${n.vendedor} podrá trabajar a "${n.nombre}" normalmente y esta pareja ya no se volverá a marcar.`, boton: 'Liberar' }),
   se_queda_existente: (n, c) => ({ titulo: `Se queda con ${c.vendedor}`, desc: `El registro de ${n.vendedor} quedará descartado (no se borra, queda como evidencia).`, boton: 'Descartar registro nuevo' }),
-  pasa_a_nuevo: (n, c) => ({ titulo: `Pasa a ${n.vendedor}`, desc: `"${c.nombre}" pasará a la cartera de ${n.vendedor} y su registro duplicado quedará descartado. ${c.vendedor} conserva su historial y sus citas ya agendadas (${c.citas_pendientes}), pero ya no podrá reprogramarlas, agendar, cotizar ni pedir muestras.`, boton: 'Reasignar' }),
+  pasa_a_nuevo: (n, c) => ({ titulo: `Pasa a ${n.vendedor}`, desc: `"${c.nombre}" pasará a la cartera de ${n.vendedor} y su registro duplicado quedará descartado. ${c.vendedor} conserva su historial y sus citas ya agendadas (${c.citas_pendientes}), pero ya no podrá reprogramarlas, agendar, cotizar ni pedir muestras. En el ERP también pasa a ${n.vendedor}: si tenía un enlace de registro sin llenar se cancela (${n.vendedor} tendrá que enviar uno nuevo); si ya lo llenó, queda con ${n.vendedor}; y si ya es cliente, cambia de agente.`, boton: 'Reasignar' }),
 };
 
 document.getElementById('lista').addEventListener('click', async (e) => {

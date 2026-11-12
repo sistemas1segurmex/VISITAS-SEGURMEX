@@ -78,7 +78,7 @@ test.describe('Nuevo cliente: calle, número y mapa', () => {
     await page.locator('input[name="nombre"]').fill('Prueba E2E (no se guarda)');
     await elegirColoniaPila(page);
     await page.locator('#calle').fill('Calle 3');
-    await page.getByRole('button', { name: 'Guardar cliente' }).click();
+    await page.getByRole('button', { name: 'Guardar prospecto' }).click();
     await expect(page.locator('#msg-cliente')).toContainText('Falta el número');
     await expect(page.locator('#numero')).toBeFocused();
   });
@@ -88,7 +88,7 @@ test.describe('Nuevo cliente: calle, número y mapa', () => {
     await elegirColoniaPila(page);
     await page.locator('#calle').fill('Circuito Progreso');
     await page.locator('#numero').fill('102');
-    await page.getByRole('button', { name: 'Guardar cliente' }).click();
+    await page.getByRole('button', { name: 'Guardar prospecto' }).click();
     await expect(page.locator('#alerta-ubicacion')).toContainText('Estoy aquí');
 
     await page.locator('#mapa-cliente').click({ position: { x: 120, y: 120 } });
