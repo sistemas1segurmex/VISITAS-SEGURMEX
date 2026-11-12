@@ -51,6 +51,8 @@ $u = requireRole('muestras');
         <h1 class="mu-hero-titulo" id="hero-titulo">Cargando...</h1>
         <p class="mu-hero-sub">Los clientes y prospectos que tiene a su nombre cada vendedor. Solo consulta: el alta y los cambios los hace el vendedor.</p>
       </div>
+      <a class="mu-btn-excel mu-btn-excel--hero" id="btn-exportar-todo" href="../api/exportar_cartera.php?todos=1"
+         title="Descarga en Excel la cartera completa de todos los vendedores (una hoja por vendedor)"><i class="bi bi-file-earmark-excel"></i> Exportar todo</a>
     </section>
 
     <div class="mu-stats">
@@ -274,6 +276,8 @@ function bloqueVendedor(v, lista, i) {
           <span class="mu-badge mu-badge--ambar"><i class="bi bi-person-plus"></i> ${cuenta('prospectos')} prospectos</span>
           ${cuenta('perdidos') ? `<span class="mu-badge mu-badge--rojo"><i class="bi bi-x-circle"></i> ${cuenta('perdidos')}</span>` : ''}
         </span>
+        <a class="mu-btn-excel mu-btn-excel--o" href="../api/exportar_cartera.php?vendedor_id=${encodeURIComponent(v.id)}"
+           data-exportar="${v.id}" title="Descarga en Excel la cartera completa de este vendedor"><i class="bi bi-download"></i> Exportar</a>
         <i class="bi bi-chevron-down mu-vend-flecha"></i>
       </summary>
       <div class="mu-vend-cuerpo">
@@ -342,6 +346,24 @@ function alternarSinActividad() {
   chip.setAttribute('aria-pressed', String(soloSinActividad));
   pintar();
 }
+
+// ── Exportar a Excel (12-nov-2026) ───────────────────────────────────────
+// Siempre la cartera completa del vendedor (o de todos), aunque en pantalla
+// haya un filtro. Se avisa antes porque queda en la bitácora.
+function avisoExportar(ev, texto) {
+  if (!confirm(texto + '\n\nEl archivo lleva todo lo que tiene asignado hoy, aunque en pantalla haya un filtro. Queda registrado en la bitácora.')) ev.preventDefault();
+}
+document.getElementById('btn-exportar-todo').addEventListener('click', ev => {
+  avisoExportar(ev, `Se descargará en Excel la cartera de todos los vendedores (${vendedores.length} vendedores, ${clientes.length} registros), una hoja por vendedor.`);
+});
+document.getElementById('lista').addEventListener('click', ev => {
+  const a = ev.target.closest('a[data-exportar]');
+  if (!a) return;
+  ev.stopPropagation();
+  const v = vendedores.find(x => String(x.id) === a.dataset.exportar);
+  const n = clientes.filter(c => String(c.vendedor_id) === a.dataset.exportar).length;
+  avisoExportar(ev, `Se descargará en Excel la cartera completa de ${v ? v.nombre : 'este vendedor'} (${n} ${n === 1 ? 'registro' : 'registros'}).`);
+});
 
 // ── Ficha ────────────────────────────────────────────────────────────────
 const fichaEl = document.getElementById('ficha');

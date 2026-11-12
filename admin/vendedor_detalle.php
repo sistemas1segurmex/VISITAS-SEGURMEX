@@ -80,9 +80,19 @@ if (!$vendedorId) {
       <div class="v26-citas-list" id="tabla-todas"><p class="text-muted small px-2">Cargando...</p></div>
     </div>
     <div class="tab-pane fade" id="panel-clientes">
+      <div class="d-flex justify-content-end mb-2">
+        <a class="btn btn-outline-success btn-sm" href="../api/exportar_cartera.php?vendedor_id=<?= (int)$vendedorId ?>"
+           title="Descarga en Excel la cartera completa de este vendedor (clientes, prospectos y perdidos)"
+           onclick="return confirm('Se descargará en Excel la cartera completa de este vendedor (clientes, prospectos y perdidos).\n\nQueda registrado en la bitácora.')"><i class="bi bi-download"></i> Exportar cartera</a>
+      </div>
       <div id="lista-clientes-vendedor"><p class="text-muted">Cargando...</p></div>
     </div>
     <div class="tab-pane fade" id="panel-prospectos">
+      <div class="d-flex justify-content-end mb-2">
+        <a class="btn btn-outline-success btn-sm" href="../api/exportar_cartera.php?vendedor_id=<?= (int)$vendedorId ?>"
+           title="Descarga en Excel la cartera completa de este vendedor (clientes, prospectos y perdidos)"
+           onclick="return confirm('Se descargará en Excel la cartera completa de este vendedor (clientes, prospectos y perdidos).\n\nQueda registrado en la bitácora.')"><i class="bi bi-download"></i> Exportar cartera</a>
+      </div>
       <div id="lista-prospectos-vendedor"><p class="text-muted">Cargando...</p></div>
     </div>
     <div class="tab-pane fade" id="panel-prospeccion">

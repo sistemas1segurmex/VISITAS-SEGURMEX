@@ -100,6 +100,9 @@ $u = requireRole('admin');
       <p class="v26-subtitulo mb-0">Tu equipo de campo, en un vistazo</p>
     </div>
     <div class="d-flex gap-2">
+      <a class="btn btn-outline-success btn-sm" href="../api/exportar_cartera.php?todos=1"
+         title="Descarga en Excel la cartera completa (clientes y prospectos) de todos los vendedores, una hoja por vendedor"
+         onclick="return confirm('Se descargará en Excel la cartera de todos los vendedores, una hoja por vendedor.\n\nLleva todo lo que cada uno tiene asignado hoy. Queda registrado en la bitácora.')"><i class="bi bi-file-earmark-excel"></i> Exportar todo</a>
       <button class="btn btn-outline-secondary btn-sm" onclick="abrirModalInvitar()"><i class="bi bi-link-45deg"></i> Invitar vendedor</button>
       <button class="btn btn-brand btn-sm v26-btn-glow" onclick="abrirModalCrear()"><i class="bi bi-plus-lg"></i> Nuevo vendedor</button>
     </div>

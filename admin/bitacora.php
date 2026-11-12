@@ -68,6 +68,7 @@ $u = requireRole('admin');
         <option value="reprogramacion">Citas reprogramadas</option>
         <option value="no_realizada_auto">Citas no realizadas automáticas</option>
         <option value="cancelacion_cliente">Citas que canceló el cliente</option>
+        <option value="descarga">Exportaciones de cartera</option>
       </select>
       <select class="v26-select" id="filtro-cambios-entidad">
         <option value="">Todas las entidades</option>
@@ -76,6 +77,7 @@ $u = requireRole('admin');
         <option value="cotizacion">Cotizaciones</option>
         <option value="muestra">Muestras</option>
         <option value="prospeccion">Prospección</option>
+        <option value="cartera">Cartera (Excel)</option>
       </select>
       <select class="v26-select" id="filtro-cambios-dias">
         <option value="7">Últimos 7 días</option>
