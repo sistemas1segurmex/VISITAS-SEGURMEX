@@ -687,10 +687,11 @@ window.DireccionCliente = (function () {
   }
 
   // Filas SEPOMEX { estado, municipio, asentamiento, cp } para un CP o un nombre.
-  async function consultarColonias(texto) {
+  async function consultarColonias(texto, estado = '') {
     const url = /^\d{5}$/.test(texto)
       ? '../api/sepomex.php?tipo=cp&cp=' + encodeURIComponent(texto)
-      : '../api/sepomex.php?tipo=buscar_colonia&q=' + encodeURIComponent(texto);
+      : '../api/sepomex.php?tipo=buscar_colonia&q=' + encodeURIComponent(texto) +
+        (estado ? '&estado=' + encodeURIComponent(estado) : '');
     const res = await fetch(url);
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Error al consultar');
@@ -790,7 +791,7 @@ window.DireccionCliente = (function () {
 
   // Desde Google llega un CP y quizá el nombre de la colonia: si coincide
   // con el catálogo se elige sola; si no, se ofrecen las del CP.
-  async function coloniaDesdeCp(cp, coloniaTexto) {
+  async function coloniaDesdeCp(cp, coloniaTexto, automatico = false) {
     let filas;
     try { filas = await consultarColonias(cp); } catch (e) { return; }
     if (!filas.length || valores().colonia) return;
@@ -798,6 +799,13 @@ window.DireccionCliente = (function () {
     const match = objetivo && (filas.find(c => normalizar(c.asentamiento) === objetivo) ||
       filas.find(c => normalizar(c.asentamiento).includes(objetivo) || objetivo.includes(normalizar(c.asentamiento))));
     if (match || filas.length === 1) { fijarColonia(match || filas[0], false); return; }
+    if (automatico) {
+      // Sin nombre que coincida: se elige la primera del CP para que el
+      // vendedor no tenga que capturar nada; puede corregirla con "Cambiar".
+      await fijarColonia(filas[0], false);
+      nota('nota-cp', 'Colonia tomada automáticamente del mapa. Si no es la correcta, toca "Cambiar".', 'info');
+      return;
+    }
     ofrecerColonias(filas, `Elige la colonia (CP ${cp})`);
   }
 
@@ -809,36 +817,61 @@ window.DireccionCliente = (function () {
     if (!data) return;
     const a = data.address || {};
 
-    const calle = a.road || a.pedestrian || '';
-    const numero = a.house_number || '';
-    if (calle && !calleEditadaAMano) ponerCalleYNumero(calle, campoNumero.value.trim() ? null : numero);
+    // Calle y número también se llenan solos: si el mapa no trae nombre de
+    // calle (caminos de rancherías) se deja "Calle sin nombre" y "S/N".
+    const lugar = a.village || a.hamlet || a.suburb || a.neighbourhood || '';
+    const calle = a.road || a.pedestrian || (lugar ? `Calle sin nombre, ${lugar}` : 'Calle sin nombre');
+    const numero = a.house_number || 'S/N';
+    if (!calleEditadaAMano) ponerCalleYNumero(calle, (campoNumero.value.trim() && campoNumero.value.trim() !== 'S/N') ? null : numero);
 
     // Si ya eligió colonia no se le cambia: SEPOMEX es más confiable que
     // lo que diga OpenStreetMap.
     if (valores().colonia) return;
 
     await estadosListos;
+
+    // Zonas poco mapeadas (rancherías, pueblos): OSM trae el pueblo
+    // (village/hamlet) y el CP pero no la colonia. Con el CP se busca en el
+    // catálogo SEPOMEX: si hay una sola colonia se elige sola, si hay varias
+    // se ofrece la lista.
+    const pueblo = a.village || a.hamlet || a.suburb || a.neighbourhood || a.town || '';
+    const respaldoPorCp = async () => {
+      if (valores().colonia) return;
+      if (/^\d{5}$/.test(a.postcode || '')) {
+        await coloniaDesdeCp(a.postcode, pueblo, true);
+      }
+      // CP ausente o fuera del catálogo: se busca el nombre del pueblo.
+      if (!valores().colonia && pueblo.length >= 3) {
+        try {
+          const filas = await consultarColonias(pueblo, a.state);
+          if (filas.length && !valores().colonia) await fijarColonia(filas[0], false);
+        } catch (e) { /* queda para captura manual */ }
+      }
+    };
+
     const estadoMatch = buscarCoincidencia(selectEstado, a.state);
-    if (!estadoMatch) return;
+    if (!estadoMatch) return respaldoPorCp();
     if (selectEstado.value !== estadoMatch || selectMunicipio.disabled) {
       selectEstado.value = estadoMatch;
       await cargarMunicipios(estadoMatch);
     }
     const municipioTexto = a.county || a.city_district || a.municipality || a.town || a.city || '';
     const municipioMatch = buscarCoincidencia(selectMunicipio, municipioTexto);
-    if (!municipioMatch) return;
+    if (!municipioMatch) return respaldoPorCp();
     if (selectMunicipio.value !== municipioMatch || selectColonia.disabled) {
       selectMunicipio.value = municipioMatch;
       await cargarColonias(estadoMatch, municipioMatch);
     }
-    const coloniaTexto = a.suburb || a.neighbourhood || a.quarter || a.residential || '';
+    const coloniaTexto = a.suburb || a.neighbourhood || a.quarter || a.residential || a.village || a.hamlet || '';
     const coloniaMatch = buscarCoincidencia(selectColonia, coloniaTexto);
     if (coloniaMatch) {
       selectColonia.value = coloniaMatch;
       const opt = selectColonia.selectedOptions[0];
       if (opt && opt.dataset.cp) inputCp.value = opt.dataset.cp;
       mostrarResumenColonia();
+      return;
     }
+    return respaldoPorCp();
   }
 
   // ------------------------------------------------------------------
