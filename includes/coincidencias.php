@@ -13,6 +13,17 @@
  *
  * La revisión DENTRO de la cartera del propio vendedor sigue en
  * api/verificar_duplicado.php (solo avisa, no bloquea).
+ *
+ * 18-nov-2026: también se compara contra lo de las vendedoras INTERNAS en el
+ * ERP (public.clientes y public.cotizador_prospectos que no vienen de Visitas;
+ * migración 20261118120000_coincidencias_con_erp.sql). Mismo teléfono, mismo
+ * cliente del ERP, o nombre parecido con el mismo C.P./municipio (o sin
+ * dirección en el ERP para comparar). Se decide aquí igual; con «Pasa al
+ * vendedor que lo registró» el registro del ERP pasa a este vendedor y su
+ * cliente de Visitas queda ligado (no se descarta). Lo que registran las
+ * internas en el ERP se decide en el ERP (Ventas › Coincidencias).
+ * Se lee con la MISMA conexión (esquema public): si algo del ERP falla, el
+ * alta en Visitas sigue.
  */
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/muestras.php'; // responsablesMuestras, crearAviso, correo
@@ -21,6 +32,8 @@ require_once __DIR__ . '/fcm.php';
 const COINC_RADIO_METROS       = 150;  // GPS "mismo lugar"
 const COINC_RADIO_SIN_MUNICIPIO = 2000; // si a alguno le falta municipio, se usa cercanía como "misma zona"
 const COINC_SIMILITUD_NOMBRE   = 80;   // 0-100, similar_text()
+
+const COINC_TIPOS_ERP = ['erp_cliente' => 'Cliente del ERP', 'erp_prospecto' => 'Prospecto del ERP'];
 
 const COINC_DECISIONES = [
     'distintos'          => 'Son clientes distintos',
@@ -132,6 +145,7 @@ function buscarCoincidenciasOtrosVendedores(PDO $db, int $vendedorId, array $d, 
 
         if ($razones) {
             $out[] = [
+                'tipo'            => 'visitas',
                 'id'              => (int)$c['id'],
                 'nombre'          => $c['nombre'],
                 'direccion'       => $c['direccion'],
@@ -142,7 +156,126 @@ function buscarCoincidenciasOtrosVendedores(PDO $db, int $vendedorId, array $d, 
             ];
         }
     }
+    // Contra lo de las vendedoras internas en el ERP (18-nov-2026).
+    foreach (coincBuscarEnErp($db, $vendedorId, $nombre, $tel, $mun, $cp, $idErp, $excluirClienteId) as $e) $out[] = $e;
     return $out;
+}
+
+/** usuarios.id del ERP (public) de un vendedor de Visitas, por correo. null si no tiene. */
+function coincUsuarioErp(PDO $db, int $vendedorId): ?array {
+    $st = $db->prepare("SELECT u.id, u.usuario, u.email, TRIM(CONCAT(u.nombre, ' ', COALESCE(u.apellidos, ''))) AS nombre
+                          FROM public.usuarios u JOIN usuarios v ON LOWER(TRIM(u.email)) = LOWER(TRIM(v.email))
+                         WHERE v.id = ? ORDER BY u.id LIMIT 1");
+    $st->execute([$vendedorId]);
+    return $st->fetch() ?: null;
+}
+
+/**
+ * Clientes y prospectos del ERP (no de Visitas) de OTRO vendedor que parecen
+ * el mismo. $nombre ya normalizado (coincNormalizarNombre), $mun normalizado
+ * (coincNormalizarTexto), $cp solo dígitos. Nunca truena el alta: cualquier
+ * falla del lado del ERP se anota y devuelve [].
+ */
+function coincBuscarEnErp(PDO $db, int $vendedorId, string $nombre, string $tel, string $mun, string $cp, int $idErp, int $excluirClienteId): array {
+    $out = [];
+    $enTx = $db->inTransaction();
+    if ($enTx) $db->exec('SAVEPOINT sp_coinc_erp');
+    try {
+        $yo = coincUsuarioErp($db, $vendedorId);
+        $yoId = $yo ? (int)$yo['id'] : 0;
+
+        // Parejas ya marcadas «Son distintos» (aquí o, al revés, en el ERP).
+        $distintos = [];
+        if ($excluirClienteId) {
+            $st = $db->prepare("SELECT existente_tipo, existente_erp_id FROM coincidencias_clientes
+                                 WHERE estado = 'distintos' AND cliente_nuevo_id = ? AND existente_erp_id IS NOT NULL");
+            $st->execute([$excluirClienteId]);
+            foreach ($st->fetchAll() as $r) $distintos[$r['existente_tipo'] . ':' . $r['existente_erp_id']] = true;
+            if ($enTx) $db->exec('SAVEPOINT sp_coinc_erp2');
+            try {
+                $st = $db->prepare("SELECT nuevo_tipo, nuevo_id FROM public.coincidencias_vendedores
+                                     WHERE estado = 'distintos' AND existente_tipo = 'visitas' AND existente_id = ?");
+                $st->execute([$excluirClienteId]);
+                foreach ($st->fetchAll() as $r) {
+                    if ($r['nuevo_tipo'] === 'prospecto') $distintos['erp_prospecto:' . $r['nuevo_id']] = true;
+                }
+                if ($enTx) $db->exec('RELEASE SAVEPOINT sp_coinc_erp2');
+            } catch (Throwable $e) {
+                if ($enTx) $db->exec('ROLLBACK TO SAVEPOINT sp_coinc_erp2');   // el ERP aún sin su migración 20261118120000
+            }
+        }
+
+        $cands = [];
+        $st = $db->prepare("
+            SELECT 'erp_cliente' AS tipo, c.id, c.razon_social AS nombre, c.nombre_comercial AS nombre2,
+                   (to_jsonb(c) ->> 'telefono') AS tel1, (to_jsonb(c) ->> 'whatsapp') AS tel2,
+                   c.cp, m.nombre AS municipio, c.colonia, c.id_agente AS dueno_id
+              FROM public.clientes c
+              LEFT JOIN public.municipios m ON m.id = c.id_municipio
+             WHERE c.estatus = 1 AND c.id_agente IS DISTINCT FROM ?
+               AND NOT EXISTS (SELECT 1 FROM clientes vc WHERE vc.id_cliente_erp = c.id
+                                  AND vc.estado_revision IS DISTINCT FROM 'descartado')");
+        $st->execute([$yoId ?: null]);
+        $cands = $st->fetchAll();
+        $st = $db->query("
+            SELECT 'erp_prospecto' AS tipo, p.id, COALESCE(NULLIF(p.empresa, ''), p.nombre) AS nombre, p.nombre AS nombre2,
+                   p.telefono AS tel1, NULL AS tel2, p.cp, (to_jsonb(p) ->> 'municipio') AS municipio, p.colonia,
+                   COALESCE(
+                     (SELECT u.id FROM public.usuarios u
+                       WHERE u.usuario = p.creado_por OR LOWER(TRIM(CONCAT(u.nombre, ' ', u.apellidos))) = LOWER(TRIM(p.creado_por))
+                       ORDER BY (u.usuario = p.creado_por) DESC, u.id LIMIT 1),
+                     (SELECT ct.id_vendedor FROM public.cotizaciones ct WHERE ct.id_prospecto = p.id ORDER BY ct.id DESC LIMIT 1)) AS dueno_id
+              FROM public.cotizador_prospectos p
+             WHERE p.convertido_a_cliente_id IS NULL AND p.visitas_cliente_id IS NULL
+               AND (to_jsonb(p) ->> 'estado_revision') IS DISTINCT FROM 'descartado'");
+        foreach ($st->fetchAll() as $r) {
+            if ($yoId && (int)$r['dueno_id'] === $yoId) continue;
+            $cands[] = $r;
+        }
+
+        $nombresVend = [];
+        foreach ($db->query("SELECT id, TRIM(CONCAT(nombre, ' ', COALESCE(apellidos, ''))) AS n FROM public.usuarios")->fetchAll() as $u) {
+            $nombresVend[(int)$u['id']] = $u['n'];
+        }
+
+        foreach ($cands as $c) {
+            if (isset($distintos[$c['tipo'] . ':' . $c['id']])) continue;
+            $razones = [];
+            $telsC = array_filter([normalizarTelefonoMx($c['tel1'] ?? '') ?: '', normalizarTelefonoMx($c['tel2'] ?? '') ?: '']);
+            if ($tel !== '' && in_array($tel, $telsC, true)) $razones[] = 'Mismo teléfono';
+            if ($c['tipo'] === 'erp_cliente' && $idErp && (int)$c['id'] === $idErp) $razones[] = 'Mismo cliente del ERP';
+
+            $parecido = false;
+            foreach ([$c['nombre'], $c['nombre2']] as $n2) {
+                if ($n2 !== null && coincNombresParecidos($nombre, coincNormalizarNombre($n2))) { $parecido = true; break; }
+            }
+            if ($parecido) {
+                $cpC  = preg_replace('/\D+/', '', (string)($c['cp'] ?? ''));
+                $munC = coincNormalizarTexto($c['municipio'] ?? '');
+                if ($cp !== '' && $cp === $cpC)         $razones[] = 'Nombre parecido y mismo C.P.';
+                elseif ($mun !== '' && $mun === $munC)  $razones[] = 'Nombre parecido y mismo municipio';
+                elseif ($cpC === '' && $munC === '')    $razones[] = 'Nombre parecido (en el ERP no tiene dirección para comparar)';
+            }
+            if (!$razones) continue;
+            $duenoId = $c['dueno_id'] !== null ? (int)$c['dueno_id'] : 0;
+            $out[] = [
+                'tipo'            => $c['tipo'],
+                'id'              => (int)$c['id'],
+                'nombre'          => (string)$c['nombre'],
+                'direccion'       => trim(implode(', ', array_filter([(string)($c['colonia'] ?? ''), (string)($c['municipio'] ?? ''), (string)($c['cp'] ?? '')]))) ?: 'Sin dirección en el ERP',
+                'municipio'       => (string)($c['municipio'] ?? ''),
+                'vendedor_id'     => null,
+                'vendedor_nombre' => $nombresVend[$duenoId] ?? 'Sin vendedor',
+                'razon'           => implode(' · ', $razones) . ' (' . COINC_TIPOS_ERP[$c['tipo']] . ')',
+            ];
+        }
+        if ($enTx) $db->exec('RELEASE SAVEPOINT sp_coinc_erp');
+    } catch (Throwable $e) {
+        if ($enTx) $db->exec('ROLLBACK TO SAVEPOINT sp_coinc_erp');
+        error_log('[VISITAS] coincBuscarEnErp: ' . $e->getMessage());
+        return [];
+    }
+    return array_slice($out, 0, 5);
 }
 
 /**
@@ -157,11 +290,15 @@ function registrarCoincidencias(PDO $db, array $vendedor, int $clienteId, string
     $db->prepare("UPDATE coincidencias_clientes SET estado = 'anulada', resuelto_en = NOW() WHERE cliente_nuevo_id = ? AND estado = 'pendiente'")
        ->execute([$clienteId]);
     $ins = $db->prepare(
-        'INSERT INTO coincidencias_clientes (cliente_nuevo_id, cliente_existente_id, vendedor_nuevo_id, vendedor_existente_id, razon, origen)
-         VALUES (?,?,?,?,?,?)'
+        'INSERT INTO coincidencias_clientes (cliente_nuevo_id, cliente_existente_id, vendedor_nuevo_id, vendedor_existente_id, razon, origen,
+                                             existente_tipo, existente_erp_id, vendedor_existente_nombre)
+         VALUES (?,?,?,?,?,?,?,?,?)'
     );
     foreach ($coincidencias as $c) {
-        $ins->execute([$clienteId, $c['id'], $vendedor['id'], $c['vendedor_id'], mb_substr($c['razon'], 0, 255), $origen]);
+        $esErp = ($c['tipo'] ?? 'visitas') !== 'visitas';
+        $ins->execute([$clienteId, $esErp ? null : $c['id'], $vendedor['id'], $esErp ? null : $c['vendedor_id'],
+                       mb_substr($c['razon'], 0, 255), $origen,
+                       $c['tipo'] ?? 'visitas', $esErp ? $c['id'] : null, mb_substr((string)$c['vendedor_nombre'], 0, 150)]);
     }
     registrarCambio($db, (int)$vendedor['id'], 'cliente', $clienteId, 'revision',
         "El cliente {$nombreCliente} quedó en revisión: coincide con cliente(s) de otro vendedor",
@@ -217,18 +354,26 @@ function exigirClienteTrabajable(PDO $db, int $clienteId): void {
  * Resuelve TODAS las coincidencias pendientes de un cliente nuevo.
  * $decision: distintos | se_queda_existente | pasa_a_nuevo
  * $existenteId: obligatorio para se_queda_existente / pasa_a_nuevo.
+ * $existenteTipo (18-nov-2026): 'visitas' (id de visitas.clientes) |
+ *   'erp_cliente' | 'erp_prospecto' (id del ERP).
  */
-function resolverCoincidencia(PDO $db, array $responsable, int $clienteNuevoId, string $decision, int $existenteId = 0, string $nota = ''): array {
+function resolverCoincidencia(PDO $db, array $responsable, int $clienteNuevoId, string $decision, int $existenteId = 0, string $nota = '', string $existenteTipo = 'visitas'): array {
     if (!isset(COINC_DECISIONES[$decision])) return ['ok' => false, 'error' => 'Decisión no válida'];
 
     $st = $db->prepare(
-        "SELECT cc.*, cn.nombre AS nuevo_nombre, ce.nombre AS existente_nombre,
-                un.nombre AS vendedor_nuevo_nombre, ue.nombre AS vendedor_existente_nombre
+        "SELECT cc.*, cn.nombre AS nuevo_nombre,
+                COALESCE(ce.nombre,
+                         CASE cc.existente_tipo
+                           WHEN 'erp_cliente'   THEN (SELECT c.razon_social FROM public.clientes c WHERE c.id = cc.existente_erp_id)
+                           WHEN 'erp_prospecto' THEN (SELECT COALESCE(NULLIF(p.empresa, ''), p.nombre) FROM public.cotizador_prospectos p WHERE p.id = cc.existente_erp_id)
+                         END) AS existente_nombre,
+                un.nombre AS vendedor_nuevo_nombre,
+                COALESCE(ue.nombre, cc.vendedor_existente_nombre) AS vendedor_existente_nombre
          FROM coincidencias_clientes cc
          JOIN clientes cn ON cn.id = cc.cliente_nuevo_id
-         JOIN clientes ce ON ce.id = cc.cliente_existente_id
+         LEFT JOIN clientes ce ON ce.id = cc.cliente_existente_id
          JOIN usuarios un ON un.id = cc.vendedor_nuevo_id
-         JOIN usuarios ue ON ue.id = cc.vendedor_existente_id
+         LEFT JOIN usuarios ue ON ue.id = cc.vendedor_existente_id
          WHERE cc.cliente_nuevo_id = ? AND cc.estado = 'pendiente'"
     );
     $st->execute([$clienteNuevoId]);
@@ -237,12 +382,19 @@ function resolverCoincidencia(PDO $db, array $responsable, int $clienteNuevoId, 
 
     $elegida = null;
     if ($decision !== 'distintos') {
-        foreach ($filas as $f) if ((int)$f['cliente_existente_id'] === $existenteId) $elegida = $f;
+        foreach ($filas as $f) {
+            $tipoF = $f['existente_tipo'] ?? 'visitas';
+            $idF   = $tipoF === 'visitas' ? (int)$f['cliente_existente_id'] : (int)$f['existente_erp_id'];
+            if ($tipoF === $existenteTipo && $idF === $existenteId) $elegida = $f;
+        }
         if (!$elegida) return ['ok' => false, 'error' => 'Elige con cuál cliente existente coincide'];
     }
     $f0 = $elegida ?: $filas[0];
     $nota = mb_substr(trim($nota), 0, 500) ?: null;
     $rid = (int)$responsable['id'];
+    $esErp = $elegida && ($elegida['existente_tipo'] ?? 'visitas') !== 'visitas';
+    $quienNombre = (string)($responsable['nombre'] ?? 'Sistemas');
+    $enErpDirecto = [];   // lo que se hizo en el ERP cuando lo existente era del ERP
 
     $db->beginTransaction();
     try {
@@ -255,9 +407,16 @@ function resolverCoincidencia(PDO $db, array $responsable, int $clienteNuevoId, 
                ->execute([$decision, $nota, $rid, $elegida['id']]);
             $db->prepare("UPDATE coincidencias_clientes SET estado = 'anulada', resuelto_por = ?, resuelto_en = NOW() WHERE cliente_nuevo_id = ? AND estado = 'pendiente'")
                ->execute([$rid, $clienteNuevoId]);
-            // El registro nuevo no se borra: queda como evidencia.
-            $db->prepare("UPDATE clientes SET estado_revision = 'descartado' WHERE id = ?")->execute([$clienteNuevoId]);
-            if ($decision === 'pasa_a_nuevo') {
+            if ($decision === 'pasa_a_nuevo' && $esErp) {
+                // Lo existente es del ERP (de una vendedora interna): pasa a este
+                // vendedor y su cliente de Visitas queda ligado (no se descarta).
+                $enErpDirecto = coincPasarRegistroErp($db, $elegida, $clienteNuevoId, (int)$elegida['vendedor_nuevo_id'], $quienNombre);
+                $db->prepare("UPDATE clientes SET estado_revision = NULL WHERE id = ?")->execute([$clienteNuevoId]);
+            } else {
+                // El registro nuevo no se borra: queda como evidencia.
+                $db->prepare("UPDATE clientes SET estado_revision = 'descartado' WHERE id = ?")->execute([$clienteNuevoId]);
+            }
+            if ($decision === 'pasa_a_nuevo' && !$esErp) {
                 // El cliente (con su historial) cambia de vendedor. Las citas,
                 // cotizaciones y muestras pasadas o ya agendadas se quedan a
                 // nombre del vendedor anterior (tienen su propio vendedor_id).
@@ -269,7 +428,7 @@ function resolverCoincidencia(PDO $db, array $responsable, int $clienteNuevoId, 
     } catch (Throwable $e) {
         $db->rollBack();
         error_log('[VISITAS] resolverCoincidencia: ' . $e->getMessage());
-        return ['ok' => false, 'error' => 'No se pudo guardar la decisión'];
+        return ['ok' => false, 'error' => $e instanceof DomainException ? $e->getMessage() : 'No se pudo guardar la decisión'];
     }
 
     // ERP (12-nov-2026). «Son distintos» en un alta: ahora sí aparece en
@@ -278,9 +437,10 @@ function resolverCoincidencia(PDO $db, array $responsable, int $clienteNuevoId, 
     $enErp = null;
     if ($decision === 'distintos' && ($f0['origen'] ?? '') === 'alta') {
         crearProspectoErpDeAlta($db, $clienteNuevoId);
-    } elseif ($decision === 'pasa_a_nuevo') {
-        $enErp = reasignarEnErp($db, (int)$elegida['cliente_existente_id'], (int)$elegida['vendedor_nuevo_id'],
-                                (string)($responsable['nombre'] ?? 'Sistemas'));
+    } elseif ($decision === 'pasa_a_nuevo' && !$esErp) {
+        $enErp = reasignarEnErp($db, (int)$elegida['cliente_existente_id'], (int)$elegida['vendedor_nuevo_id'], $quienNombre);
+    } elseif ($decision === 'pasa_a_nuevo' && $esErp) {
+        $enErp = $enErpDirecto;
     }
 
     $etiqueta = COINC_DECISIONES[$decision];
@@ -288,11 +448,12 @@ function resolverCoincidencia(PDO $db, array $responsable, int $clienteNuevoId, 
         "Coincidencia de {$f0['nuevo_nombre']} ({$f0['vendedor_nuevo_nombre']}): {$etiqueta}",
         array_filter([
             'Decisión'     => [null, $etiqueta],
-            'Cliente existente' => $decision !== 'distintos' ? [null, $f0['existente_nombre'] . ' (' . $f0['vendedor_existente_nombre'] . ')'] : null,
+            'Cliente existente' => $decision !== 'distintos' ? [null, $f0['existente_nombre'] . ' (' . $f0['vendedor_existente_nombre'] . ')'
+                                   . ($esErp ? ' — ' . (COINC_TIPOS_ERP[$f0['existente_tipo']] ?? 'ERP') : '')] : null,
             'Nota'         => $nota ? [null, $nota] : null,
         ]));
     if ($decision === 'pasa_a_nuevo') {
-        registrarCambio($db, $rid, 'cliente', (int)$f0['cliente_existente_id'], 'reasignacion',
+        registrarCambio($db, $rid, 'cliente', $esErp ? $clienteNuevoId : (int)$f0['cliente_existente_id'], 'reasignacion',
             "Reasignó a {$f0['existente_nombre']} de {$f0['vendedor_existente_nombre']} a {$f0['vendedor_nuevo_nombre']}",
             array_filter([
                 'Vendedor' => [$f0['vendedor_existente_nombre'], $f0['vendedor_nuevo_nombre']],
@@ -307,15 +468,92 @@ function resolverCoincidencia(PDO $db, array $responsable, int $clienteNuevoId, 
     $msgs = [
         'distintos'          => ['Cliente liberado: ' . $f0['nuevo_nombre'], 'Se validó que es un cliente distinto. Ya puedes trabajarlo.'],
         'se_queda_existente' => ['Cliente descartado: ' . $f0['nuevo_nombre'], 'Se determinó que este cliente ya lo atiende otro vendedor. Tu registro quedó descartado.'],
-        'pasa_a_nuevo'       => ['Cliente asignado: ' . $f0['existente_nombre'], 'Se te asignó este cliente. Ya aparece en tu cartera; tu registro duplicado quedó descartado.'
-                                 . (!empty($enErp['enlaces_cancelados']) ? ' El enlace de registro que tenía se canceló: si lo quieres hacer cliente, envíale uno nuevo desde el ERP › Ventas › Prospectos.' : '')],
+        'pasa_a_nuevo'       => $esErp
+            ? ['Cliente asignado: ' . $f0['nuevo_nombre'], 'Se determinó que este cliente lo atiendes tú. Ya puedes trabajarlo.'
+               . (!empty($enErp['enlaces_cancelados']) ? ' El enlace de registro que tenía se canceló: si lo quieres hacer cliente, envíale uno nuevo desde el ERP › Ventas › Prospectos.' : '')]
+            : ['Cliente asignado: ' . $f0['existente_nombre'], 'Se te asignó este cliente. Ya aparece en tu cartera; tu registro duplicado quedó descartado.'
+               . (!empty($enErp['enlaces_cancelados']) ? ' El enlace de registro que tenía se canceló: si lo quieres hacer cliente, envíale uno nuevo desde el ERP › Ventas › Prospectos.' : '')],
     ];
     [$t, $m] = $msgs[$decision];
     if ($nota) $m .= ' Nota: ' . $nota;
     crearAviso($db, $vid, 'cliente_revision_resuelta', $t, $m, 'vendedor/clientes.php');
     try { enviarPushFCM($db, $vid, $t, $m, ['tipo' => 'cliente_revision_resuelta']); } catch (Throwable $e) { error_log('[VISITAS] push coincidencia: ' . $e->getMessage()); }
 
+    // La vendedora interna que lo tenía en el ERP (correo; ella no usa Visitas).
+    if ($decision === 'pasa_a_nuevo' && $esErp && !empty($enErpDirecto['correo_anterior'])) {
+        $tA = 'Cliente reasignado: ' . $f0['existente_nombre'];
+        enviarCorreoMuestra($enErpDirecto['correo_anterior'], $tA, correoMuestraHtml($tA,
+            'La responsable de muestras determinó que este cliente lo atiende ' . $f0['vendedor_nuevo_nombre'] . ' (vendedor externo). '
+            . 'Lo que ya hiciste (cotizaciones) se queda a tu nombre.',
+            array_filter(['Cliente' => $f0['existente_nombre'], 'Ahora lo atiende' => $f0['vendedor_nuevo_nombre'], 'Nota' => $nota]),
+            preg_replace('#visitas/$#', 'erp/', urlBaseVisitas()) . 'cotizacion/prospectos.php', 'Abrir el ERP'));
+    }
+
     return ['ok' => true];
+}
+
+/**
+ * «Pasa al vendedor que lo registró» cuando lo existente es del ERP
+ * (18-nov-2026). Dentro de la transacción de resolverCoincidencia(), con la
+ * misma conexión (esquema public):
+ *   · cliente del ERP  → cambia de agente; el cliente de Visitas queda ligado
+ *     (id_cliente_erp) y en etapa «Convertido».
+ *   · prospecto del ERP → queda a nombre del vendedor y ligado a su cliente de
+ *     Visitas; el enlace de registro sin llenar se cancela y el ya llenado
+ *     (sin aprobar) pasa a él. Lo de antes (cotizaciones) se queda con la
+ *     vendedora anterior.
+ * Devuelve lo hecho + 'correo_anterior' (para avisarle a la vendedora interna).
+ */
+function coincPasarRegistroErp(PDO $db, array $fila, int $clienteNuevoId, int $vendedorId, string $quien): array {
+    $hecho = ['enlaces_cancelados' => 0, 'enlaces_movidos' => 0, 'cliente_erp' => 0, 'correo_anterior' => null];
+    $ue = coincUsuarioErp($db, $vendedorId);
+    if (!$ue) throw new DomainException('Este vendedor no tiene usuario en el ERP (se busca por su correo). Dalo de alta en el ERP y vuelve a intentar.');
+    $erpId = (int)$fila['existente_erp_id'];
+    $correoDe = function (?int $idUsuario) use ($db): ?string {
+        if (!$idUsuario) return null;
+        $st = $db->prepare('SELECT email FROM public.usuarios WHERE id = ?');
+        $st->execute([$idUsuario]);
+        return ($e = $st->fetchColumn()) ? (string)$e : null;
+    };
+
+    if ($fila['existente_tipo'] === 'erp_cliente') {
+        $st = $db->prepare('SELECT id_agente FROM public.clientes WHERE id = ?');
+        $st->execute([$erpId]);
+        $hecho['correo_anterior'] = $correoDe(($a = $st->fetchColumn()) ? (int)$a : null);
+        $st = $db->prepare('UPDATE public.clientes SET id_agente = ? WHERE id = ? AND id_agente IS DISTINCT FROM ?');
+        $st->execute([$ue['id'], $erpId, $ue['id']]);
+        $hecho['cliente_erp'] = $st->rowCount();
+        $db->prepare("UPDATE clientes SET id_cliente_erp = ?, etapa = 'convertido', etapa_actualizada_en = CURRENT_TIMESTAMP WHERE id = ?")
+           ->execute([$erpId, $clienteNuevoId]);
+        return $hecho;
+    }
+
+    // erp_prospecto
+    $st = $db->prepare('SELECT creado_por FROM public.cotizador_prospectos WHERE id = ?');
+    $st->execute([$erpId]);
+    $creadoPor = (string)$st->fetchColumn();
+    $st = $db->prepare("SELECT id FROM public.usuarios WHERE usuario = ? OR LOWER(TRIM(CONCAT(nombre, ' ', apellidos))) = LOWER(TRIM(?)) ORDER BY (usuario = ?) DESC, id LIMIT 1");
+    $st->execute([$creadoPor, $creadoPor, $creadoPor]);
+    $hecho['correo_anterior'] = $correoDe(($a = $st->fetchColumn()) ? (int)$a : null);
+
+    $db->prepare('UPDATE public.cotizador_prospectos SET creado_por = ?, visitas_cliente_id = ? WHERE id = ?')
+       ->execute([$ue['usuario'], $clienteNuevoId, $erpId]);
+    $notaCancel = '[Cancelado: el prospecto pasó a ' . $ue['nombre'] . '; decidió ' . $quien . ' el ' . date('d/m/Y H:i') . ']';
+    $st = $db->prepare("UPDATE public.invitaciones_cliente SET estado = 'expirada', notas = CONCAT_WS(E'\\n', NULLIF(notas, ''), ?::text)
+                         WHERE id_prospecto_origen = ? AND estado = 'pendiente'");
+    $st->execute([$notaCancel, $erpId]);
+    $hecho['enlaces_cancelados'] = $st->rowCount();
+    $st = $db->prepare("UPDATE public.invitaciones_cliente i SET id_agente = ?
+                         WHERE i.id_prospecto_origen = ? AND i.estado = 'completada'
+                           AND EXISTS (SELECT 1 FROM public.clientes_solicitudes s WHERE s.token = i.token
+                                          AND s.estado IN ('pendiente', 'aprobada_ventas'))");
+    $st->execute([$ue['id'], $erpId]);
+    $hecho['enlaces_movidos'] = $st->rowCount();
+    $db->prepare("UPDATE public.clientes_solicitudes s SET id_agente = ?
+                    FROM public.invitaciones_cliente i
+                   WHERE s.token = i.token AND i.id_prospecto_origen = ?
+                     AND s.estado IN ('pendiente', 'aprobada_ventas')")->execute([$ue['id'], $erpId]);
+    return $hecho;
 }
 
 /**
