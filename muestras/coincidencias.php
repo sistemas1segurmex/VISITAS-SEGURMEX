@@ -57,7 +57,7 @@ $esAdmin = $u['rol'] === 'admin';
       <div class="mu-hero-txt">
         <div class="mu-hero-eyebrow"><i class="bi bi-intersect"></i> Clientes repetidos entre vendedores</div>
         <h1 class="mu-hero-titulo" id="hero-titulo">Cargando...</h1>
-        <p class="mu-hero-sub">Cuando un vendedor registra un cliente que parece ser el de otro vendedor del mismo municipio, queda en revisión y no lo puede trabajar hasta que decidas aquí. La misma empresa en otro municipio (sucursal) no se marca.</p>
+        <p class="mu-hero-sub">Cuando un vendedor registra un cliente que parece ser el de otro vendedor del mismo municipio (también de las vendedoras internas en el ERP), queda en revisión y no lo puede trabajar hasta que decidas aquí. La misma empresa en otro municipio (sucursal) no se marca.</p>
       </div>
     </section>
 
@@ -107,7 +107,9 @@ function tarjeta(c, titulo, extra = '') {
     <div class="mu-cli">
       <div class="mu-cli-top">
         <span class="mu-cli-nom"><small class="text-muted d-block">${escHtml(titulo)}</small>${escHtml(c.nombre)}</span>
-        <span class="v26-pill v26-pill--etapa-${escHtml(etapa)}">${escHtml(ETAPAS[etapa] || etapa)}</span>
+        ${c.etiqueta
+          ? `<span class="v26-pill">${escHtml(c.etiqueta)}</span>`
+          : `<span class="v26-pill v26-pill--etapa-${escHtml(etapa)}">${escHtml(ETAPAS[etapa] || etapa)}</span>`}
       </div>
       <div class="mu-cli-datos">${datos}</div>
     </div>`;
@@ -116,16 +118,19 @@ function tarjeta(c, titulo, extra = '') {
 function bloquePendiente(g, i) {
   const n = g.nuevo;
   const filas = g.coincidencias.map(c => {
-    const extra = `<span><i class="bi bi-calendar-check"></i> ${c.visitas} ${c.visitas === 1 ? 'visita' : 'visitas'}${c.citas_pendientes ? ' · ' + c.citas_pendientes + ' cita(s) agendada(s)' : ''}</span>`;
+    const esErp = c.tipo && c.tipo !== 'visitas';
+    const extra = esErp
+      ? `<span><i class="bi bi-building"></i> ${escHtml(c.actividad || '')}</span>`
+      : `<span><i class="bi bi-calendar-check"></i> ${c.visitas} ${c.visitas === 1 ? 'visita' : 'visitas'}${c.citas_pendientes ? ' · ' + c.citas_pendientes + ' cita(s) agendada(s)' : ''}</span>`;
     return `
       <div class="mu-cli" style="border-left:3px solid #E8A400">
         <div class="mu-cli-datos"><span><i class="bi bi-exclamation-triangle"></i> <b>${escHtml(c.razon)}</b></span></div>
       </div>
-      ${tarjeta(c, 'Cliente que ya tenía ' + c.vendedor, extra)}
+      ${tarjeta(c, esErp ? 'Ya lo tenía ' + c.vendedor + ' en el ERP (vendedora interna)' : 'Cliente que ya tenía ' + c.vendedor, extra)}
       <div class="d-flex flex-wrap gap-2 px-3 pb-3">
-        <button type="button" class="v26-btn v26-btn-ghost" data-accion="se_queda_existente" data-nuevo="${n.id}" data-existente="${c.id}">
+        <button type="button" class="v26-btn v26-btn-ghost" data-accion="se_queda_existente" data-nuevo="${n.id}" data-existente="${escHtml(c.key || ('visitas:' + c.id))}">
           <i class="bi bi-person-check"></i> Se queda con ${escHtml(c.vendedor)}</button>
-        <button type="button" class="v26-btn v26-btn-ghost" data-accion="pasa_a_nuevo" data-nuevo="${n.id}" data-existente="${c.id}">
+        <button type="button" class="v26-btn v26-btn-ghost" data-accion="pasa_a_nuevo" data-nuevo="${n.id}" data-existente="${escHtml(c.key || ('visitas:' + c.id))}">
           <i class="bi bi-arrow-left-right"></i> Pasa a ${escHtml(n.vendedor)}</button>
       </div>`;
   }).join('');
@@ -194,7 +199,7 @@ async function cargar() {
 const TEXTOS = {
   distintos: (n) => ({ titulo: 'Son clientes distintos', desc: `${n.vendedor} podrá trabajar a "${n.nombre}" normalmente y esta pareja ya no se volverá a marcar.`, boton: 'Liberar' }),
   se_queda_existente: (n, c) => ({ titulo: `Se queda con ${c.vendedor}`, desc: `El registro de ${n.vendedor} quedará descartado (no se borra, queda como evidencia).`, boton: 'Descartar registro nuevo' }),
-  pasa_a_nuevo: (n, c) => ({ titulo: `Pasa a ${n.vendedor}`, desc: `"${c.nombre}" pasará a la cartera de ${n.vendedor} y su registro duplicado quedará descartado. ${c.vendedor} conserva su historial y sus citas ya agendadas (${c.citas_pendientes}), pero ya no podrá reprogramarlas, agendar, cotizar ni pedir muestras. En el ERP también pasa a ${n.vendedor}: si tenía un enlace de registro sin llenar se cancela (${n.vendedor} tendrá que enviar uno nuevo); si ya lo llenó, queda con ${n.vendedor}; y si ya es cliente, cambia de agente.`, boton: 'Reasignar' }),
+  pasa_a_nuevo: (n, c) => (c.tipo && c.tipo !== 'visitas') ? ({ titulo: `Pasa a ${n.vendedor}`, desc: `"${c.nombre}" (${c.etiqueta}) pasará en el ERP a ${n.vendedor} y su registro de Visitas queda ligado y liberado. Lo que ya hizo ${c.vendedor} (cotizaciones) se queda a su nombre; si tenía un enlace de registro sin llenar se cancela. A ${c.vendedor} le llega un correo.`, boton: 'Reasignar' }) : ({ titulo: `Pasa a ${n.vendedor}`, desc: `"${c.nombre}" pasará a la cartera de ${n.vendedor} y su registro duplicado quedará descartado. ${c.vendedor} conserva su historial y sus citas ya agendadas (${c.citas_pendientes}), pero ya no podrá reprogramarlas, agendar, cotizar ni pedir muestras. En el ERP también pasa a ${n.vendedor}: si tenía un enlace de registro sin llenar se cancela (${n.vendedor} tendrá que enviar uno nuevo); si ya lo llenó, queda con ${n.vendedor}; y si ya es cliente, cambia de agente.`, boton: 'Reasignar' }),
 };
 
 document.getElementById('lista').addEventListener('click', async (e) => {
@@ -202,14 +207,14 @@ document.getElementById('lista').addEventListener('click', async (e) => {
   if (!b) return;
   const g = grupos.find(x => String(x.nuevo.id) === b.dataset.nuevo);
   if (!g) return;
-  const c = g.coincidencias.find(x => String(x.id) === b.dataset.existente) || g.coincidencias[0];
+  const c = g.coincidencias.find(x => (x.key || ('visitas:' + x.id)) === b.dataset.existente) || g.coincidencias[0];
   const t = TEXTOS[b.dataset.accion](g.nuevo, c);
   const r = await v26Sheet({ titulo: t.titulo, desc: t.desc, pedirMotivo: true, placeholderMotivo: 'Nota para el vendedor (opcional)', textoConfirmar: t.boton, textoCancelar: 'Volver' });
   if (!r) return;
   const fd = new FormData();
   fd.append('cliente_nuevo_id', g.nuevo.id);
   fd.append('decision', b.dataset.accion);
-  if (b.dataset.existente) fd.append('existente_id', b.dataset.existente);
+  if (b.dataset.existente) fd.append('existente', b.dataset.existente);
   fd.append('nota', r.motivo || '');
   b.disabled = true;
   try {
