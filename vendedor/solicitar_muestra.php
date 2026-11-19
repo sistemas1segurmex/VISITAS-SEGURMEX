@@ -275,7 +275,7 @@ function paresTxt(n) { return n + (n === 1 ? ' par' : ' pares'); }
 let clientesCat = [];
 let estilosCat = [];
 let ATRIBUTOS = {};
-let TOPE_PARES = 6, MAX_ESTILOS = 6, MAX_TALLAS = 6;
+let TOPE_PARES = 0, MAX_ESTILOS = 6, MAX_TALLAS = 6; // TOPE_PARES 0 = sin tope (llega de la API)
 let direccionAutollenada = null; // la que pusimos sola, para no pisar lo que escriba el vendedor
 let uidSig = 1;
 // [{uid, item, color, tipo, cambios:{casco:{on,txt}...}, otros:[{nombre,txt}], tallas:[{talla,pares,nota}]}]
@@ -302,11 +302,22 @@ function clienteElegido() {
 }
 function paresDisponiblesCliente() {
   const c = clienteElegido();
+  if (TOPE_PARES <= 0) return Infinity; // sin tope
   return c ? Math.max(0, TOPE_PARES - (c.pares_muestra_mes || 0)) : TOPE_PARES;
 }
 
 // ---- Cupo del cliente (arriba) y total de pares ----
 function pintarCupo() {
+  if (TOPE_PARES <= 0) { // sin tope: se oculta el cupo y solo se muestra el total
+    const cupo = document.querySelector('.mu-cupo');
+    if (cupo) cupo.classList.add('d-none');
+    document.getElementById('aviso-tope').classList.add('d-none');
+    const tot = document.getElementById('mu-total-pares');
+    tot.innerHTML = `<span>Total de la solicitud</span><strong>${paresTxt(totalPares())}</strong>`;
+    tot.classList.remove('excede');
+    document.getElementById('btn-enviar-muestra').disabled = false;
+    return;
+  }
   const c = clienteElegido();
   const disp = paresDisponiblesCliente();
   const total = totalPares();
@@ -497,7 +508,7 @@ function tallasHTML(l, e) {
       </select>
       <div class="mu-pares" role="group" aria-label="Pares">
         <button type="button" data-accion="menos" aria-label="Un par menos"><i class="bi bi-dash-lg"></i></button>
-        <input type="number" class="mu-pares-inp" data-accion="pares" min="1" max="${TOPE_PARES}" step="1" inputmode="numeric" value="${escHtml(t.pares)}" aria-label="Pares">
+        <input type="number" class="mu-pares-inp" data-accion="pares" min="1"${TOPE_PARES > 0 ? ` max="${TOPE_PARES}"` : ''} step="1" inputmode="numeric" value="${escHtml(t.pares)}" aria-label="Pares">
         <button type="button" data-accion="mas" aria-label="Un par más"><i class="bi bi-plus-lg"></i></button>
       </div>
       <button type="button" class="v26-icon-btn mu-talla-quitar" data-accion="quitar-talla" aria-label="Quitar talla" ${l.tallas.length === 1 ? 'disabled' : ''}><i class="bi bi-trash"></i></button>
@@ -634,7 +645,7 @@ cont.addEventListener('click', (ev) => {
     case 'agregar-talla': l.tallas.push({ talla: '', pares: 1, nota: '' }); repintarLinea(l); break;
     case 'quitar-talla': if (l.tallas.length > 1) { l.tallas.splice(Number(filaT.dataset.i), 1); repintarLinea(l); } break;
     case 'menos': if (t) { t.pares = Math.max(1, (parseInt(t.pares, 10) || 1) - 1); filaT.querySelector('.mu-pares-inp').value = t.pares; actualizarSubtotal(l); } break;
-    case 'mas': if (t) { t.pares = Math.min(TOPE_PARES, (parseInt(t.pares, 10) || 0) + 1); filaT.querySelector('.mu-pares-inp').value = t.pares; actualizarSubtotal(l); } break;
+    case 'mas': if (t) { t.pares = (parseInt(t.pares, 10) || 0) + 1; if (TOPE_PARES > 0) t.pares = Math.min(TOPE_PARES, t.pares); filaT.querySelector('.mu-pares-inp').value = t.pares; actualizarSubtotal(l); } break;
     case 'tipo':
       if (l.tipo !== el.dataset.tipo) {
         l.tipo = el.dataset.tipo;
@@ -707,7 +718,7 @@ async function cargarCatalogos() {
       document.getElementById('mu-estilos').innerHTML = `<div class="mu-est-sin">${escHtml(data.error)}</div>`;
       return;
     }
-    TOPE_PARES = data.tope_pares_cliente || 6;
+    TOPE_PARES = Number(data.tope_pares_cliente) || 0;
     MAX_ESTILOS = data.max_estilos || 6;
     MAX_TALLAS = data.max_tallas || 6;
     clientesCat = data.clientes;

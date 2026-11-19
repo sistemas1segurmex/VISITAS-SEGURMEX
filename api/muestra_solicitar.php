@@ -112,7 +112,7 @@ try {
     // salten el tope de pares del mes.
     $db->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')->execute(['muestras_cliente_' . $clienteId]);
     $usados = paresMuestraDelMesCliente($db, $clienteId);
-    if ($usados + $totalPares > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
+    if (MUESTRAS_TOPE_PARES_CLIENTE_MES > 0 && $usados + $totalPares > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
         $db->rollBack();
         $quedan = max(0, MUESTRAS_TOPE_PARES_CLIENTE_MES - $usados);
         jsonResponse(['ok' => false, 'error' => 'Este cliente ya tiene ' . $usados . ' de ' . MUESTRAS_TOPE_PARES_CLIENTE_MES
@@ -173,5 +173,7 @@ jsonResponse([
     'id'                => $id,
     'folio'             => $folio,
     'pares'             => $totalPares,
-    'pares_restantes'   => max(0, MUESTRAS_TOPE_PARES_CLIENTE_MES - paresMuestraDelMesCliente($db, $clienteId)),
+    'pares_restantes'   => MUESTRAS_TOPE_PARES_CLIENTE_MES > 0
+        ? max(0, MUESTRAS_TOPE_PARES_CLIENTE_MES - paresMuestraDelMesCliente($db, $clienteId))
+        : null, // sin tope
 ]);

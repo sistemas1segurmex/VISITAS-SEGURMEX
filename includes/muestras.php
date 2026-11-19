@@ -18,7 +18,8 @@ require_once __DIR__ . '/mailer.php';
 // Tope de PARES de muestra por cliente por mes calendario (hora de CDMX),
 // sumando todas sus solicitudes. Las canceladas no cuentan. (22-oct-2026:
 // antes eran 5 solicitudes por vendedor al mes; se quitó.)
-const MUESTRAS_TOPE_PARES_CLIENTE_MES = 6;
+// 0 = SIN TOPE (19-nov-2026: por ahora libre; igual que MI_TOPE_PARES_CLIENTE_MES en el ERP).
+const MUESTRAS_TOPE_PARES_CLIENTE_MES = 0;
 
 // Máximo de estilos y de tallas por estilo en una solicitud (solo para que
 // el formulario no crezca sin fin; el tope real es el de pares).
@@ -797,7 +798,7 @@ function validarEstilosMuestraOSalir(array $estilosEntrada): array {
             'tallas'           => array_values($tallas),
         ];
     }
-    if ($totalPares > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
+    if (MUESTRAS_TOPE_PARES_CLIENTE_MES > 0 && $totalPares > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
         jsonResponse(['ok' => false, 'error' => 'Son ' . $totalPares . ' pares y el máximo por cliente es de '
             . MUESTRAS_TOPE_PARES_CLIENTE_MES . ' pares al mes. Quita ' . ($totalPares - MUESTRAS_TOPE_PARES_CLIENTE_MES)
             . ($totalPares - MUESTRAS_TOPE_PARES_CLIENTE_MES === 1 ? ' par.' : ' pares.')], 400);
@@ -993,7 +994,7 @@ function corregirSolicitudMuestra(PDO $db, int $usuarioId, int $id, array $post)
             return $err('La muestra ya está "' . etiquetaEstadoMuestra($estado) . '": ya no se puede corregir. Recarga la página.', 409);
         }
         $otros = paresMuestraDelMesSin($db, $antes);
-        if ($otros + $v['total'] > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
+        if (MUESTRAS_TOPE_PARES_CLIENTE_MES > 0 && $otros + $v['total'] > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
             $db->rollBack();
             $quedan = max(0, MUESTRAS_TOPE_PARES_CLIENTE_MES - $otros);
             return $err('Este cliente tiene otras solicitudes por ' . textoParesMuestra($otros) . ' en ese mes; con esta corrección serían '

@@ -307,6 +307,11 @@ function renderLista() {
 
 // Tope por cliente (no por vendedor): hasta N pares por cliente al mes.
 function pintarCupo(tope) {
+  if (!tope) { // sin tope
+    document.querySelector('.mu-cupo').classList.add('d-none');
+    document.getElementById('cta-muestra-sub').textContent = 'Varios estilos y tallas';
+    return;
+  }
   document.getElementById('cupo-n').textContent = tope;
   document.getElementById('cta-muestra-sub').textContent = `Varios estilos y tallas · hasta ${tope} pares por cliente al mes`;
 }
@@ -325,7 +330,7 @@ async function cargarMuestras() {
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || '');
     muestrasData = data.muestras;
-    pintarCupo(data.tope_pares_cliente || 6);
+    pintarCupo(Number(data.tope_pares_cliente) || 0);
     // Sin nada en curso pero con historial: abre en "Todas".
     if (filtro === 'en_curso' && !muestrasData.some(m => grupoEstadoMuestra(m) === 'en_curso') && muestrasData.length) filtro = 'todas';
     renderLista();
