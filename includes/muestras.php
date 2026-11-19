@@ -1140,7 +1140,7 @@ function autorizarAmpliacionMuestra(PDO $db, int $id, int $usuarioId, string $no
               WHERE id = ?"
         )->execute([$usuarioId, $id]);
         $db->prepare('INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id, nota) VALUES (?,?,?,?)')
-           ->execute([$id, 'ampliacion_autorizada', $usuarioId, $nota !== '' ? $nota : 'Ampliación autorizada']);
+           ->execute([$id, 'amp_autorizada', $usuarioId, $nota !== '' ? $nota : 'Ampliación autorizada']);
         // Los avisos de «autoriza esta muestra» ya no hacen falta.
         $db->prepare("UPDATE avisos SET leido_en = NOW() WHERE solicitud_muestra_id = ? AND tipo = 'muestra_ampliacion' AND leido_en IS NULL")
            ->execute([$id]);
