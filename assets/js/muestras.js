@@ -1,6 +1,7 @@
 // Utilidades compartidas de las pantallas de la responsable de muestras y
 // la consulta del admin (muestras/index.php y muestras/ver.php).
 const ESTADOS_MUESTRA = {
+  por_autorizar:  { txt: 'Por autorizar',  clase: 'mu-pill--por_autorizar' },
   enviada:        { txt: 'Nueva',          clase: 'mu-pill--enviada' },
   en_preparacion: { txt: 'En preparación', clase: 'mu-pill--en_preparacion' },
   embarcada:      { txt: 'Embarcada',      clase: 'mu-pill--embarcada' },

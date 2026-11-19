@@ -93,6 +93,7 @@ $esAdmin = $u['rol'] === 'admin';
     <div class="mu-toolbar">
       <div class="v26-funnel-filtro mb-0" id="filtro-grupo">
         <div class="v26-funnel-chip d-none" data-grupo="peticiones" id="chip-peticiones"><i class="bi bi-chat-left-text-fill"></i> Piden cambio <span class="n" id="n-peticiones">0</span></div>
+        <div class="v26-funnel-chip d-none" data-grupo="por_autorizar" id="chip-por_autorizar"><i class="bi bi-shield-check"></i> Por autorizar <span class="n" id="n-por_autorizar">0</span></div>
         <div class="v26-funnel-chip active" data-grupo="nuevas">Nuevas <span class="n" id="n-nuevas">0</span></div>
         <div class="v26-funnel-chip" data-grupo="en_preparacion">En preparación <span class="n" id="n-en_preparacion">0</span></div>
         <div class="v26-funnel-chip" data-grupo="vencidas">Vencidas <span class="n" id="n-vencidas">0</span></div>
@@ -162,13 +163,14 @@ const ES_ADMIN = <?= $esAdmin ? 'true' : 'false' ?>;
 const NOMBRE = <?= json_encode(strtok($u['nombre'], ' ')) ?>;
 const VACIO = {
   peticiones: ['bi-chat-left-text', 'Sin peticiones', 'Ningún vendedor está pidiendo corregir o cancelar una muestra.'],
+  por_autorizar: ['bi-shield-check', 'Nada por autorizar', 'Ningún vendedor está pidiendo más de 6 pares de muestra.'],
   nuevas: ['bi-inbox', 'Todo al día', 'No hay solicitudes nuevas. Cuando un vendedor pida una muestra te llegará un aviso.'],
   en_preparacion: ['bi-box-seam', 'Nada en preparación', 'Las muestras que marques "En preparación" aparecen aquí.'],
   vencidas: ['bi-emoji-smile', 'Sin promesas vencidas', 'Ninguna muestra abierta ha pasado su fecha promesa.'],
   cerradas: ['bi-archive', 'Sin cerradas todavía', 'Aquí quedan las muestras embarcadas y las canceladas.'],
   todas: ['bi-inbox', 'Sin solicitudes', 'Todavía no hay solicitudes de muestra.'],
 };
-const ICONO_ESTADO = { enviada: 'bi-inbox-fill', en_preparacion: 'bi-box-seam-fill', embarcada: 'bi-truck', cancelada: 'bi-x-circle-fill' };
+const ICONO_ESTADO = { por_autorizar: 'bi-shield-check', enviada: 'bi-inbox-fill', en_preparacion: 'bi-box-seam-fill', embarcada: 'bi-truck', cancelada: 'bi-x-circle-fill' };
 
 function iniciales(n) { return String(n || '?').trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase(); }
 function diasDesde(valor) { const d = fechaDeMuestra(valor); return d ? Math.floor((Date.now() - d.getTime()) / 86400000) : 0; }
@@ -179,7 +181,7 @@ function diasParaPromesa(m) {
 }
 
 function badgeEspera(m) {
-  if (m.estado !== 'enviada' && m.estado !== 'en_preparacion') {
+  if (m.estado !== 'por_autorizar' && m.estado !== 'enviada' && m.estado !== 'en_preparacion') {
     // Embarcada: fecha del historial (las de antes sin historial: actualizada_en).
     if (m.estado === 'embarcada') return `<span class="mu-badge mu-badge--verde"><i class="bi bi-check2-circle"></i> Embarcada ${fechaMx(m.embarcada_en || m.actualizada_en)}</span>`;
     return `<span class="mu-badge"><i class="bi bi-check2-circle"></i> Cancelada ${fechaMx(m.actualizada_en)}</span>`;
@@ -227,6 +229,7 @@ function tarjeta(m, i) {
         <div class="mu-card-talla">${[e.color ? `Color <strong>${escHtml(e.color)}</strong>` : '',
           e.tallas.map(t => (t.talla ? `Talla <strong>${escHtml(t.talla)}</strong>` : 'Sin talla') + ` × ${t.pares}`).join(', ')].filter(Boolean).join(' · ')}</div>`).join('')}
       <div class="mu-card-talla"><strong>Total: ${m.cantidad || 1} ${(m.cantidad || 1) === 1 ? 'par' : 'pares'}</strong></div>
+      ${m.estado === 'por_autorizar' ? `<div class="mu-card-peticion"><i class="bi bi-shield-check"></i> Pide más del tope · proyección de ${Number(m.proyeccion_pares || 0).toLocaleString('es-MX')} pares: «${escHtml(m.ampliacion_justificacion || '')}»</div>` : ''}
       <div class="mu-card-quien">
         <span class="mu-avatar">${escHtml(iniciales(m.vendedor_nombre))}</span>
         <div class="mu-card-quien-txt">
@@ -239,7 +242,7 @@ function tarjeta(m, i) {
       ${m.estado === 'cancelada' ? `<div class="mu-card-envio mu-card-envio--cancel"><i class="bi bi-x-circle"></i> ${escHtml(m.motivo_cancelacion || '')}</div>` : ''}
       <div class="mu-card-pie">
         <div class="mu-badges"><span class="mu-badge"><i class="bi bi-inbox"></i> Solicitada ${fechaMx(m.created_at)}</span>${badgePreparacionDesde(m)}${badgePreparacion(m)}${badgeEspera(m)}${badgePromesa(m)}</div>
-        <span class="mu-abrir">${ES_ADMIN || m.estado === 'embarcada' || m.estado === 'cancelada' ? 'Ver' : (m.peticion_tipo ? 'Decidir' : 'Atender')} <i class="bi bi-arrow-right"></i></span>
+        <span class="mu-abrir">${ES_ADMIN || m.estado === 'embarcada' || m.estado === 'cancelada' ? 'Ver' : (m.estado === 'por_autorizar' ? 'Autorizar' : (m.peticion_tipo ? 'Decidir' : 'Atender'))} <i class="bi bi-arrow-right"></i></span>
       </div>
     </a>`;
 }
@@ -250,6 +253,7 @@ function pintarHero(c) {
   t.innerHTML = (c.nuevas === 0
     ? `Hola, ${escHtml(NOMBRE)}. No tienes solicitudes nuevas`
     : `Hola, ${escHtml(NOMBRE)}. Tienes <span class="mu-hero-n">${c.nuevas}</span> solicitud${c.nuevas === 1 ? '' : 'es'} nueva${c.nuevas === 1 ? '' : 's'}`)
+    + (c.por_autorizar ? `<br><small>${c.por_autorizar === 1 ? '1 solicitud espera' : c.por_autorizar + ' solicitudes esperan'} tu autorización (más de 6 pares)</small>` : '')
     + (c.peticiones ? `<br><small>y ${c.peticiones === 1 ? '1 vendedor te pide' : c.peticiones + ' vendedores te piden'} un cambio</small>` : '');
 }
 
@@ -358,6 +362,7 @@ async function cargar() {
     document.querySelector('.mu-stat--vencidas').classList.toggle('alerta', c.vencidas > 0);
     // «Piden cambio»: solo se ve si hay peticiones (o si está elegida).
     document.getElementById('chip-peticiones').classList.toggle('d-none', !cf.peticiones && grupo !== 'peticiones');
+    document.getElementById('chip-por_autorizar').classList.toggle('d-none', !cf.por_autorizar && grupo !== 'por_autorizar');
     pintarHero(c);
     pintarVendedores(data.vendedores || []);
     pintarFiltrosActivos(data.solicitudes, data.vendedores || []);

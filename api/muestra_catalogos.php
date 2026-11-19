@@ -50,5 +50,7 @@ jsonResponse([
     'ok' => true, 'clientes' => $clientes, 'estilos' => $estilos, 'error_estilos' => $errorEstilos,
     'atributos' => $atributos,
     'tope_pares_cliente' => MUESTRAS_TOPE_PARES_CLIENTE_MES,
+    'max_pares_ampliacion' => MUESTRAS_MAX_PARES_AMPLIACION,
+    'proyeccion_min_ampliacion' => MUESTRAS_PROYECCION_MIN_AMPLIACION,
     'max_estilos' => MUESTRAS_MAX_ESTILOS, 'max_tallas' => MUESTRAS_MAX_TALLAS_POR_ESTILO,
 ]);

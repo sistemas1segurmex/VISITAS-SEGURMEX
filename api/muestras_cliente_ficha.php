@@ -81,7 +81,7 @@ $cotizaciones = $st->fetch();
 
 $st = $db->prepare(
     "SELECT COUNT(*) AS total,
-            COUNT(*) FILTER (WHERE estado IN ('enviada', 'en_preparacion')) AS en_proceso,
+            COUNT(*) FILTER (WHERE estado IN ('por_autorizar', 'enviada', 'en_preparacion')) AS en_proceso,
             COUNT(*) FILTER (WHERE estado = 'embarcada') AS embarcadas,
             COUNT(*) FILTER (WHERE estado = 'cancelada') AS canceladas,
             MAX(created_at) AS ultima

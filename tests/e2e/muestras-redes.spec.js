@@ -189,14 +189,17 @@ for (const red of perfilesACorrer) {
       await expect(page.locator('#mu-total-pares')).toContainText('4 pares');
       await expect(page.locator('#btn-enviar-muestra')).toBeEnabled();
 
-      // Tope: un par más de los que le quedan al cliente bloquea el envío.
+      // Tope: un par más de los que le quedan al cliente ya no bloquea (20-nov-2026): la solicitud
+      // pide autorización (proyección de compra + justificación) y el botón cambia de texto.
       const ultima = page.locator('.mu-lin').nth(1).locator('.mu-talla').nth(1);
       const extra = d.cliente.disp + 1 - 4;
       for (let i = 0; i < extra; i++) await ultima.locator('[data-accion="mas"]').click();
-      await expect(page.locator('#btn-enviar-muestra')).toBeDisabled();
-      await expect(page.locator('#aviso-tope')).toContainText('Quita 1 par');
-      await info.attach(`tope excedido (${red})`, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+      await expect(page.locator('#bloque-ampliacion')).toBeVisible();
+      await expect(page.locator('#aviso-tope')).toContainText('autoriza');
+      await expect(page.locator('#btn-enviar-muestra')).toHaveText('Enviar a autorización');
+      await info.attach(`tope excedido, pide autorización (${red})`, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
       for (let i = 0; i < extra; i++) await ultima.locator('[data-accion="menos"]').click();
+      await expect(page.locator('#bloque-ampliacion')).toBeHidden();
       await expect(page.locator('#btn-enviar-muestra')).toBeEnabled();
 
       await page.locator('#motivo').fill(`Prueba automática Playwright · red simulada: ${PERFILES[red].nombre} · red real: ${RED_REAL}`);

@@ -38,6 +38,7 @@ if (isset($_GET['corregir'])) {
         'id'              => (int)$sc['id'],
         'folio'           => $sc['folio'],
         'vendedor_nombre' => $sc['vendedor_nombre'],
+        'ampliacion'      => !empty($sc['ampliacion']),
         'peticion_texto'  => $sc['peticion_texto'] ?? null,
         'entregar_a'      => $sc['entregar_a'] ?? 'cliente',
         // Una sola opción (fija) en «¿Para quién es?»; el cupo es el del mes en que se pidió, sin contarse a sí misma.
@@ -186,6 +187,20 @@ if (isset($_GET['corregir'])) {
             <div id="mu-estilos"></div>
             <button type="button" class="v26-btn v26-btn-ghost v26-btn-block" id="btn-agregar-estilo"><i class="bi bi-plus-lg"></i> Agregar otro estilo</button>
             <div class="mu-total-pares" id="mu-total-pares"></div>
+            <div id="bloque-ampliacion" class="d-none" style="border:1px solid #E8A400;background:#FFF8E6;border-radius:12px;padding:12px 14px;margin-top:12px">
+              <div style="font-weight:700;color:#92600A;margin-bottom:4px"><i class="bi bi-shield-check"></i> Esta solicitud necesita autorización</div>
+              <p class="mu-nota" style="margin-bottom:10px">Pasa del cupo normal del cliente. El equipo de Segurmex la revisa antes de producirla y te avisa.</p>
+              <div class="v26-field" id="campo-proyeccion">
+                <label for="proyeccion_pares">Proyección de compra del cliente (pares) <span class="mu-ast">*</span></label>
+                <input type="number" id="proyeccion_pares" class="v26-input" min="2500" step="1" inputmode="numeric" placeholder="Ej. 3000">
+                <div class="mu-msg-err"></div>
+              </div>
+              <div class="v26-field mb-0" id="campo-justificacion">
+                <label for="ampliacion_justificacion">¿Por qué necesita más pares? <span class="mu-ast">*</span></label>
+                <textarea id="ampliacion_justificacion" class="v26-textarea" rows="2" maxlength="500" placeholder="Ej. Licitación de uniformes; el comprador quiere probar dos estilos antes de decidir."></textarea>
+                <div class="mu-msg-err"></div>
+              </div>
+            </div>
             <div class="v26-field mt-3" id="campo-motivo">
               <label for="motivo">Motivo de la muestra <span class="mu-ast">*</span></label>
               <textarea id="motivo" class="v26-textarea" rows="2" maxlength="500" placeholder="Ej. Prueba de uso en planta, licitación, presentación al área de compras…"></textarea>
@@ -275,7 +290,10 @@ function paresTxt(n) { return n + (n === 1 ? ' par' : ' pares'); }
 let clientesCat = [];
 let estilosCat = [];
 let ATRIBUTOS = {};
-let TOPE_PARES = 0, MAX_ESTILOS = 6, MAX_TALLAS = 6; // TOPE_PARES 0 = sin tope (llega de la API)
+let TOPE_PARES = 6, MAX_ESTILOS = 6, MAX_TALLAS = 6;
+// Ampliación (20-nov-2026): pasando el cupo normal, hasta MAX_PARES_AMPL pares por solicitud
+// si el cliente proyecta PROYECCION_MIN pares o más, con autorización de la responsable.
+let MAX_PARES_AMPL = 20, PROYECCION_MIN = 2500;
 let direccionAutollenada = null; // la que pusimos sola, para no pisar lo que escriba el vendedor
 let uidSig = 1;
 // [{uid, item, color, tipo, cambios:{casco:{on,txt}...}, otros:[{nombre,txt}], tallas:[{talla,pares,nota}]}]
@@ -302,50 +320,65 @@ function clienteElegido() {
 }
 function paresDisponiblesCliente() {
   const c = clienteElegido();
-  if (TOPE_PARES <= 0) return Infinity; // sin tope
   return c ? Math.max(0, TOPE_PARES - (c.pares_muestra_mes || 0)) : TOPE_PARES;
 }
 
 // ---- Cupo del cliente (arriba) y total de pares ----
+// Pares máximos que esta pantalla deja enviar: con autorización hasta MAX_PARES_AMPL; al corregir
+// una solicitud normal, solo lo que le queda al cliente (la responsable no amplía al corregir).
+function topeSolicitud() {
+  if (CORREGIR) return CORREGIR.ampliacion ? MAX_PARES_AMPL : paresDisponiblesCliente();
+  return MAX_PARES_AMPL;
+}
+// ¿Pasa del cupo normal y cabe en la ampliación? Entonces pide autorización.
+function pideAmpliacion() {
+  const t = totalPares();
+  return !CORREGIR && t > paresDisponiblesCliente() && t <= MAX_PARES_AMPL;
+}
+function textoBoton() { return pideAmpliacion() ? 'Enviar a autorización' : (CORREGIR ? 'Guardar corrección' : 'Enviar solicitud'); }
 function pintarCupo() {
-  if (TOPE_PARES <= 0) { // sin tope: se oculta el cupo y solo se muestra el total
-    const cupo = document.querySelector('.mu-cupo');
-    if (cupo) cupo.classList.add('d-none');
-    document.getElementById('aviso-tope').classList.add('d-none');
-    const tot = document.getElementById('mu-total-pares');
-    tot.innerHTML = `<span>Total de la solicitud</span><strong>${paresTxt(totalPares())}</strong>`;
-    tot.classList.remove('excede');
-    document.getElementById('btn-enviar-muestra').disabled = false;
-    return;
-  }
   const c = clienteElegido();
   const disp = paresDisponiblesCliente();
   const total = totalPares();
+  const ampliada = !!(CORREGIR && CORREGIR.ampliacion);
+  const maxTotal = topeSolicitud();
+  const ampl = pideAmpliacion();
   document.getElementById('cupo-tope').textContent = TOPE_PARES;
   document.getElementById('cupo-n').textContent = c ? disp : TOPE_PARES;
   document.getElementById('cupo-sub').textContent = c ? 'pares disponibles este mes para este cliente' : 'pares por cliente al mes';
   document.getElementById('cupo-barra').style.width = Math.round(((c ? disp : TOPE_PARES) / TOPE_PARES) * 100) + '%';
-  document.querySelector('.mu-cupo').classList.toggle('agotado', !!c && disp === 0);
+  const cupo = document.querySelector('.mu-cupo');
+  cupo.classList.toggle('agotado', !!c && disp === 0);
+  cupo.classList.toggle('d-none', ampliada);
+  document.getElementById('bloque-ampliacion').classList.toggle('d-none', !ampl);
 
   const caja = document.getElementById('aviso-tope');
   const tot = document.getElementById('mu-total-pares');
   let aviso = '';
-  if (c && disp === 0) {
-    aviso = `<i class="bi bi-exclamation-triangle"></i> <strong>${escHtml(c.nombre)}</strong> ya tiene ${c.pares_muestra_mes} de ${TOPE_PARES} pares de muestra este mes. Podrás pedirle más a partir del día 1 del próximo mes.`;
-  } else if (total > disp) {
-    const sobran = total - disp;
-    aviso = c
-      ? `<i class="bi bi-exclamation-triangle"></i> A <strong>${escHtml(c.nombre)}</strong> le ${disp === 1 ? 'queda 1 par' : 'quedan ' + disp + ' pares'} de muestra este mes y llevas ${paresTxt(total)}. Quita ${paresTxt(sobran)}.`
-      : `<i class="bi bi-exclamation-triangle"></i> El máximo es de ${TOPE_PARES} pares por cliente al mes y llevas ${paresTxt(total)}. Quita ${paresTxt(sobran)}.`;
+  if (total > maxTotal) {
+    const sobran = total - maxTotal;
+    if (ampliada || !CORREGIR) {
+      aviso = `<i class="bi bi-exclamation-triangle"></i> El máximo con autorización es de ${MAX_PARES_AMPL} pares por solicitud y llevas ${paresTxt(total)}. Quita ${paresTxt(sobran)}.`;
+    } else {
+      aviso = disp === 0
+        ? `<i class="bi bi-exclamation-triangle"></i> Este cliente ya usó sus ${TOPE_PARES} pares de muestra del mes en que se pidió esta solicitud.`
+        : `<i class="bi bi-exclamation-triangle"></i> A este cliente le ${disp === 1 ? 'queda 1 par' : 'quedan ' + disp + ' pares'} ese mes y llevas ${paresTxt(total)}. Quita ${paresTxt(sobran)}.`;
+    }
+  } else if (ampl) {
+    aviso = `<i class="bi bi-shield-check"></i> ${c ? '<strong>' + escHtml(c.nombre) + '</strong> tiene ' + (disp === 1 ? '1 par disponible' : disp + ' pares disponibles') + ' este mes' : 'Pasa del cupo normal'} y llevas ${paresTxt(total)}. Se puede enviar hasta con ${MAX_PARES_AMPL} pares si el cliente proyecta comprar ${PROYECCION_MIN.toLocaleString('es-MX')} o más: llena la proyección abajo y el equipo de Segurmex la autoriza.`;
   }
   caja.innerHTML = aviso ? `<div class="alert alert-warning py-2 small">${aviso}</div>` : '';
   caja.classList.toggle('d-none', !aviso);
   tot.innerHTML = `<span>Total de la solicitud</span><strong>${paresTxt(total)}</strong>`
-    + (!c ? `<small>Máximo ${TOPE_PARES} pares por cliente al mes</small>`
+    + (ampliada ? `<small>Solicitud con ampliación autorizada: hasta ${MAX_PARES_AMPL} pares.</small>`
+       : ampl ? `<small>Pasa del cupo normal: requiere autorización.</small>`
+       : !c ? `<small>Máximo ${TOPE_PARES} pares por cliente al mes (hasta ${MAX_PARES_AMPL} con autorización)</small>`
        : total <= disp ? `<small>Este cliente tiene ${paresTxt(disp)} disponibles este mes. Con esta solicitud le ${disp - total === 1 ? 'queda 1 par' : 'quedan ' + (disp - total) + ' pares'}.</small>`
        : `<small>Este cliente solo tiene ${paresTxt(disp)} disponibles este mes.</small>`);
-  tot.classList.toggle('excede', total > disp);
-  document.getElementById('btn-enviar-muestra').disabled = (c && disp === 0) || total > disp;
+  tot.classList.toggle('excede', total > maxTotal);
+  const btn = document.getElementById('btn-enviar-muestra');
+  btn.disabled = total > maxTotal;
+  if (!btn.dataset.enviando) btn.textContent = textoBoton();
 }
 
 // ---- Resumen en vivo ----
@@ -400,7 +433,7 @@ function pintarContacto() {
   document.getElementById('contacto_telefono').required = true;
 }
 ['contacto_nombre', 'contacto_telefono'].forEach(id => document.getElementById(id).addEventListener('input', () => pintarResumen()));
-['motivo', 'fecha_promesa', 'tiempo_prueba_dias', 'destino_direccion'].forEach(id => document.getElementById(id).addEventListener('input', pintarResumen));
+['motivo', 'fecha_promesa', 'tiempo_prueba_dias', 'destino_direccion', 'proyeccion_pares', 'ampliacion_justificacion'].forEach(id => document.getElementById(id).addEventListener('input', pintarResumen));
 document.getElementById('id_cliente').addEventListener('change', (e) => {
   pintarContacto();
   const c = clientesCat.find(x => String(x.id) === e.target.value);
@@ -508,7 +541,7 @@ function tallasHTML(l, e) {
       </select>
       <div class="mu-pares" role="group" aria-label="Pares">
         <button type="button" data-accion="menos" aria-label="Un par menos"><i class="bi bi-dash-lg"></i></button>
-        <input type="number" class="mu-pares-inp" data-accion="pares" min="1"${TOPE_PARES > 0 ? ` max="${TOPE_PARES}"` : ''} step="1" inputmode="numeric" value="${escHtml(t.pares)}" aria-label="Pares">
+        <input type="number" class="mu-pares-inp" data-accion="pares" min="1" max="${MAX_PARES_AMPL}" step="1" inputmode="numeric" value="${escHtml(t.pares)}" aria-label="Pares">
         <button type="button" data-accion="mas" aria-label="Un par más"><i class="bi bi-plus-lg"></i></button>
       </div>
       <button type="button" class="v26-icon-btn mu-talla-quitar" data-accion="quitar-talla" aria-label="Quitar talla" ${l.tallas.length === 1 ? 'disabled' : ''}><i class="bi bi-trash"></i></button>
@@ -645,7 +678,7 @@ cont.addEventListener('click', (ev) => {
     case 'agregar-talla': l.tallas.push({ talla: '', pares: 1, nota: '' }); repintarLinea(l); break;
     case 'quitar-talla': if (l.tallas.length > 1) { l.tallas.splice(Number(filaT.dataset.i), 1); repintarLinea(l); } break;
     case 'menos': if (t) { t.pares = Math.max(1, (parseInt(t.pares, 10) || 1) - 1); filaT.querySelector('.mu-pares-inp').value = t.pares; actualizarSubtotal(l); } break;
-    case 'mas': if (t) { t.pares = (parseInt(t.pares, 10) || 0) + 1; if (TOPE_PARES > 0) t.pares = Math.min(TOPE_PARES, t.pares); filaT.querySelector('.mu-pares-inp').value = t.pares; actualizarSubtotal(l); } break;
+    case 'mas': if (t) { t.pares = Math.min(MAX_PARES_AMPL, (parseInt(t.pares, 10) || 0) + 1); filaT.querySelector('.mu-pares-inp').value = t.pares; actualizarSubtotal(l); } break;
     case 'tipo':
       if (l.tipo !== el.dataset.tipo) {
         l.tipo = el.dataset.tipo;
@@ -718,7 +751,9 @@ async function cargarCatalogos() {
       document.getElementById('mu-estilos').innerHTML = `<div class="mu-est-sin">${escHtml(data.error)}</div>`;
       return;
     }
-    TOPE_PARES = Number(data.tope_pares_cliente) || 0;
+    TOPE_PARES = data.tope_pares_cliente || 6;
+    MAX_PARES_AMPL = data.max_pares_ampliacion || 20;
+    PROYECCION_MIN = data.proyeccion_min_ampliacion || 2500;
     MAX_ESTILOS = data.max_estilos || 6;
     MAX_TALLAS = data.max_tallas || 6;
     clientesCat = data.clientes;
@@ -879,6 +914,12 @@ function faltantes() {
   lineas.forEach((l, i) => erroresLinea(l, i + 1).forEach(x => f.push(x)));
   if (!$('motivo').value.trim()) f.push({ paso: 2, campo: 'campo-motivo', lista: 'Motivo de la muestra', msg: 'Escribe para qué es la muestra (ej. prueba de uso en planta).', foco: () => $('motivo') });
   if (!$('destino_direccion').value.trim()) f.push({ paso: 3, campo: 'campo-direccion', lista: 'Dirección de entrega', msg: 'Escribe a dónde se manda la muestra.', foco: () => $('destino_direccion') });
+  if (pideAmpliacion()) {
+    const proy = parseInt($('proyeccion_pares').value, 10);
+    const minTxt = PROYECCION_MIN.toLocaleString('es-MX');
+    if (!proy || proy < PROYECCION_MIN) f.push({ paso: 2, campo: 'campo-proyeccion', lista: `Proyección de compra (mínimo ${minTxt} pares)`, msg: `Escribe cuántos pares proyecta comprar el cliente (mínimo ${minTxt}).`, foco: () => $('proyeccion_pares') });
+    if (!$('ampliacion_justificacion').value.trim()) f.push({ paso: 2, campo: 'campo-justificacion', lista: 'Por qué necesita más pares', msg: `Explica por qué hacen falta más de ${TOPE_PARES} pares.`, foco: () => $('ampliacion_justificacion') });
+  }
   return f;
 }
 function pintarValidacion() {
@@ -896,8 +937,7 @@ function pintarValidacion() {
   const disp = paresDisponiblesCliente();
   const cont = document.getElementById('mu-contador');
   let txt, cls = '';
-  if (c && disp === 0) { txt = '<i class="bi bi-exclamation-triangle-fill"></i> Este cliente ya usó sus pares de muestra de este mes.'; cls = 'bloquea'; }
-  else if (totalPares() > disp) { txt = '<i class="bi bi-exclamation-triangle-fill"></i> Quita pares: la solicitud pasa del máximo de este cliente.'; cls = 'bloquea'; }
+  if (totalPares() > topeSolicitud()) { txt = '<i class="bi bi-exclamation-triangle-fill"></i> Quita pares: la solicitud pasa del máximo permitido.'; cls = 'bloquea'; }
   else if (f.length) txt = `Faltan <b>${f.length}</b> ${f.length === 1 ? 'dato obligatorio' : 'datos obligatorios'}`;
   else { txt = '<i class="bi bi-check-circle-fill"></i> Todo listo para enviar'; cls = 'listo'; }
   cont.innerHTML = txt;
@@ -906,7 +946,7 @@ function pintarValidacion() {
   const box = document.getElementById('mu-faltan');
   if (!intentoEnviar) { box.classList.add('d-none'); return; }
   // Cada campo que falta en rojo con su mensaje.
-  ['campo-cliente', 'campo-contacto-nombre', 'campo-contacto-tel', 'campo-motivo', 'campo-direccion'].forEach(id => {
+  ['campo-cliente', 'campo-contacto-nombre', 'campo-contacto-tel', 'campo-motivo', 'campo-direccion', 'campo-proyeccion', 'campo-justificacion'].forEach(id => {
     const d = document.getElementById(id);
     const x = f.find(y => y.campo === id);
     d.classList.toggle('mu-err', !!x);
@@ -952,12 +992,13 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     document.getElementById('mu-faltan').scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
-  if (totalPares() > paresDisponiblesCliente()) {
-    errorEn('Esta solicitud pasa del máximo de pares de muestra de este cliente este mes. Quita pares.');
+  if (totalPares() > topeSolicitud()) {
+    errorEn('Esta solicitud pasa del máximo de pares permitido. Quita pares.');
     return;
   }
 
   btn.disabled = true;
+  btn.dataset.enviando = '1';
   btn.textContent = CORREGIR ? 'Guardando...' : 'Enviando...';
   try {
     const fd = new FormData();
@@ -974,6 +1015,10 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     fd.append('fecha_promesa', document.getElementById('fecha_promesa').value);
     fd.append('entregar_a', entregaElegida());
     fd.append('destino_direccion', document.getElementById('destino_direccion').value);
+    if (pideAmpliacion()) {
+      fd.append('proyeccion_pares', document.getElementById('proyeccion_pares').value);
+      fd.append('ampliacion_justificacion', document.getElementById('ampliacion_justificacion').value);
+    }
 
     const res = await fetch(CORREGIR ? '../api/muestra_corregir.php' : '../api/muestra_solicitar.php', { method: 'POST', body: fd });
     const data = await res.json();
@@ -985,8 +1030,11 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
       document.getElementById('pantalla-form').classList.add('d-none');
       window.scrollTo({ top: 0 });
       document.getElementById('folio-exito').textContent = data.folio || '';
-      document.getElementById('texto-exito').textContent = `Tu solicitud de ${paresTxt(data.pares || totalPares())} ya está con el equipo de Segurmex.`
-        + (data.pares_restantes != null ? ` A este cliente le ${data.pares_restantes === 1 ? 'queda 1 par' : 'quedan ' + data.pares_restantes + ' pares'} de muestra este mes.` : '');
+      if (data.ampliacion) document.querySelector('.mu-exito-titulo').textContent = 'Solicitud enviada a autorización';
+      document.getElementById('texto-exito').textContent = data.ampliacion
+        ? `Pediste ${paresTxt(data.pares || totalPares())}, más del cupo normal. El equipo de Segurmex debe autorizarla antes de producirla; te avisamos.`
+        : `Tu solicitud de ${paresTxt(data.pares || totalPares())} ya está con el equipo de Segurmex.`
+        + (!data.ampliacion && data.pares_restantes != null ? ` A este cliente le ${data.pares_restantes === 1 ? 'queda 1 par' : 'quedan ' + data.pares_restantes + ' pares'} de muestra este mes.` : '');
       const pdf = document.getElementById('btn-pdf-exito');
       pdf.href = '../muestra_pdf.php?id=' + encodeURIComponent(data.id);
       pdf.classList.remove('d-none');
@@ -995,12 +1043,14 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
     } else {
       errorEn(data.error || 'No se pudo enviar. Intenta de nuevo.');
       btn.disabled = false;
-      btn.textContent = CORREGIR ? 'Guardar corrección' : 'Enviar solicitud';
+      delete btn.dataset.enviando;
+      btn.textContent = textoBoton();
     }
   } catch (err) {
     errorEn('No se pudo enviar. Intenta de nuevo.');
     btn.disabled = false;
-    btn.textContent = CORREGIR ? 'Guardar corrección' : 'Enviar solicitud';
+    delete btn.dataset.enviando;
+    btn.textContent = textoBoton();
   }
 });
 </script>

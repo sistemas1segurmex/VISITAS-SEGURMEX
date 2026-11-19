@@ -53,8 +53,9 @@ function htmlPdfMuestra(array $s, array $historial, bool $conNombres): string {
     $estado  = (string)$s['estado'];
 
     // Aviso de estado arriba (mismos colores que la cotización).
-    $clases = ['enviada' => 'ojo', 'en_preparacion' => 'ojo', 'embarcada' => 'ok', 'cancelada' => 'no'];
+    $clases = ['por_autorizar' => 'ojo', 'enviada' => 'ojo', 'en_preparacion' => 'ojo', 'embarcada' => 'ok', 'cancelada' => 'no'];
     $detalleEstado = [
+        'por_autorizar'  => 'Esperando autorización (más de ' . MUESTRAS_TOPE_PARES_CLIENTE_MES . ' pares).',
         'enviada'        => 'Recibida, pendiente de atender.',
         'en_preparacion' => (textoPreparacionMuestra($s) ?? 'Se está preparando') . '.',
         'embarcada'      => 'Enviada: ' . textoEnvioMuestra($s) . '.',
@@ -112,6 +113,8 @@ function htmlPdfMuestra(array $s, array $historial, bool $conNombres): string {
     // Historial.
     $hist = '';
     $txt = [
+        'por_autorizar'  => 'Solicitud enviada (pide autorización)',
+        'ampliacion_autorizada' => 'Ampliación autorizada',
         'enviada'        => 'Solicitud enviada',
         'en_preparacion' => 'En preparación',
         'embarcada'      => 'Embarcada',

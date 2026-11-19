@@ -22,6 +22,8 @@ $historial = historialSolicitudMuestra($db, (int)$s['id']);
 $siguientes = MUESTRA_TRANSICIONES[$s['estado']] ?? [];
 $conAcciones = $puedeCambiar && $siguientes;
 $abierta = in_array($s['estado'], ['enviada', 'en_preparacion'], true);
+$porAutorizar = $s['estado'] === 'por_autorizar';
+$puedeAutorizar = $puedeCambiar && $porAutorizar;
 // Petición del vendedor (corrección / cancelación) pendiente.
 $peticion = $abierta && !empty($s['peticion_tipo']) ? $s['peticion_tipo'] : null;
 // ¿Ya se imprimieron etiquetas de esta muestra en el ERP? (avisar que hay que reimprimir si se corrige)
@@ -118,6 +120,7 @@ if ($s['tipo'] === 'variante') $chips[] = ['', 'bi-shuffle', count($estilosVer) 
 if ($peticion) array_unshift($chips, ['rojo', 'bi-chat-left-text', $peticion === 'cancelacion' ? 'Piden cancelarla' : 'Piden corrección']);
 
 $PILL = [
+    'por_autorizar'  => ['nueva', 'bi-shield-check', 'Por autorizar'],
     'enviada'        => ['nueva', 'bi-inbox-fill', 'Nueva · sin atender'],
     'en_preparacion' => ['prep', 'bi-gear-fill', 'En preparación'],
     'embarcada'      => ['emb', 'bi-truck', 'Embarcada'],
@@ -165,6 +168,8 @@ $correoTexto  = 'Hola ' . $s['vendedor_nombre'] . ', te escribo sobre tu solicit
 
 // Historial
 $TXT_HISTORIAL = [
+    'por_autorizar'  => 'Solicitud enviada · pide autorización (más de 6 pares)',
+    'ampliacion_autorizada' => 'Ampliación autorizada',
     'enviada'        => 'Solicitud enviada',
     'en_preparacion' => 'En preparación',
     'embarcada'      => 'Embarcada',
@@ -175,6 +180,8 @@ $TXT_HISTORIAL = [
     'peticion_rechazada' => 'No se pudo hacer el cambio',
 ];
 $ICONO_HISTORIAL = [
+    'por_autorizar'  => ['', 'bi-shield-check'],
+    'ampliacion_autorizada' => ['p', 'bi-check2-circle'],
     'enviada'        => ['', 'bi-send-fill'],
     'en_preparacion' => ['p', 'bi-gear-fill'],
     'embarcada'      => ['e', 'bi-truck'],
@@ -354,7 +361,29 @@ $ICONO_HISTORIAL = [
 
       <!-- DERECHA -->
       <aside class="md-side">
-        <?php if ($conAcciones): ?>
+        <?php if ($puedeAutorizar): ?>
+        <div class="md-card md-acc">
+          <div class="md-sec"><i class="bi bi-shield-check"></i> Autorización</div>
+          <div class="mi-peticion">
+            <b><i class="bi bi-graph-up-arrow"></i> <?= e($s['vendedor_nombre']) ?> pide <?= e(textoParesMuestra($totalPares)) ?> (el tope normal es de <?= (int)MUESTRAS_TOPE_PARES_CLIENTE_MES ?>)</b>
+            <span class="mi-peticion-txt">Proyección de compra del cliente: <?= number_format((int)$s['proyeccion_pares']) ?> pares.<br>«<?= nl2br(e($s['ampliacion_justificacion'] ?? '')) ?>»</span>
+          </div>
+          <p class="md-next">Tú decides. Si la autorizas pasa a «Nueva» y sigue el flujo normal; si no, se cancela con tu motivo. Lo que elijas le llega al vendedor por aviso y correo.</p>
+          <button type="button" class="md-btn md-btn--pri" data-panel="panel-autorizar"><i class="bi bi-check2-circle"></i> Autorizar <?= e(textoParesMuestra($totalPares)) ?></button>
+          <button type="button" class="md-btn md-btn--rojo" data-panel="panel-no-autorizar"><i class="bi bi-slash-circle"></i> No autorizar</button>
+          <form id="panel-autorizar" class="md-panel"><div class="md-panel-in">
+            <label class="md-lbl md-lbl--top" for="nota_autoriza">Nota para el vendedor <span class="mu-opc">(opcional)</span></label>
+            <textarea id="nota_autoriza" class="md-inp" rows="2" maxlength="300" placeholder="Ej. Autorizado, pero ármalas en las dos tallas más vendidas"></textarea>
+            <button type="submit" class="md-btn md-btn--pri">Confirmar autorización</button>
+          </div></form>
+          <form id="panel-no-autorizar" class="md-panel"><div class="md-panel-in">
+            <label class="md-lbl md-lbl--top" for="motivo_no_autoriza">¿Por qué no se autoriza?</label>
+            <textarea id="motivo_no_autoriza" class="md-inp" rows="2" maxlength="450" placeholder="Ej. Pide solo 6 pares y mandamos más cuando confirme el pedido"></textarea>
+            <p class="md-hint">Le llega a <?= e($s['vendedor_nombre']) ?>. La solicitud se cancela y puede pedir una nueva de hasta <?= (int)MUESTRAS_TOPE_PARES_CLIENTE_MES ?> pares.</p>
+            <button type="submit" class="md-btn md-btn--rojo">No autorizar</button>
+          </div></form>
+        </div>
+        <?php elseif ($conAcciones): ?>
         <div class="md-card md-acc">
           <div class="md-sec"><i class="bi bi-lightning-charge-fill"></i> ¿Qué sigue?</div>
 
@@ -450,7 +479,7 @@ $ICONO_HISTORIAL = [
           <?php elseif ($s['estado'] === 'cancelada'): ?>
             <div class="md-box md-box--can"><i class="bi bi-x-circle-fill"></i> <span><b>Cancelada</b><?= !empty($s['motivo_cancelacion']) ? e($s['motivo_cancelacion']) : '' ?></span></div>
           <?php else: ?>
-            <div class="md-box"><i class="bi <?= $PILL[1] ?>"></i> <span><b><?= e($PILL[2]) ?></b><?= $detallePrep ? e($detallePrep) : 'La atiende la responsable de muestras.' ?></span></div>
+            <div class="md-box"><i class="bi <?= $PILL[1] ?>"></i> <span><b><?= e($PILL[2]) ?></b><?= $detallePrep ? e($detallePrep) : ($porAutorizar ? 'Pidió más de ' . (int)MUESTRAS_TOPE_PARES_CLIENTE_MES . ' pares: espera tu autorización.' : 'La atiende la responsable de muestras.') ?></span></div>
           <?php endif; ?>
           <?php if ($peticion): ?>
             <div class="mi-peticion mt-2"><b><i class="bi bi-chat-left-text-fill"></i> El vendedor pide <?= $peticion === 'cancelacion' ? 'cancelarla' : 'una corrección' ?></b><span class="mi-peticion-txt">«<?= nl2br(e($s['peticion_texto'])) ?>»</span><small>Lo decide la responsable de muestras.</small></div>
@@ -512,6 +541,47 @@ $ICONO_HISTORIAL = [
 <?php include __DIR__ . '/../includes/foto_zoom.php'; ?>
 <script>
 aplicarFechasUTC();
+<?php if ($puedeAutorizar): ?>
+// Autorizar o no la ampliación de pares (20-nov-2026).
+const ID_SOLICITUD_AUT = <?= (int)$s['id'] ?>;
+function escHtmlAut(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function errorAut(texto) {
+  document.getElementById('msg').innerHTML = `<div class="alert alert-danger py-2">${escHtmlAut(texto)}</div>`;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+document.querySelectorAll('[data-panel]').forEach(b => b.addEventListener('click', () => {
+  const p = document.getElementById(b.dataset.panel), abrir = !p.classList.contains('open');
+  document.querySelectorAll('.md-panel').forEach(x => x.classList.remove('open'));
+  if (abrir) { p.classList.add('open'); const t = p.querySelector('textarea'); if (t) t.focus(); }
+}));
+async function enviarAut(url, datos, boton) {
+  document.getElementById('msg').innerHTML = '';
+  const fd = new FormData();
+  fd.append('id', ID_SOLICITUD_AUT);
+  Object.entries(datos).forEach(([k, v]) => fd.append(k, v));
+  const original = boton ? boton.innerHTML : '';
+  if (boton) { boton.disabled = true; boton.textContent = 'Guardando...'; }
+  try {
+    const r = await fetch(url, { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'No se pudo guardar.');
+    window.location.reload();
+  } catch (err) {
+    errorAut(err.message);
+    if (boton) { boton.disabled = false; boton.innerHTML = original; }
+  }
+}
+document.getElementById('panel-autorizar').addEventListener('submit', (e) => {
+  e.preventDefault();
+  enviarAut('../api/muestra_autorizar.php', { nota: document.getElementById('nota_autoriza').value.trim() }, e.submitter);
+});
+document.getElementById('panel-no-autorizar').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const motivo = document.getElementById('motivo_no_autoriza').value.trim();
+  if (!motivo) { errorAut('Escribe por qué no se autoriza (le llega al vendedor).'); return; }
+  enviarAut('../api/muestra_ampliacion_rechazar.php', { motivo }, e.submitter);
+});
+<?php endif; ?>
 <?php if ($conAcciones): ?>
 const ID_SOLICITUD = <?= (int)$s['id'] ?>;
 function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
