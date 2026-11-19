@@ -6,6 +6,7 @@
 
 /* Pills de estado */
 .mu-pill { display: inline-flex; align-items: center; font-size: .7rem; font-weight: 800; padding: 4px 10px; border-radius: var(--v26-r-pill); white-space: nowrap; }
+.mu-pill--por_autorizar  { background: rgba(124,58,237,.12); color: #5B21B6; }
 .mu-pill--enviada        { background: rgba(232,164,0,.16);  color: #92600A; }
 .mu-pill--en_preparacion { background: rgba(79,70,229,.12);  color: var(--v26-blue); }
 .mu-pill--embarcada      { background: rgba(22,163,74,.12);  color: var(--v26-green); }

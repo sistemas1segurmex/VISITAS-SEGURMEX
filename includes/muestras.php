@@ -18,8 +18,13 @@ require_once __DIR__ . '/mailer.php';
 // Tope de PARES de muestra por cliente por mes calendario (hora de CDMX),
 // sumando todas sus solicitudes. Las canceladas no cuentan. (22-oct-2026:
 // antes eran 5 solicitudes por vendedor al mes; se quitó.)
-// 0 = SIN TOPE (19-nov-2026: por ahora libre; igual que MI_TOPE_PARES_CLIENTE_MES en el ERP).
-const MUESTRAS_TOPE_PARES_CLIENTE_MES = 0;
+const MUESTRAS_TOPE_PARES_CLIENTE_MES = 6;
+// Ampliación (20-nov-2026): si el cliente proyecta comprar MUESTRAS_PROYECCION_MIN_AMPLIACION
+// pares o más, una solicitud puede llevar hasta MUESTRAS_MAX_PARES_AMPLIACION pares, pero
+// queda «por_autorizar» hasta que la responsable de muestras la autorice. Ver
+// api/muestra_solicitar.php. Mismo criterio que el ERP (MI_MAX_PARES_AMPLIACION).
+const MUESTRAS_MAX_PARES_AMPLIACION = 20;
+const MUESTRAS_PROYECCION_MIN_AMPLIACION = 2500;
 
 // Máximo de estilos y de tallas por estilo en una solicitud (solo para que
 // el formulario no crezca sin fin; el tope real es el de pares).
@@ -27,6 +32,7 @@ const MUESTRAS_MAX_ESTILOS = 6;
 const MUESTRAS_MAX_TALLAS_POR_ESTILO = 6;
 
 const MUESTRA_ESTADOS = [
+    'por_autorizar'  => 'Por autorizar',
     'enviada'        => 'Enviada',
     'en_preparacion' => 'En preparación',
     'embarcada'      => 'Embarcada',
@@ -35,6 +41,7 @@ const MUESTRA_ESTADOS = [
 
 // A dónde puede pasar cada estado. embarcada y cancelada cierran.
 const MUESTRA_TRANSICIONES = [
+    'por_autorizar'  => [], // se resuelve con autorizarAmpliacionMuestra() / rechazarAmpliacionMuestra()
     'enviada'        => ['en_preparacion', 'embarcada', 'cancelada'],
     'en_preparacion' => ['embarcada', 'cancelada'],
     'embarcada'      => [],
@@ -208,7 +215,7 @@ function sqlInicioMesMx(): string {
 function paresMuestraDelMesCliente(PDO $db, int $clienteId): int {
     $stmt = $db->prepare(
         "SELECT COALESCE(SUM(cantidad), 0) FROM muestras_solicitudes
-         WHERE cliente_id = ? AND estado <> 'cancelada' AND created_at >= " . sqlInicioMesMx()
+         WHERE cliente_id = ? AND estado <> 'cancelada' AND NOT ampliacion AND created_at >= " . sqlInicioMesMx()
     );
     $stmt->execute([$clienteId]);
     return (int)$stmt->fetchColumn();
@@ -219,7 +226,7 @@ function paresMuestraDelMesPorCliente(PDO $db, int $vendedorId): array {
     $stmt = $db->prepare(
         "SELECT cliente_id, COALESCE(SUM(cantidad), 0) AS pares FROM muestras_solicitudes
          WHERE cliente_id IN (SELECT id FROM clientes WHERE vendedor_id = ?)
-           AND estado <> 'cancelada' AND created_at >= " . sqlInicioMesMx() . "
+           AND estado <> 'cancelada' AND NOT ampliacion AND created_at >= " . sqlInicioMesMx() . "
          GROUP BY cliente_id"
     );
     $stmt->execute([$vendedorId]);
@@ -648,6 +655,10 @@ function solicitudMuestraParaJson(array $s): array {
         'tiempo_prueba_dias' => isset($s['tiempo_prueba_dias']) ? (int)$s['tiempo_prueba_dias'] : null,
         'fecha_promesa'      => $s['fecha_promesa'],
         'tipo'               => $s['tipo'],
+        'ampliacion'         => !empty($s['ampliacion']),
+        'proyeccion_pares'   => isset($s['proyeccion_pares']) ? (int)$s['proyeccion_pares'] : null,
+        'ampliacion_justificacion' => $s['ampliacion_justificacion'] ?? null,
+        'ampliacion_resuelta_en'   => $s['ampliacion_resuelta_en'] ?? null,
         'cambios'            => is_array($s['cambios']) ? $s['cambios'] : (json_decode($s['cambios'] ?? '[]', true) ?: []),
         // Varios estilos con sus tallas (22-oct-2026). Las pantallas usan
         // esto; estilo_nombre/color/talla/cantidad/tipo de arriba son resumen.
@@ -683,7 +694,7 @@ function solicitudMuestraParaJson(array $s): array {
  * (api/muestra_corregir.php). Si algo está mal contesta el error (JSON) y sale.
  * Devuelve ['estilos', 'total', 'resumen', 'variante'].
  */
-function validarEstilosMuestraOSalir(array $estilosEntrada): array {
+function validarEstilosMuestraOSalir(array $estilosEntrada, int $maxPares = MUESTRAS_TOPE_PARES_CLIENTE_MES): array {
     require_once __DIR__ . '/db_erp.php';
     if (!$estilosEntrada) {
         jsonResponse(['ok' => false, 'error' => 'Agrega al menos un estilo'], 400);
@@ -798,10 +809,11 @@ function validarEstilosMuestraOSalir(array $estilosEntrada): array {
             'tallas'           => array_values($tallas),
         ];
     }
-    if (MUESTRAS_TOPE_PARES_CLIENTE_MES > 0 && $totalPares > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
-        jsonResponse(['ok' => false, 'error' => 'Son ' . $totalPares . ' pares y el máximo por cliente es de '
-            . MUESTRAS_TOPE_PARES_CLIENTE_MES . ' pares al mes. Quita ' . ($totalPares - MUESTRAS_TOPE_PARES_CLIENTE_MES)
-            . ($totalPares - MUESTRAS_TOPE_PARES_CLIENTE_MES === 1 ? ' par.' : ' pares.')], 400);
+    if ($totalPares > $maxPares) {
+        jsonResponse(['ok' => false, 'error' => 'Son ' . $totalPares . ' pares y el máximo '
+            . ($maxPares > MUESTRAS_TOPE_PARES_CLIENTE_MES ? 'por solicitud con autorización' : 'por cliente') . ' es de '
+            . $maxPares . ' pares' . ($maxPares > MUESTRAS_TOPE_PARES_CLIENTE_MES ? '' : ' al mes')
+            . '. Quita ' . ($totalPares - $maxPares) . ($totalPares - $maxPares === 1 ? ' par.' : ' pares.')], 400);
     }
 
     // Resumen que se guarda en la solicitud (bandeja, búsqueda): ver la
@@ -921,7 +933,7 @@ function rechazarPeticionMuestra(PDO $db, int $id, int $usuarioId, string $motiv
 function paresMuestraDelMesSin(PDO $db, array $s): int {
     $stmt = $db->prepare(
         "SELECT COALESCE(SUM(cantidad), 0) FROM muestras_solicitudes
-         WHERE cliente_id = ? AND id <> ? AND estado <> 'cancelada'
+         WHERE cliente_id = ? AND id <> ? AND estado <> 'cancelada' AND NOT ampliacion
            AND date_trunc('month', (created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Mexico_City')
              = date_trunc('month', (?::timestamp AT TIME ZONE 'UTC') AT TIME ZONE 'America/Mexico_City')"
     );
@@ -978,7 +990,7 @@ function corregirSolicitudMuestra(PDO $db, int $usuarioId, int $id, array $post)
     if ($direccion === '') return $err('Indica la dirección de entrega');
     if ($fechaPromesa !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaPromesa)) return $err('La fecha promesa no es válida');
 
-    $v = validarEstilosMuestraOSalir($estilosEntrada);
+    $v = validarEstilosMuestraOSalir($estilosEntrada, !empty($antes['ampliacion']) ? MUESTRAS_MAX_PARES_AMPLIACION : MUESTRAS_TOPE_PARES_CLIENTE_MES);
     $estilos = $v['estilos'];
     $primero = $estilos[0];
     $unaTalla = count($estilos) === 1 && count($primero['tallas']) === 1;
@@ -994,7 +1006,7 @@ function corregirSolicitudMuestra(PDO $db, int $usuarioId, int $id, array $post)
             return $err('La muestra ya está "' . etiquetaEstadoMuestra($estado) . '": ya no se puede corregir. Recarga la página.', 409);
         }
         $otros = paresMuestraDelMesSin($db, $antes);
-        if (MUESTRAS_TOPE_PARES_CLIENTE_MES > 0 && $otros + $v['total'] > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
+        if (empty($antes['ampliacion']) && $otros + $v['total'] > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
             $db->rollBack();
             $quedan = max(0, MUESTRAS_TOPE_PARES_CLIENTE_MES - $otros);
             return $err('Este cliente tiene otras solicitudes por ' . textoParesMuestra($otros) . ' en ese mes; con esta corrección serían '
@@ -1082,5 +1094,147 @@ function notificarRespuestaMuestra(PDO $db, array $s, string $que, string $detal
     crearAviso($db, (int)$s['vendedor_id'], $que === 'corregida' ? 'muestra_corregida' : 'muestra_peticion_rechazada', $titulo, $mensaje, $enlaceRel, (int)$s['id']);
     if (!empty($s['vendedor_email'])) {
         enviarCorreoMuestra($s['vendedor_email'], $titulo, correoMuestraHtml($titulo, $mensaje, $renglones, urlBaseVisitas() . $enlaceRel, 'Ver mis muestras'));
+    }
+}
+
+// ─── Ampliación del tope: autorizar / rechazar (20-nov-2026) ─────────────────
+//
+// Una solicitud que pasa del tope normal (MUESTRAS_TOPE_PARES_CLIENTE_MES pares por
+// cliente al mes) y trae una proyección de compra de MUESTRAS_PROYECCION_MIN_AMPLIACION
+// pares o más nace «por_autorizar» (hasta MUESTRAS_MAX_PARES_AMPLIACION pares). La
+// responsable de muestras la autoriza (pasa a «enviada» y sigue el flujo normal) o la
+// rechaza (queda «cancelada» con el motivo). Cada paso queda en el historial y le llega
+// aviso + correo al otro. Mismo flujo que el ERP para los vendedores internos
+// (miAutorizarAmpliacion() en cotizacion/_muestras_internas.php).
+
+/** La responsable autoriza la ampliación: por_autorizar -> enviada. */
+function autorizarAmpliacionMuestra(PDO $db, int $id, int $usuarioId, string $nota = ''): array {
+    $nota = mb_substr(trim($nota), 0, 300);
+    try {
+        $db->beginTransaction();
+        $stmt = $db->prepare('SELECT estado FROM muestras_solicitudes WHERE id = ? FOR UPDATE');
+        $stmt->execute([$id]);
+        $estado = $stmt->fetchColumn();
+        if ($estado === false) { $db->rollBack(); return ['ok' => false, 'error' => 'Solicitud no encontrada']; }
+        if ($estado !== 'por_autorizar') {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'La solicitud ya está "' . etiquetaEstadoMuestra((string)$estado) . '": no hay nada que autorizar. Recarga la página.'];
+        }
+        $db->prepare(
+            "UPDATE muestras_solicitudes
+                SET estado = 'enviada', ampliacion_usuario_id = ?, ampliacion_resuelta_en = NOW(), actualizada_en = NOW()
+              WHERE id = ?"
+        )->execute([$usuarioId, $id]);
+        $db->prepare('INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id, nota) VALUES (?,?,?,?)')
+           ->execute([$id, 'ampliacion_autorizada', $usuarioId, $nota !== '' ? $nota : 'Ampliación autorizada']);
+        // Los avisos de «autoriza esta muestra» ya no hacen falta.
+        $db->prepare("UPDATE avisos SET leido_en = NOW() WHERE solicitud_muestra_id = ? AND tipo = 'muestra_ampliacion' AND leido_en IS NULL")
+           ->execute([$id]);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('[VISITAS] autorizarAmpliacionMuestra: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'No se pudo guardar. Intenta de nuevo.'];
+    }
+    $s = cargarSolicitudMuestra($db, $id);
+    if ($s) notificarRespuestaAmpliacionMuestra($db, $s, 'autorizada', $nota);
+    return ['ok' => true, 'solicitud' => $s];
+}
+
+/** La responsable rechaza la ampliación: por_autorizar -> cancelada (con el motivo). */
+function rechazarAmpliacionMuestra(PDO $db, int $id, int $usuarioId, string $motivo): array {
+    $motivo = mb_substr(trim($motivo), 0, 450);
+    if ($motivo === '') return ['ok' => false, 'error' => 'Escribe por qué no se autoriza (le llega al vendedor).'];
+    try {
+        $db->beginTransaction();
+        $stmt = $db->prepare('SELECT estado FROM muestras_solicitudes WHERE id = ? FOR UPDATE');
+        $stmt->execute([$id]);
+        $estado = $stmt->fetchColumn();
+        if ($estado === false) { $db->rollBack(); return ['ok' => false, 'error' => 'Solicitud no encontrada']; }
+        if ($estado !== 'por_autorizar') {
+            $db->rollBack();
+            return ['ok' => false, 'error' => 'La solicitud ya está "' . etiquetaEstadoMuestra((string)$estado) . '": no hay nada que rechazar. Recarga la página.'];
+        }
+        $db->prepare(
+            "UPDATE muestras_solicitudes
+                SET estado = 'cancelada', motivo_cancelacion = ?, ampliacion_usuario_id = ?,
+                    ampliacion_resuelta_en = NOW(), actualizada_en = NOW()
+              WHERE id = ?"
+        )->execute(['No autorizada: ' . $motivo, $usuarioId, $id]);
+        $db->prepare('INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id, nota) VALUES (?,?,?,?)')
+           ->execute([$id, 'cancelada', $usuarioId, 'No autorizada: ' . $motivo]);
+        $db->prepare("UPDATE avisos SET leido_en = NOW() WHERE solicitud_muestra_id = ? AND tipo = 'muestra_ampliacion' AND leido_en IS NULL")
+           ->execute([$id]);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('[VISITAS] rechazarAmpliacionMuestra: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'No se pudo guardar. Intenta de nuevo.'];
+    }
+    $s = cargarSolicitudMuestra($db, $id);
+    if ($s) notificarRespuestaAmpliacionMuestra($db, $s, 'rechazada', $motivo);
+    return ['ok' => true, 'solicitud' => $s];
+}
+
+/** Aviso + correo a la(s) responsable(s): hay una solicitud que necesita su autorización. */
+function notificarAmpliacionMuestra(PDO $db, array $s): void {
+    $responsables = responsablesMuestras($db);
+    if (!$responsables) {
+        error_log('[VISITAS] Solicitud de muestra ' . $s['folio'] . ' sin responsable de muestras activa a quien pedirle la autorización.');
+        return;
+    }
+    $pares   = totalParesSolicitudMuestra($s);
+    $titulo  = 'Autoriza la muestra ' . $s['folio'] . ': ' . textoParesMuestra($pares) . ' (más del tope)';
+    $mensaje = $s['vendedor_nombre'] . ' pide ' . textoParesMuestra($pares) . ' para ' . $s['cliente_nombre']
+             . ' (proyección de ' . number_format((int)$s['proyeccion_pares']) . ' pares). Necesita tu autorización.';
+    $enlaceRel = 'muestras/ver.php?id=' . (int)$s['id'];
+    $cuerpo = correoMuestraHtml(
+        $titulo,
+        $s['vendedor_nombre'] . ' pide más de ' . MUESTRAS_TOPE_PARES_CLIENTE_MES . ' pares de muestra porque el cliente proyecta una compra grande. '
+            . 'No se manda a producción hasta que la autorices: ábrela para autorizarla o rechazarla.',
+        [
+            'Vendedor'             => $s['vendedor_nombre'] . ($s['vendedor_telefono'] ? ' · ' . $s['vendedor_telefono'] : ''),
+            'Cliente'              => $s['cliente_nombre'],
+            'Pide'                 => textoParesMuestra($pares) . ' (tope normal: ' . MUESTRAS_TOPE_PARES_CLIENTE_MES . ')',
+            'Proyección de compra' => number_format((int)$s['proyeccion_pares']) . ' pares',
+            'Justificación'        => $s['ampliacion_justificacion'] ?? null,
+            'Muestras'             => textoEstilosMuestra($s),
+            'Motivo'               => $s['motivo'] ?? null,
+        ],
+        urlBaseVisitas() . $enlaceRel,
+        'Abrir solicitud'
+    );
+    foreach ($responsables as $r) {
+        crearAviso($db, (int)$r['id'], 'muestra_ampliacion', $titulo, $mensaje, $enlaceRel, (int)$s['id']);
+        if (!empty($r['email'])) enviarCorreoMuestra($r['email'], $titulo, $cuerpo);
+    }
+}
+
+/**
+ * Aviso + correo al vendedor: autorizaron o rechazaron su ampliación.
+ * $detalle = nota (autorizada, puede ir vacía) o motivo (rechazada). Al externo no se le
+ * dice quién atiende: «el equipo de Segurmex».
+ */
+function notificarRespuestaAmpliacionMuestra(PDO $db, array $s, string $que, string $detalle): void {
+    $folio = $s['folio'];
+    if ($que === 'autorizada') {
+        $titulo  = "Autorizaron tu muestra $folio";
+        $mensaje = 'El equipo de Segurmex autorizó los ' . totalParesSolicitudMuestra($s) . ' pares para ' . $s['cliente_nombre']
+                 . '. Ya sigue el flujo normal: te avisamos cuando empiece a prepararse.';
+        $renglones = ['Nota' => $detalle !== '' ? $detalle : null];
+    } else {
+        $titulo  = "No autorizaron tu muestra $folio";
+        $mensaje = 'El equipo de Segurmex no autorizó la ampliación para ' . $s['cliente_nombre'] . '. La solicitud quedó cancelada; '
+                 . 'si hace falta, puedes pedir una nueva de hasta ' . MUESTRAS_TOPE_PARES_CLIENTE_MES . ' pares. Motivo: ' . $detalle;
+        $renglones = ['Por qué' => $detalle];
+    }
+    $enlaceRel = 'vendedor/muestras.php';
+    crearAviso($db, (int)$s['vendedor_id'], $que === 'autorizada' ? 'muestra_autorizada' : 'muestra_no_autorizada', $titulo, $mensaje, $enlaceRel, (int)$s['id']);
+    if (!empty($s['vendedor_email'])) {
+        enviarCorreoMuestra($s['vendedor_email'], $titulo, correoMuestraHtml(
+            $titulo, $mensaje,
+            ['Cliente' => $s['cliente_nombre'], 'Muestras' => textoEstilosMuestra($s), 'Total' => textoParesMuestra(totalParesSolicitudMuestra($s))] + $renglones,
+            urlBaseVisitas() . $enlaceRel, 'Ver mis muestras'
+        ));
     }
 }

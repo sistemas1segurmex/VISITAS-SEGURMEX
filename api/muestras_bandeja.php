@@ -5,6 +5,7 @@
 //       &vendedor=id&desde=AAAA-MM-DD&hasta=AAAA-MM-DD&campo=solicitud|promesa|embarque
 //   -> además: conteos_filtro (los mismos conteos con vendedor/periodo
 //      aplicados, para los chips) y vendedores:[{id, nombre, n}].
+// "por_autorizar" = piden más del tope de pares y esperan autorización (20-nov-2026).
 // "peticiones" = abiertas en las que el vendedor pide corregir o cancelar (06-nov-2026).
 //   -> {solicitudes:[...], conteos:{nuevas, en_preparacion, vencidas,
 //       cerradas, todas, embarcadas_mes}}
@@ -18,6 +19,13 @@ require_once __DIR__ . '/../includes/muestras.php';
 requireAnyRole(['muestras', 'admin']);
 $db = getDB();
 
+// Sin la migración 20261120090000_muestras_ampliacion.sql la bandeja no carga: avisarlo claro.
+try {
+    $db->query('SELECT ampliacion FROM muestras_solicitudes LIMIT 1');
+} catch (Throwable $e) {
+    jsonResponse(['ok' => false, 'error' => 'Falta correr en la base de datos la migración 20261120090000_muestras_ampliacion.sql (autorización de más de 6 pares). Avisa a Sistemas.'], 503);
+}
+
 // Sin la migración 20261106120000_muestras_peticiones.sql la bandeja no carga: avisarlo claro.
 try {
     $db->query('SELECT peticion_tipo FROM muestras_solicitudes LIMIT 1');
@@ -26,6 +34,7 @@ try {
 }
 
 const GRUPOS_BANDEJA_MUESTRAS = [
+    'por_autorizar'  => "s.estado = 'por_autorizar'",
     'peticiones'     => "s.peticion_tipo IS NOT NULL AND s.estado IN ('enviada', 'en_preparacion')",
     'nuevas'         => "s.estado = 'enviada'",
     'en_preparacion' => "s.estado = 'en_preparacion'",
@@ -85,7 +94,7 @@ if ($q !== '') {
 // esperando). Cerradas y todas: lo más reciente primero.
 $orden = $grupo === 'peticiones' ? 's.peticion_en ASC'
        : ($grupo === 'vencidas' ? 's.fecha_promesa ASC'
-       : (in_array($grupo, ['nuevas', 'en_preparacion'], true) ? 's.created_at ASC' : 's.actualizada_en DESC'));
+       : (in_array($grupo, ['por_autorizar', 'nuevas', 'en_preparacion'], true) ? 's.created_at ASC' : 's.actualizada_en DESC'));
 
 $stmt = $db->prepare(
     "SELECT s.*, u.nombre AS vendedor_nombre, u.email AS vendedor_email, u.telefono AS vendedor_telefono,
@@ -105,6 +114,7 @@ $stmt->execute($params);
 $solicitudes = array_map('solicitudMuestraParaJson', adjuntarEstilosSolicitudesMuestra($db, $stmt->fetchAll()));
 
 $sqlConteos = "SELECT COUNT(*) FILTER (WHERE s.peticion_tipo IS NOT NULL AND s.estado IN ('enviada', 'en_preparacion')) AS peticiones,
+            COUNT(*) FILTER (WHERE s.estado = 'por_autorizar') AS por_autorizar,
             COUNT(*) FILTER (WHERE s.estado = 'enviada') AS nuevas,
             COUNT(*) FILTER (WHERE s.estado = 'en_preparacion') AS en_preparacion,
             COUNT(*) FILTER (WHERE s.estado IN ('enviada', 'en_preparacion')

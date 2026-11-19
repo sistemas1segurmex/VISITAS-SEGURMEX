@@ -33,6 +33,10 @@ $entregarA    = ($_POST['entregar_a'] ?? '') === 'vendedor' ? 'vendedor' : 'clie
 $motivo       = mb_substr(trim((string)($_POST['motivo'] ?? '')), 0, 500);
 $notasPlanta  = mb_substr(trim((string)($_POST['notas_planta'] ?? '')), 0, 2000);
 $tiempoPrueba = trim((string)($_POST['tiempo_prueba_dias'] ?? ''));
+// Ampliación (20-nov-2026): solo se usa si la solicitud pasa del tope normal (ver más abajo).
+$proyeccion   = trim((string)($_POST['proyeccion_pares'] ?? ''));
+$justAmpl     = mb_substr(trim((string)($_POST['ampliacion_justificacion'] ?? '')), 0, 500);
+$ampliacion   = false;
 // Varios estilos con sus tallas (22-oct-2026), JSON:
 //   [{item:"m:12"|"e:34", color, tipo:"identico"|"variante",
 //     adendum:[{categoria, categoria_otro?, descripcion_cliente}],
@@ -102,7 +106,7 @@ if ($contactoTelefono !== $fichaTelefono) {
 // validarEstilosMuestraOSalir() en includes/muestras.php; la usa también la
 // corrección de la responsable). Si algo está mal, contesta el error y sale.
 ['estilos' => $estilos, 'total' => $totalPares, 'resumen' => $resumenNombre, 'variante' => $hayVariante]
-    = validarEstilosMuestraOSalir($estilosEntrada);
+    = validarEstilosMuestraOSalir($estilosEntrada, MUESTRAS_MAX_PARES_AMPLIACION);
 $primero  = $estilos[0];
 $unaTalla = count($estilos) === 1 && count($primero['tallas']) === 1;
 
@@ -112,21 +116,38 @@ try {
     // salten el tope de pares del mes.
     $db->prepare('SELECT pg_advisory_xact_lock(hashtext(?))')->execute(['muestras_cliente_' . $clienteId]);
     $usados = paresMuestraDelMesCliente($db, $clienteId);
-    if (MUESTRAS_TOPE_PARES_CLIENTE_MES > 0 && $usados + $totalPares > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
-        $db->rollBack();
+    if ($usados + $totalPares > MUESTRAS_TOPE_PARES_CLIENTE_MES) {
         $quedan = max(0, MUESTRAS_TOPE_PARES_CLIENTE_MES - $usados);
-        jsonResponse(['ok' => false, 'error' => 'Este cliente ya tiene ' . $usados . ' de ' . MUESTRAS_TOPE_PARES_CLIENTE_MES
+        $textoTope = 'Este cliente ya tiene ' . $usados . ' de ' . MUESTRAS_TOPE_PARES_CLIENTE_MES
             . ' pares de muestra este mes. ' . ($quedan === 0
                 ? 'Ya no le quedan pares: podrás pedir más a partir del día 1 del próximo mes.'
                 : 'Con esta solicitud serían ' . ($usados + $totalPares) . ': quita ' . ($usados + $totalPares - MUESTRAS_TOPE_PARES_CLIENTE_MES)
-                  . ($usados + $totalPares - MUESTRAS_TOPE_PARES_CLIENTE_MES === 1 ? ' par' : ' pares') . ' o pídela el próximo mes.')], 409);
+                  . ($usados + $totalPares - MUESTRAS_TOPE_PARES_CLIENTE_MES === 1 ? ' par' : ' pares') . ' o pídela el próximo mes.');
+        $textoAmpl = ' Si el cliente proyecta comprar ' . number_format(MUESTRAS_PROYECCION_MIN_AMPLIACION) . ' pares o más, puedes pedir hasta '
+            . MUESTRAS_MAX_PARES_AMPLIACION . ' pares con autorización del equipo de Segurmex.';
+        if ($proyeccion === '') {
+            $db->rollBack();
+            jsonResponse(['ok' => false, 'error' => $textoTope . $textoAmpl, 'requiere_ampliacion' => true], 409);
+        }
+        if (!ctype_digit($proyeccion) || (int)$proyeccion < MUESTRAS_PROYECCION_MIN_AMPLIACION) {
+            $db->rollBack();
+            jsonResponse(['ok' => false, 'requiere_ampliacion' => true, 'error' => 'Para pedir más de ' . MUESTRAS_TOPE_PARES_CLIENTE_MES
+                . ' pares la proyección de compra debe ser de al menos ' . number_format(MUESTRAS_PROYECCION_MIN_AMPLIACION) . ' pares.'], 400);
+        }
+        if ($justAmpl === '') {
+            $db->rollBack();
+            jsonResponse(['ok' => false, 'requiere_ampliacion' => true, 'error' => 'Escribe por qué necesitas más de '
+                . MUESTRAS_TOPE_PARES_CLIENTE_MES . ' pares de muestra para este cliente.'], 400);
+        }
+        $ampliacion = true;
     }
 
     $ins = $db->prepare(
         'INSERT INTO muestras_solicitudes
             (vendedor_id, cliente_id, cliente_nombre, id_estilo_erp, id_modelo_legacy, estilo_nombre, color, talla, fecha_promesa, tipo, cambios, entregar_a, destino_direccion,
-             motivo, notas_planta, cantidad, tiempo_prueba_dias, contacto_nombre, contacto_telefono)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?,?,?) RETURNING id'
+             motivo, notas_planta, cantidad, tiempo_prueba_dias, contacto_nombre, contacto_telefono,
+             estado, ampliacion, proyeccion_pares, ampliacion_justificacion)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id'
     );
     $ins->execute([
         (int)$u['id'], $clienteId, mb_substr($cliente['nombre'], 0, 200), $primero['id_estilo'], $primero['id_modelo_legacy'], mb_substr($resumenNombre, 0, 200),
@@ -135,6 +156,8 @@ try {
         json_encode(count($estilos) === 1 ? $primero['cambios'] : [], JSON_UNESCAPED_UNICODE), $entregarA, $direccion,
         $motivo, $notasPlanta !== '' ? $notasPlanta : null, $totalPares, $tiempoPrueba,
         mb_substr($contactoNombre, 0, 150), mb_substr($contactoTelefono, 0, 20),
+        $ampliacion ? 'por_autorizar' : 'enviada', $ampliacion ? 'true' : 'false',
+        $ampliacion ? (int)$proyeccion : null, $ampliacion ? $justAmpl : null,
     ]);
     $id = (int)$ins->fetchColumn();
     $folio = sprintf('MV-%04d', $id);
@@ -142,8 +165,9 @@ try {
 
     guardarEstilosMuestra($db, $id, $estilos);
 
-    $db->prepare("INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id) VALUES (?, 'enviada', ?)")
-       ->execute([$id, (int)$u['id']]);
+    $db->prepare('INSERT INTO muestras_solicitudes_historial (solicitud_id, estado, usuario_id, nota) VALUES (?, ?, ?, ?)')
+       ->execute([$id, $ampliacion ? 'por_autorizar' : 'enviada', (int)$u['id'],
+                  $ampliacion ? mb_substr('Pide ' . $totalPares . ' pares · proyección de ' . number_format((int)$proyeccion) . ' pares · ' . $justAmpl, 0, 500) : null]);
     // Actualiza la ficha del cliente con lo que corrigió o le faltaba
     // (columnas fijas, no vienen del navegador).
     foreach ($llenarFicha as $col => [, $valor]) {
@@ -166,14 +190,13 @@ if ($llenarFicha) {
 }
 
 $s = cargarSolicitudMuestra($db, $id);
-notificarNuevaSolicitudMuestra($db, $s);
+if ($ampliacion) notificarAmpliacionMuestra($db, $s); else notificarNuevaSolicitudMuestra($db, $s);
 
 jsonResponse([
     'ok'                => true,
     'id'                => $id,
     'folio'             => $folio,
     'pares'             => $totalPares,
-    'pares_restantes'   => MUESTRAS_TOPE_PARES_CLIENTE_MES > 0
-        ? max(0, MUESTRAS_TOPE_PARES_CLIENTE_MES - paresMuestraDelMesCliente($db, $clienteId))
-        : null, // sin tope
+    'ampliacion'        => $ampliacion,
+    'pares_restantes'   => max(0, MUESTRAS_TOPE_PARES_CLIENTE_MES - paresMuestraDelMesCliente($db, $clienteId)),
 ]);

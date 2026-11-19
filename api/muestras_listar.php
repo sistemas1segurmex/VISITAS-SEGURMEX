@@ -33,4 +33,5 @@ jsonResponse([
     'ok'                => true,
     'muestras'          => $muestras,
     'tope_pares_cliente' => MUESTRAS_TOPE_PARES_CLIENTE_MES,
+    'max_pares_ampliacion' => MUESTRAS_MAX_PARES_AMPLIACION,
 ]);
