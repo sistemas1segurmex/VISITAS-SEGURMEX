@@ -255,7 +255,9 @@ function detalleMuestraHTML(m) {
       <button type="button" class="v26-btn v26-btn-ghost" data-pedir="cancelacion" data-id="${m.id}"><i class="bi bi-slash-circle"></i> Pedir cancelación</button>
     </div>`);
   }
-  filas.push(`<div class="mt-2"><a href="../muestra_pdf.php?id=${encodeURIComponent(m.id)}" class="v26-btn v26-btn-ghost" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a></div>`);
+  filas.push(m.pdf_disponible === false
+    ? `<div class="mt-2"><span class="v26-btn v26-btn-ghost" style="opacity:.6;cursor:default" title="El PDF se habilita cuando la autoricen"><i class="bi bi-lock"></i> PDF al autorizarse</span></div>`
+    : `<div class="mt-2"><a href="../muestra_pdf.php?id=${encodeURIComponent(m.id)}" class="v26-btn v26-btn-ghost" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a></div>`);
   return `<div class="v26-muestra-detalle-inner">${filas.join('')}</div>`;
 }
 

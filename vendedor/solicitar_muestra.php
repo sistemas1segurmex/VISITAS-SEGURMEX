@@ -1037,7 +1037,7 @@ document.getElementById('form-muestra').addEventListener('submit', async (e) => 
         + (!data.ampliacion && data.pares_restantes != null ? ` A este cliente le ${data.pares_restantes === 1 ? 'queda 1 par' : 'quedan ' + data.pares_restantes + ' pares'} de muestra este mes.` : '');
       const pdf = document.getElementById('btn-pdf-exito');
       pdf.href = '../muestra_pdf.php?id=' + encodeURIComponent(data.id);
-      pdf.classList.remove('d-none');
+      if (!data.ampliacion) pdf.classList.remove('d-none'); // por autorizar: el PDF se habilita al autorizarse
       document.getElementById('aviso-tope').classList.add('d-none');
       document.getElementById('pantalla-exito').classList.remove('d-none');
     } else {
