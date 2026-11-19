@@ -21,7 +21,7 @@
 -- lo llamó muestras_solicitudes_estado_check. Se vuelve a crear con 'por_autorizar'.
 --
 -- Historial (muestras_solicitudes_historial.estado, sin CHECK): se agregan
--- 'por_autorizar' y 'ampliacion_autorizada'. Avisos (tabla avisos): tipos nuevos
+-- 'por_autorizar' y 'amp_autorizada'. Avisos (tabla avisos): tipos nuevos
 -- 'muestra_ampliacion', 'muestra_autorizada' y 'muestra_no_autorizada'.
 --
 -- Mismo cambio en el ERP para los internos

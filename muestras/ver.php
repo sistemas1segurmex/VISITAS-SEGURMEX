@@ -169,7 +169,7 @@ $correoTexto  = 'Hola ' . $s['vendedor_nombre'] . ', te escribo sobre tu solicit
 // Historial
 $TXT_HISTORIAL = [
     'por_autorizar'  => 'Solicitud enviada · pide autorización (más de 6 pares)',
-    'ampliacion_autorizada' => 'Ampliación autorizada',
+    'amp_autorizada' => 'Ampliación autorizada',
     'enviada'        => 'Solicitud enviada',
     'en_preparacion' => 'En preparación',
     'embarcada'      => 'Embarcada',
@@ -181,7 +181,7 @@ $TXT_HISTORIAL = [
 ];
 $ICONO_HISTORIAL = [
     'por_autorizar'  => ['', 'bi-shield-check'],
-    'ampliacion_autorizada' => ['p', 'bi-check2-circle'],
+    'amp_autorizada' => ['p', 'bi-check2-circle'],
     'enviada'        => ['', 'bi-send-fill'],
     'en_preparacion' => ['p', 'bi-gear-fill'],
     'embarcada'      => ['e', 'bi-truck'],

@@ -114,7 +114,7 @@ function htmlPdfMuestra(array $s, array $historial, bool $conNombres): string {
     $hist = '';
     $txt = [
         'por_autorizar'  => 'Solicitud enviada (pide autorización)',
-        'ampliacion_autorizada' => 'Ampliación autorizada',
+        'amp_autorizada' => 'Ampliación autorizada',
         'enviada'        => 'Solicitud enviada',
         'en_preparacion' => 'En preparación',
         'embarcada'      => 'Embarcada',
