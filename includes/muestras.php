@@ -168,6 +168,19 @@ function textoTiempoPruebaMuestra($dias): ?string {
     return $d . ($d === 1 ? ' día' : ' días');
 }
 
+/**
+ * ¿Se puede descargar el PDF de la solicitud? Mientras espera autorización (o si no la
+ * autorizaron) el vendedor no lo descarga: se le habilita al autorizarse (20-nov-2026).
+ * La responsable de muestras y el admin lo ven siempre (ver muestra_pdf.php).
+ */
+function pdfMuestraDisponible(array $s): bool {
+    $estado = (string)($s['estado'] ?? '');
+    if ($estado === 'por_autorizar') return false;
+    if (!empty($s['ampliacion']) && $estado === 'cancelada'
+        && strncmp((string)($s['motivo_cancelacion'] ?? ''), 'No autorizada', 13) === 0) return false;
+    return true;
+}
+
 /** Link al PDF de la solicitud (muestra_pdf.php, pide sesión). $base: '../' desde subcarpetas. */
 function urlPdfMuestra(int $id, string $base = ''): string {
     return $base . 'muestra_pdf.php?id=' . $id;
@@ -656,6 +669,7 @@ function solicitudMuestraParaJson(array $s): array {
         'fecha_promesa'      => $s['fecha_promesa'],
         'tipo'               => $s['tipo'],
         'ampliacion'         => !empty($s['ampliacion']),
+        'pdf_disponible'     => pdfMuestraDisponible($s),
         'proyeccion_pares'   => isset($s['proyeccion_pares']) ? (int)$s['proyeccion_pares'] : null,
         'ampliacion_justificacion' => $s['ampliacion_justificacion'] ?? null,
         'ampliacion_resuelta_en'   => $s['ampliacion_resuelta_en'] ?? null,
@@ -1218,9 +1232,9 @@ function notificarAmpliacionMuestra(PDO $db, array $s): void {
 function notificarRespuestaAmpliacionMuestra(PDO $db, array $s, string $que, string $detalle): void {
     $folio = $s['folio'];
     if ($que === 'autorizada') {
-        $titulo  = "Autorizaron tu muestra $folio";
+        $titulo  = "Autorizaron tu muestra $folio: ya puedes descargar el PDF";
         $mensaje = 'El equipo de Segurmex autorizó los ' . totalParesSolicitudMuestra($s) . ' pares para ' . $s['cliente_nombre']
-                 . '. Ya sigue el flujo normal: te avisamos cuando empiece a prepararse.';
+                 . '. Ya sigue el flujo normal: te avisamos cuando empiece a prepararse. Ya puedes descargar el PDF de tu solicitud.';
         $renglones = ['Nota' => $detalle !== '' ? $detalle : null];
     } else {
         $titulo  = "No autorizaron tu muestra $folio";
@@ -1228,13 +1242,14 @@ function notificarRespuestaAmpliacionMuestra(PDO $db, array $s, string $que, str
                  . 'si hace falta, puedes pedir una nueva de hasta ' . MUESTRAS_TOPE_PARES_CLIENTE_MES . ' pares. Motivo: ' . $detalle;
         $renglones = ['Por qué' => $detalle];
     }
-    $enlaceRel = 'vendedor/muestras.php';
+    // Autorizada: el aviso y el correo llevan directo al PDF, que ya se puede descargar.
+    $enlaceRel = $que === 'autorizada' ? urlPdfMuestra((int)$s['id']) : 'vendedor/muestras.php';
     crearAviso($db, (int)$s['vendedor_id'], $que === 'autorizada' ? 'muestra_autorizada' : 'muestra_no_autorizada', $titulo, $mensaje, $enlaceRel, (int)$s['id']);
     if (!empty($s['vendedor_email'])) {
         enviarCorreoMuestra($s['vendedor_email'], $titulo, correoMuestraHtml(
             $titulo, $mensaje,
             ['Cliente' => $s['cliente_nombre'], 'Muestras' => textoEstilosMuestra($s), 'Total' => textoParesMuestra(totalParesSolicitudMuestra($s))] + $renglones,
-            urlBaseVisitas() . $enlaceRel, 'Ver mis muestras'
+            urlBaseVisitas() . $enlaceRel, $que === 'autorizada' ? 'Descargar PDF' : 'Ver mis muestras'
         ));
     }
 }

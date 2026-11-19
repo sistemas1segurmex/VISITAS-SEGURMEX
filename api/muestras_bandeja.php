@@ -19,11 +19,11 @@ require_once __DIR__ . '/../includes/muestras.php';
 requireAnyRole(['muestras', 'admin']);
 $db = getDB();
 
-// Sin la migración 20261120090000_muestras_ampliacion.sql la bandeja no carga: avisarlo claro.
+// Sin la migración 20261120090100_muestras_ampliacion.sql la bandeja no carga: avisarlo claro.
 try {
     $db->query('SELECT ampliacion FROM muestras_solicitudes LIMIT 1');
 } catch (Throwable $e) {
-    jsonResponse(['ok' => false, 'error' => 'Falta correr en la base de datos la migración 20261120090000_muestras_ampliacion.sql (autorización de más de 6 pares). Avisa a Sistemas.'], 503);
+    jsonResponse(['ok' => false, 'error' => 'Falta correr en la base de datos la migración 20261120090100_muestras_ampliacion.sql (autorización de más de 6 pares). Avisa a Sistemas.'], 503);
 }
 
 // Sin la migración 20261106120000_muestras_peticiones.sql la bandeja no carga: avisarlo claro.
