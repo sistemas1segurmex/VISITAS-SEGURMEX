@@ -36,6 +36,13 @@ if (!$s || ($u['rol'] === 'vendedor' && (int)$s['vendedor_id'] !== (int)$u['id']
     pdfMuestraNoDisponible(404, 'Solicitud no encontrada', 'La solicitud no existe o no es tuya.');
 }
 
+// El vendedor descarga el PDF hasta que la solicitud esté autorizada (ampliación de pares, 20-nov-2026).
+if ($u['rol'] === 'vendedor' && !pdfMuestraDisponible($s)) {
+    pdfMuestraNoDisponible(403, 'El PDF todavía no está disponible', $s['estado'] === 'por_autorizar'
+        ? 'Tu solicitud espera autorización del equipo de Segurmex. Cuando la autoricen te avisamos y podrás descargarlo.'
+        : 'Esta solicitud no fue autorizada.');
+}
+
 try {
     $pdf = pdfMuestra($s, historialSolicitudMuestra($db, $id), $u['rol'] !== 'vendedor');
 } catch (Throwable $e) {
